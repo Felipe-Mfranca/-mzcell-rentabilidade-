@@ -9,6 +9,7 @@ historico_rentabilidade.json
 alertas.json
 contas.json
 pkce_temp.json
+email_config.json
 __pycache__/
 *.pyc
 venv/

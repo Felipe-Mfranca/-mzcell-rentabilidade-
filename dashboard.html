@@ -224,6 +224,15 @@ input.modal-date:focus{border-color:var(--gold);}
 .empty{text-align:center;padding:60px 20px;color:var(--muted2);}
 .empty-icon{font-size:36px;margin-bottom:12px;opacity:.4;}
 .empty-text{font-size:14px;}
+.login-erro{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#ef4444;padding:8px 12px;border-radius:8px;font-size:12px;margin-bottom:12px;}
+.login-box{background:var(--bg2);border:1px solid var(--border2);border-radius:20px;padding:36px;width:400px;}
+.login-logo{margin-bottom:28px;}
+.login-field{margin-bottom:14px;}
+.login-field label{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);margin-bottom:6px;}
+.login-field input{width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:12px 14px;border-radius:10px;font-size:14px;font-family:var(--font);outline:none;transition:border-color .2s;}
+.login-field input:focus{border-color:var(--gold);}
+.login-btn{width:100%;background:var(--gold);color:var(--bg);font-weight:700;padding:14px;border:none;border-radius:10px;cursor:pointer;font-size:14px;font-family:var(--font);transition:all .2s;margin-top:6px;}
+.login-btn:hover{background:var(--gold2);transform:translateY(-1px);}
 
 /* ── VARIATION BADGES ── */
 .vb-up{color:var(--green);font-size:12px;font-weight:700;font-family:var(--mono);}
@@ -341,16 +350,71 @@ input.modal-date:focus{border-color:var(--gold);}
 </head>
 <body>
 
-<!-- LOGIN -->
-<div id="login-screen">
-  <div class="login-wrap">
-    <div class="login-badge">⬡ MZCell Platform</div>
-    <div class="login-title">Painel de<br/><span>Rentabilidade</span></div>
-    <div class="login-sub">Mercado Livre · Análise em tempo real</div>
-    <div class="field"><label>Usuário</label><input id="li" type="text" autocomplete="username" placeholder="seu login"/></div>
-    <div class="field"><label>Senha</label><input id="lp" type="password" autocomplete="current-password" placeholder="••••••••"/></div>
-    <button class="btn-login" onclick="fazerLogin()">Entrar →</button>
-    <div class="login-err" id="lerr"></div>
+<!-- TELA LOGIN -->
+<div id="tela-login" style="display:flex;align-items:center;justify-content:center;min-height:100vh;position:relative;z-index:10;">
+  <div class="login-box">
+    <div class="login-logo">
+      <span style="color:var(--gold);font-size:28px;font-weight:800">MZCell</span>
+      <span style="color:var(--muted2);font-size:13px;display:block;margin-top:4px">Rentabilidade · Mercado Livre</span>
+    </div>
+    <div id="login-erro" class="login-erro" style="display:none"></div>
+    <div class="login-field"><label>Usuário</label><input type="text" id="login-user" placeholder="seu login" autocomplete="username"/></div>
+    <div class="login-field"><label>Senha</label><input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password"/></div>
+    <button class="login-btn" onclick="fazerLogin()">Entrar →</button>
+    <div style="text-align:center;margin-top:12px">
+      <a href="#" onclick="mostrarRecuperarSenha();return false;" style="color:var(--muted2);font-size:12px;text-decoration:none">Esqueci minha senha</a>
+    </div>
+  </div>
+</div>
+
+<!-- TELA PRIMEIRO ACESSO -->
+<div id="tela-primeiro-acesso" style="display:none;align-items:center;justify-content:center;min-height:100vh;position:relative;z-index:10;">
+  <div class="login-box">
+    <div class="login-logo">
+      <span style="color:var(--gold);font-size:22px;font-weight:800">Bem-vindo!</span>
+      <span style="color:var(--muted2);font-size:12px;display:block;margin-top:4px">Configure seu acesso pessoal</span>
+    </div>
+    <div id="pa-step1">
+      <p style="color:var(--muted2);font-size:12px;margin-bottom:16px">Digite seu email pessoal para receber um código de verificação.</p>
+      <div class="login-field"><label>Email pessoal</label><input type="email" id="pa-email" placeholder="seu@email.com"/></div>
+      <div id="pa-erro1" class="login-erro" style="display:none"></div>
+      <button class="login-btn" onclick="enviarCodigoPrimeiroAcesso()">Enviar código →</button>
+    </div>
+    <div id="pa-step2" style="display:none">
+      <p style="color:var(--muted2);font-size:12px;margin-bottom:16px">Digite o código de 6 dígitos enviado para <strong id="pa-email-show"></strong></p>
+      <div class="login-field"><label>Código</label><input type="text" id="pa-codigo" placeholder="000000" maxlength="6" style="letter-spacing:6px;text-align:center;font-size:20px"/></div>
+      <div id="pa-erro2" class="login-erro" style="display:none"></div>
+      <button class="login-btn" onclick="verificarCodigoPrimeiroAcesso()">Verificar →</button>
+    </div>
+    <div id="pa-step3" style="display:none">
+      <p style="color:var(--muted2);font-size:12px;margin-bottom:16px">Defina sua nova senha de acesso.</p>
+      <div class="login-field"><label>Nova senha</label><input type="password" id="pa-nova-senha" placeholder="mínimo 6 caracteres"/></div>
+      <div class="login-field"><label>Confirmar senha</label><input type="password" id="pa-confirmar-senha" placeholder="repita a senha"/></div>
+      <div id="pa-erro3" class="login-erro" style="display:none"></div>
+      <button class="login-btn" onclick="finalizarPrimeiroAcesso()">Confirmar →</button>
+    </div>
+  </div>
+</div>
+
+<!-- TELA RECUPERAR SENHA -->
+<div id="tela-recuperar-senha" style="display:none;align-items:center;justify-content:center;min-height:100vh;position:relative;z-index:10;">
+  <div class="login-box">
+    <div class="login-logo">
+      <span style="color:var(--gold);font-size:22px;font-weight:800">Recuperar senha</span>
+    </div>
+    <div id="rec-step1">
+      <div class="login-field"><label>Email cadastrado</label><input type="email" id="rec-email" placeholder="seu@email.com"/></div>
+      <div id="rec-erro1" class="login-erro" style="display:none"></div>
+      <button class="login-btn" onclick="enviarCodigoRecuperacao()">Enviar código →</button>
+      <div style="text-align:center;margin-top:12px"><a href="#" onclick="mostrarLogin();return false;" style="color:var(--muted2);font-size:12px">← Voltar</a></div>
+    </div>
+    <div id="rec-step2" style="display:none">
+      <div class="login-field"><label>Código</label><input type="text" id="rec-codigo" placeholder="000000" maxlength="6" style="letter-spacing:6px;text-align:center;font-size:20px"/></div>
+      <div class="login-field"><label>Nova senha</label><input type="password" id="rec-nova-senha" placeholder="mínimo 6 caracteres"/></div>
+      <div class="login-field"><label>Confirmar senha</label><input type="password" id="rec-confirmar-senha" placeholder="repita a senha"/></div>
+      <div id="rec-erro2" class="login-erro" style="display:none"></div>
+      <button class="login-btn" onclick="redefinirSenha()">Redefinir senha →</button>
+    </div>
   </div>
 </div>
 
@@ -518,31 +582,128 @@ function toast(msg, tipo='success') {
 }
 
 // ── LOGIN ──────────────────────────────────────────────────────────────────
-document.getElementById('lp').addEventListener('keydown', e => { if(e.key==='Enter') fazerLogin(); });
+let _loginAtual = null;
+
+document.getElementById('login-pass').addEventListener('keydown', e => { if(e.key==='Enter') fazerLogin(); });
 
 async function fazerLogin() {
-  const login = document.getElementById('li').value.trim();
-  const senha = document.getElementById('lp').value.trim();
+  const login = document.getElementById('login-user').value.trim();
+  const senha = document.getElementById('login-pass').value;
+  if (!login || !senha) { mostrarErroLogin('Preencha todos os campos'); return; }
   try {
-    const res = await fetch(`${API}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({login,senha})});
-    if(!res.ok){document.getElementById('lerr').textContent='Usuário ou senha incorretos';return;}
+    const res  = await fetch(`${API}/auth/login`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({login,senha})});
     const data = await res.json();
-    user = data.usuario;
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
+    if (!res.ok) { mostrarErroLogin(data.detail || 'Login inválido'); return; }
+    _loginAtual = data;
+    if (data.primeiro_acesso) {
+      document.getElementById('tela-login').style.display = 'none';
+      document.getElementById('tela-primeiro-acesso').style.display = 'flex';
+    } else {
+      user = data;
+      document.getElementById('tela-login').style.display = 'none';
+      document.getElementById('app').style.display = 'flex';
+      document.getElementById('uname').textContent = user.nome;
+      document.getElementById('urole').textContent = user.role;
+      initApp();
+    }
+  } catch(e) { mostrarErroLogin('Erro de conexão com o servidor'); }
+}
+
+function mostrarErroLogin(msg) {
+  const el = document.getElementById('login-erro');
+  if (el) { el.textContent = msg; el.style.display = 'block'; }
+}
+
+function mostrarRecuperarSenha() {
+  document.getElementById('tela-login').style.display = 'none';
+  document.getElementById('tela-recuperar-senha').style.display = 'flex';
+}
+
+function mostrarLogin() {
+  document.getElementById('tela-recuperar-senha').style.display = 'none';
+  document.getElementById('tela-primeiro-acesso').style.display = 'none';
+  document.getElementById('tela-login').style.display = 'flex';
+}
+
+async function enviarCodigoPrimeiroAcesso() {
+  const email  = document.getElementById('pa-email').value.trim();
+  const erroEl = document.getElementById('pa-erro1');
+  if (!email || !email.includes('@')) { erroEl.textContent='Email inválido'; erroEl.style.display='block'; return; }
+  try {
+    const res  = await fetch(`${API}/auth/enviar-codigo`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,login:_loginAtual.login})});
+    const data = await res.json();
+    if (!res.ok) { erroEl.textContent=data.detail; erroEl.style.display='block'; return; }
+    document.getElementById('pa-email-show').textContent = email;
+    document.getElementById('pa-step1').style.display = 'none';
+    document.getElementById('pa-step2').style.display = 'block';
+  } catch(e) { erroEl.textContent='Erro de conexão'; erroEl.style.display='block'; }
+}
+
+async function verificarCodigoPrimeiroAcesso() {
+  const email  = document.getElementById('pa-email').value.trim();
+  const codigo = document.getElementById('pa-codigo').value.trim();
+  const erroEl = document.getElementById('pa-erro2');
+  try {
+    const res  = await fetch(`${API}/auth/verificar-codigo`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,codigo})});
+    const data = await res.json();
+    if (!res.ok) { erroEl.textContent=data.detail; erroEl.style.display='block'; return; }
+    document.getElementById('pa-step2').style.display = 'none';
+    document.getElementById('pa-step3').style.display = 'block';
+  } catch(e) { erroEl.textContent='Erro de conexão'; erroEl.style.display='block'; }
+}
+
+async function finalizarPrimeiroAcesso() {
+  const email    = document.getElementById('pa-email').value.trim();
+  const senha    = document.getElementById('pa-nova-senha').value;
+  const confirma = document.getElementById('pa-confirmar-senha').value;
+  const erroEl   = document.getElementById('pa-erro3');
+  if (senha !== confirma) { erroEl.textContent='Senhas não conferem'; erroEl.style.display='block'; return; }
+  if (senha.length < 6)   { erroEl.textContent='Mínimo 6 caracteres'; erroEl.style.display='block'; return; }
+  try {
+    const res  = await fetch(`${API}/auth/atualizar-senha`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({login:_loginAtual.login,email,nova_senha:senha})});
+    const data = await res.json();
+    if (!res.ok) { erroEl.textContent=data.detail; erroEl.style.display='block'; return; }
+    user = {..._loginAtual, email, primeiro_acesso: false};
+    document.getElementById('tela-primeiro-acesso').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
     document.getElementById('uname').textContent = user.nome;
     document.getElementById('urole').textContent = user.role;
+    toast('Acesso configurado com sucesso!');
     initApp();
-    if (data.syncing && data.syncing.length > 0) iniciarPollSync(data.syncing);
-  } catch(e) {
-    document.getElementById('lerr').textContent = 'Erro ao conectar com o servidor';
-  }
+  } catch(e) { erroEl.textContent='Erro de conexão'; erroEl.style.display='block'; }
+}
+
+async function enviarCodigoRecuperacao() {
+  const email  = document.getElementById('rec-email').value.trim();
+  const erroEl = document.getElementById('rec-erro1');
+  try {
+    await fetch(`${API}/auth/recuperar-senha`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    document.getElementById('rec-step1').style.display = 'none';
+    document.getElementById('rec-step2').style.display = 'block';
+  } catch(e) { erroEl.textContent='Erro de conexão'; erroEl.style.display='block'; }
+}
+
+async function redefinirSenha() {
+  const email    = document.getElementById('rec-email').value.trim();
+  const codigo   = document.getElementById('rec-codigo').value.trim();
+  const senha    = document.getElementById('rec-nova-senha').value;
+  const confirma = document.getElementById('rec-confirmar-senha').value;
+  const erroEl   = document.getElementById('rec-erro2');
+  if (senha !== confirma) { erroEl.textContent='Senhas não conferem'; erroEl.style.display='block'; return; }
+  try {
+    const res  = await fetch(`${API}/auth/redefinir-senha`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,codigo,nova_senha:senha})});
+    const data = await res.json();
+    if (!res.ok) { erroEl.textContent=data.detail; erroEl.style.display='block'; return; }
+    mostrarLogin();
+    toast('Senha redefinida! Faça login com a nova senha.');
+  } catch(e) { erroEl.textContent='Erro de conexão'; erroEl.style.display='block'; }
 }
 
 function logout() {
   user = null;
   document.getElementById('app').style.display = 'none';
-  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('tela-login').style.display = 'flex';
+  document.getElementById('login-pass').value = '';
 }
 
 // ── TABS ──────────────────────────────────────────────────────────────────

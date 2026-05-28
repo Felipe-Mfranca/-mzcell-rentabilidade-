@@ -18,6 +18,7 @@ from pydantic import BaseModel
 import ml_api
 import parser_rentabilidade as parser
 import sync_service
+import auth_service
 from refresh_ml_token import loop_refresh, loop_sync_diario
 
 # ─── PATHS ───────────────────────────────────────────────────────────────────
@@ -101,25 +102,81 @@ async def serve_dashboard():
 
 # ─── AUTH ─────────────────────────────────────────────────────────────────────
 
-class LoginPayload(BaseModel):
-    login: str
-    senha: str
-
 @app.post("/auth/login")
-async def login(payload: LoginPayload):
-    user = verificar_usuario(payload.login, payload.senha)
-    if not user:
-        raise HTTPException(status_code=401, detail="Credenciais inválidas")
-    log_atividade(f"Login: {user['nome']}")
-    config = load_json(CONFIG_PATH)
-    syncing = []
-    for conta, dados in config.get("contas", {}).items():
-        if not dados.get("ativo") or not dados.get("access_token"):
-            continue
-        if conta not in _syncs_em_andamento:
-            asyncio.create_task(_sync_background(conta))
-        syncing.append(conta)
-    return {"success": True, "usuario": user, "syncing": syncing}
+async def login(payload: dict):
+    login_val = payload.get("login", "").strip().lower()
+    senha     = payload.get("senha", "")
+    u = auth_service.verificar_login(login_val, senha)
+    if not u:
+        raise HTTPException(status_code=401, detail="Login ou senha incorretos")
+    log_atividade(f"Login: {u['nome']}")
+    return {
+        "success":         True,
+        "login":           u["login"],
+        "nome":            u["nome"],
+        "role":            u["role"],
+        "contas":          u.get("contas", []),
+        "primeiro_acesso": u.get("primeiro_acesso", False),
+        "email":           u.get("email", ""),
+    }
+
+@app.post("/auth/enviar-codigo")
+async def enviar_codigo(payload: dict):
+    email = payload.get("email", "").strip()
+    login_val = payload.get("login", "").strip()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Email inválido")
+    usuarios = auth_service.load_usuarios()
+    for u in usuarios:
+        if u.get("email") == email and u["login"] != login_val:
+            raise HTTPException(status_code=400, detail="Este email já está em uso")
+    nome = next((u["nome"] for u in usuarios if u["login"] == login_val), login_val)
+    auth_service.enviar_codigo(email, nome)
+    return {"success": True, "msg": f"Código enviado para {email}"}
+
+@app.post("/auth/verificar-codigo")
+async def verificar_codigo_route(payload: dict):
+    email  = payload.get("email", "").strip()
+    codigo = payload.get("codigo", "").strip()
+    if not auth_service.verificar_codigo(email, codigo):
+        raise HTTPException(status_code=400, detail="Código inválido ou expirado")
+    return {"success": True}
+
+@app.post("/auth/atualizar-senha")
+async def atualizar_senha(payload: dict):
+    login_val  = payload.get("login", "").strip()
+    email      = payload.get("email", "").strip()
+    nova_senha = payload.get("nova_senha", "")
+    if len(nova_senha) < 6:
+        raise HTTPException(status_code=400, detail="Senha deve ter pelo menos 6 caracteres")
+    auth_service.atualizar_email_senha(login_val, email, nova_senha)
+    return {"success": True, "msg": "Acesso configurado com sucesso!"}
+
+@app.post("/auth/recuperar-senha")
+async def recuperar_senha(payload: dict):
+    email    = payload.get("email", "").strip()
+    usuarios = auth_service.load_usuarios()
+    u = next((u for u in usuarios if u.get("email") == email), None)
+    if not u:
+        return {"success": True, "msg": "Se o email estiver cadastrado, você receberá um código"}
+    auth_service.enviar_codigo(email, u["nome"])
+    return {"success": True, "msg": "Código enviado!"}
+
+@app.post("/auth/redefinir-senha")
+async def redefinir_senha(payload: dict):
+    email      = payload.get("email", "").strip()
+    codigo     = payload.get("codigo", "").strip()
+    nova_senha = payload.get("nova_senha", "")
+    if not auth_service.verificar_codigo(email, codigo):
+        raise HTTPException(status_code=400, detail="Código inválido ou expirado")
+    if len(nova_senha) < 6:
+        raise HTTPException(status_code=400, detail="Senha deve ter pelo menos 6 caracteres")
+    usuarios = auth_service.load_usuarios()
+    u = next((u for u in usuarios if u.get("email") == email), None)
+    if not u:
+        raise HTTPException(status_code=404, detail="Email não encontrado")
+    auth_service.atualizar_email_senha(u["login"], email, nova_senha)
+    return {"success": True}
 
 
 # ─── CONFIG / CONTAS ─────────────────────────────────────────────────────────
