@@ -1,0 +1,1520 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MZCell — Rentabilidade</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:       #0a0a0f;
+  --bg1:      #0a0a0f;
+  --bg2:      #111118;
+  --bg3:      #1a1a24;
+  --bg4:      #22222e;
+  --border:   rgba(255,255,255,0.07);
+  --border2:  rgba(255,255,255,0.12);
+  --text:     #f0f0f5;
+  --muted:    #6b7280;
+  --muted2:   #9ca3af;
+  --gold:     #f6c90e;
+  --gold2:    #d4a50a;
+  --green:    #10b981;
+  --green2:   #059669;
+  --red:      #ef4444;
+  --red2:     #dc2626;
+  --blue:     #3b82f6;
+  --purple:   #8b5cf6;
+  --orange:   #f97316;
+  --font:     'Syne', sans-serif;
+  --mono:     'JetBrains Mono', monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+
+/* ── NOISE OVERLAY ── */
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");pointer-events:none;z-index:0;opacity:.4;}
+
+/* ── LOGIN ── */
+#login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;position:relative;z-index:10;}
+.login-wrap{width:400px;}
+.login-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(246,201,14,.08);border:1px solid rgba(246,201,14,.2);border-radius:20px;padding:6px 14px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);margin-bottom:32px;}
+.login-title{font-size:42px;font-weight:800;line-height:1;margin-bottom:8px;letter-spacing:-.02em;}
+.login-title span{color:var(--gold);}
+.login-sub{color:var(--muted2);font-size:14px;margin-bottom:40px;}
+.field{margin-bottom:16px;}
+.field label{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px;}
+.field input{width:100%;background:var(--bg2);border:1px solid var(--border2);color:var(--text);padding:14px 16px;border-radius:10px;font-size:14px;font-family:var(--font);outline:none;transition:border-color .2s;}
+.field input:focus{border-color:var(--gold);}
+.btn-login{width:100%;background:var(--gold);color:var(--bg);font-weight:700;padding:15px;border:none;border-radius:10px;cursor:pointer;font-size:15px;font-family:var(--font);letter-spacing:.02em;transition:all .2s;margin-top:8px;}
+.btn-login:hover{background:var(--gold2);transform:translateY(-1px);box-shadow:0 8px 24px rgba(246,201,14,.25);}
+.login-err{color:var(--red);font-size:13px;margin-top:10px;text-align:center;}
+
+/* ── LAYOUT ── */
+#app{display:none;position:relative;z-index:1;}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:100;}
+.sidebar-logo{padding:24px 20px 20px;border-bottom:1px solid var(--border);}
+.logo-mark{font-size:22px;font-weight:800;letter-spacing:-.03em;color:var(--text);}
+.logo-mark span{color:var(--gold);}
+.logo-sub{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:2px;}
+.sidebar-user{padding:16px 20px;border-bottom:1px solid var(--border);}
+.user-name{font-size:13px;font-weight:600;}
+.user-role{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-top:2px;}
+.sidebar-nav{padding:16px 12px;flex:1;}
+.nav-section{font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);padding:0 8px;margin-bottom:6px;margin-top:16px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 10px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;color:var(--muted2);transition:all .15s;margin-bottom:2px;border:none;background:none;width:100%;text-align:left;font-family:var(--font);}
+.nav-item:hover{background:var(--bg3);color:var(--text);}
+.nav-item.active{background:rgba(246,201,14,.1);color:var(--gold);border:1px solid rgba(246,201,14,.15);}
+.nav-item .icon{font-size:15px;width:18px;text-align:center;}
+.sidebar-bottom{padding:16px;border-top:1px solid var(--border);}
+.btn-logout{width:100%;background:none;border:1px solid var(--border2);color:var(--muted2);padding:9px;border-radius:8px;cursor:pointer;font-size:12px;font-family:var(--font);transition:all .2s;}
+.btn-logout:hover{border-color:var(--red);color:var(--red);}
+
+/* ── MAIN ── */
+.main{margin-left:220px;min-height:100vh;}
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 28px;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;}
+.topbar-title{font-size:15px;font-weight:700;letter-spacing:-.01em;}
+.topbar-actions{display:flex;align-items:center;gap:10px;}
+.content{padding:24px 28px;}
+
+/* ── TABS ── */
+.tab{display:none;}
+.tab.active{display:block;}
+
+/* ── PERIODO BAR ── */
+.periodo-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+.periodo-label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);}
+input[type=date]{background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:8px 12px;border-radius:8px;font-size:13px;font-family:var(--mono);outline:none;cursor:pointer;}
+input[type=date]:focus{border-color:var(--gold);}
+.presets{display:flex;gap:4px;}
+.preset{background:var(--bg3);border:1px solid var(--border2);color:var(--muted2);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-family:var(--font);font-weight:600;transition:all .15s;}
+.preset:hover,.preset.active{background:rgba(246,201,14,.1);border-color:rgba(246,201,14,.3);color:var(--gold);}
+.ml-auto{margin-left:auto;}
+.btn-sync{display:flex;align-items:center;gap:7px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:9px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-family:var(--font);font-weight:600;transition:all .2s;}
+.btn-sync:hover{border-color:var(--gold);color:var(--gold);}
+.btn-sync:disabled{opacity:.4;cursor:not-allowed;}
+.btn-gold{background:var(--gold);color:var(--bg);font-weight:700;border:none;padding:9px 18px;border-radius:8px;cursor:pointer;font-size:13px;font-family:var(--font);transition:all .2s;}
+.btn-gold:hover{background:var(--gold2);transform:translateY(-1px);}
+.btn-purple{background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.3);color:var(--purple);font-weight:600;padding:9px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-family:var(--font);transition:all .2s;}
+.btn-purple:hover{background:rgba(167,139,250,.25);}
+
+/* ── KPIs ── */
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px;}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px 20px;position:relative;overflow:hidden;transition:border-color .2s;}
+.kpi:hover{border-color:var(--border2);}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--kpi-color,var(--border));}
+.kpi-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted2);margin-bottom:10px;}
+.kpi-val{font-size:22px;font-weight:800;font-family:var(--mono);letter-spacing:-.02em;color:var(--kpi-color,var(--text));}
+.kpi-footer{display:flex;align-items:center;justify-content:space-between;margin-top:6px;gap:6px;}
+.kpi-sub{font-size:11px;color:var(--muted2);font-family:var(--mono);}
+.kpi-var{font-size:12px;font-weight:700;font-family:var(--mono);white-space:nowrap;}
+
+/* ── TABLE ── */
+.table-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;overflow:hidden;}
+.table-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;}
+.table-title{font-size:14px;font-weight:700;letter-spacing:-.01em;flex:1;}
+.search-box{position:relative;}
+.search-box input{background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:8px 12px 8px 32px;border-radius:8px;font-size:13px;font-family:var(--font);outline:none;width:220px;transition:border-color .2s;}
+.search-box input:focus{border-color:var(--gold);}
+.search-box::before{content:'⌕';position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted2);font-size:16px;pointer-events:none;}
+.tbl{width:100%;border-collapse:collapse;}
+.tbl th{padding:10px 16px;text-align:right;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);cursor:pointer;user-select:none;white-space:nowrap;font-weight:500;}
+.tbl th:first-child{text-align:left;}
+.tbl th:hover{color:var(--text);}
+.tbl tbody tr{border-bottom:1px solid var(--border);transition:background .1s;cursor:pointer;}
+.tbl tbody tr:last-child{border-bottom:none;}
+.tbl tbody tr:hover{background:rgba(255,255,255,.02);}
+.tbl td{padding:14px 16px;font-size:13px;text-align:right;}
+.tbl td:first-child{text-align:left;}
+.td-prod{font-weight:600;font-size:13px;max-width:280px;line-height:1.3;}
+.td-sku{font-size:10px;color:var(--muted2);font-family:var(--mono);margin-top:3px;}
+.td-mlb{font-size:10px;color:var(--muted);font-family:var(--mono);}
+.mono{font-family:var(--mono);}
+.pos-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(77,166,255,.1);border:1px solid rgba(77,166,255,.2);color:var(--blue);border-radius:6px;padding:3px 8px;font-size:11px;font-family:var(--mono);font-weight:600;white-space:nowrap;}
+.pos-badge.top{background:rgba(0,217,126,.1);border-color:rgba(0,217,126,.2);color:var(--green);}
+.pos-badge.mid{background:rgba(246,201,14,.1);border-color:rgba(246,201,14,.2);color:var(--gold);}
+.pos-badge.low{background:rgba(255,77,106,.1);border-color:rgba(255,77,106,.2);color:var(--red);}
+.pos-badge.none{background:var(--bg3);border-color:var(--border2);color:var(--muted2);}
+.tacos-bar{display:flex;align-items:center;gap:8px;}
+.tacos-track{flex:1;height:3px;background:var(--border2);border-radius:2px;min-width:50px;}
+.tacos-fill{height:100%;border-radius:2px;transition:width .4s;}
+.chip-pos{color:var(--green);}
+.chip-neg{color:var(--red);}
+.chip-warn{color:var(--gold);}
+.chip-zero{color:var(--muted2);}
+
+/* ── MODAL ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+.overlay.open{display:flex;}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:20px;width:940px;max-height:90vh;overflow-y:auto;padding:32px;box-shadow:0 25px 60px rgba(0,0,0,0.6);}
+.modal-close{float:right;background:var(--bg3);border:1px solid var(--border2);color:var(--muted2);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .2s;}
+.modal-close:hover{border-color:var(--red);color:var(--red);}
+.modal-header{margin-bottom:24px;}
+.btn-sync-produto{background:var(--bg3);border:1.5px solid var(--gold);color:var(--gold);height:34px;padding:0 16px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:6px;transition:all .2s;white-space:nowrap;}
+.btn-sync-produto:hover:not(:disabled){background:var(--gold);color:var(--bg1);}
+.btn-sync-produto:disabled{opacity:.5;cursor:not-allowed;border-color:var(--border2);color:var(--muted2);}
+.btn-sync-produto .spin{display:inline-block;animation:spin .8s linear infinite;}
+.modal-period-bar{display:flex;align-items:center;gap:8px;padding:10px 0 16px;border-bottom:1px solid var(--border);margin-bottom:20px;flex-wrap:wrap;}
+.modal-preset{background:var(--bg3);border:1px solid var(--border2);color:var(--muted2);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-family:var(--font);transition:all .15s;white-space:nowrap;}
+.modal-preset.active{background:rgba(246,201,14,.1);border-color:rgba(246,201,14,.4);color:var(--gold);font-weight:600;}
+.modal-preset:hover:not(.active){border-color:var(--border2);color:var(--text);}
+input.modal-date{background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:6px 10px;border-radius:6px;font-size:12px;font-family:var(--mono);outline:none;}
+input.modal-date:focus{border-color:var(--gold);}
+.modal-date-sep{color:var(--muted);font-size:12px;padding:0 2px;}
+.modal-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:24px;}
+.modal-header-info{flex:1;min-width:0;}
+.modal-header-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.modal-prod{font-size:17px;font-weight:700;line-height:1.3;margin-bottom:6px;}
+.modal-meta{display:flex;gap:12px;align-items:center;}
+.modal-mlb{font-size:12px;color:var(--muted2);font-family:var(--mono);}
+.modal-sku{font-size:12px;color:var(--muted2);font-family:var(--mono);}
+.section-title{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.decomp{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px;}
+.decomp-row{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border);}
+.decomp-row.total{background:rgba(0,217,126,.06);border-color:rgba(0,217,126,.2);grid-column:span 2;}
+.decomp-lbl{font-size:12px;color:var(--muted2);}
+.decomp-val{font-size:13px;font-family:var(--mono);font-weight:600;}
+.metrics-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px;}
+.metric-box{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px;}
+.metric-lbl{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:6px;}
+.metric-val{font-size:18px;font-weight:700;font-family:var(--mono);}
+.custos-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
+.custos-field label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);display:block;margin-bottom:6px;}
+.custos-field input{width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:10px 12px;border-radius:8px;font-size:13px;font-family:var(--mono);outline:none;transition:border-color .2s;}
+.custos-field input:focus{border-color:var(--gold);}
+.pos-section{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;}
+.pos-input-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
+.pos-input-row input{background:var(--bg2);border:1px solid var(--border2);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:var(--mono);outline:none;flex:1;}
+.pos-input-row input:focus{border-color:var(--blue);}
+.pos-input-row span{font-size:12px;color:var(--muted2);}
+.pos-history{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.pos-entry{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:11px;font-family:var(--mono);}
+.pos-date{color:var(--muted2);}
+.btn-save{background:var(--green2);color:#fff;font-weight:700;border:none;padding:11px 22px;border-radius:8px;cursor:pointer;font-size:13px;font-family:var(--font);transition:all .2s;}
+.btn-save:hover{background:var(--green);transform:translateY(-1px);}
+.btn-sm{background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-family:var(--font);transition:all .2s;}
+.btn-sm:hover{border-color:var(--gold);color:var(--gold);}
+
+/* ── CONFIG ── */
+.config-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+.config-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:24px;}
+.config-card-title{font-size:15px;font-weight:700;margin-bottom:6px;}
+.config-card-sub{font-size:12px;color:var(--muted2);margin-bottom:20px;}
+.token-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:.04em;margin-bottom:16px;}
+.token-pill.ok{background:rgba(0,217,126,.1);border:1px solid rgba(0,217,126,.2);color:var(--green);}
+.token-pill.fail{background:rgba(255,77,106,.1);border:1px solid rgba(255,77,106,.2);color:var(--red);}
+.token-dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+.cfield{margin-bottom:14px;}
+.cfield label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);display:block;margin-bottom:6px;}
+.cfield input{width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:10px 12px;border-radius:8px;font-size:13px;font-family:var(--mono);outline:none;transition:border-color .2s;}
+.cfield input:focus{border-color:var(--gold);}
+.btn-auth{background:var(--blue);color:#fff;font-weight:700;border:none;padding:11px 20px;border-radius:8px;cursor:pointer;font-size:13px;font-family:var(--font);transition:all .2s;}
+.btn-auth:hover{opacity:.85;}
+.auth-info{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:12px;font-size:12px;font-family:var(--mono);color:var(--blue);word-break:break-all;margin:10px 0;display:none;}
+.auth-info a{color:inherit;}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:24px;right:24px;z-index:999;background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:14px 20px;font-size:13px;display:none;align-items:center;gap:10px;box-shadow:0 20px 60px rgba(0,0,0,.5);max-width:360px;}
+#toast.show{display:flex;animation:slideIn .3s ease;}
+#toast.success{border-color:var(--green);}
+#toast.error{border-color:var(--red);}
+@keyframes slideIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.loader{display:inline-block;width:14px;height:14px;border:2px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin .6s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:60px 20px;color:var(--muted2);}
+.empty-icon{font-size:36px;margin-bottom:12px;opacity:.4;}
+.empty-text{font-size:14px;}
+
+/* ── VARIATION BADGES ── */
+.vb-up{color:var(--green);font-size:12px;font-weight:700;font-family:var(--mono);}
+.vb-dn{color:var(--red);font-size:12px;font-weight:700;font-family:var(--mono);}
+.kpi-badge-var{display:inline-flex;align-items:center;font-size:10px;font-weight:700;margin-left:6px;vertical-align:middle;position:relative;cursor:default;}
+.kpi-badge-var::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--bg1);border:1px solid var(--border2);color:var(--text);font-size:10px;padding:4px 8px;border-radius:6px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;z-index:999;font-weight:400;text-rendering:auto;-webkit-font-smoothing:auto;}
+.kpi-badge-var:hover::after{opacity:1;}
+.kpi-badge-up{color:var(--green);}
+.kpi-badge-dn{color:var(--red);}
+
+/* ── MARGIN FILTER CHIPS ── */
+.marg-chips{display:flex;gap:4px;flex-wrap:wrap;}
+.marg-chip{background:var(--bg3);border:1px solid var(--border2);color:var(--muted2);padding:5px 10px;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600;transition:all .15s;white-space:nowrap;}
+.marg-chip.active{background:rgba(246,201,14,.1);border-color:rgba(246,201,14,.3);color:var(--gold);}
+.marg-chip.neg-chip.active{background:rgba(255,77,106,.1);border-color:rgba(255,77,106,.3);color:var(--red);}
+.marg-chip.low-chip.active{background:rgba(251,146,60,.1);border-color:rgba(251,146,60,.3);color:var(--orange);}
+.marg-chip.med-chip.active{background:rgba(246,201,14,.1);border-color:rgba(246,201,14,.3);color:var(--gold);}
+.marg-chip.ok-chip.active{background:rgba(0,217,126,.1);border-color:rgba(0,217,126,.3);color:var(--green);}
+
+/* ── NEGATIVE MARGIN ROW ── */
+.row-neg{background:rgba(255,77,106,.04) !important;}
+.row-neg:hover{background:rgba(255,77,106,.07) !important;}
+
+/* ── CALC LINES (decomp) ── */
+.calc-line{display:grid;grid-template-columns:16px 1fr auto;align-items:baseline;gap:8px;padding:7px 0;border-bottom:1px dashed var(--border);font-size:12px;}
+.calc-line:last-child{border-bottom:none;}
+.calc-op{color:var(--muted);font-family:var(--mono);}
+.calc-lab{color:var(--muted2);}
+.calc-pct{color:var(--muted);font-size:10px;margin-left:4px;}
+.calc-val{font-family:var(--mono);font-size:12px;text-align:right;white-space:nowrap;}
+.calc-val.pos{color:var(--green);}
+.calc-val.neg{color:var(--red);}
+.calc-total{border-top:1px solid var(--border2)!important;border-bottom:none!important;padding-top:10px!important;}
+.calc-total .calc-lab{font-weight:700;color:var(--text);}
+
+/* ── COST BARS ── */
+.cbar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+.cbar-lbl{font-size:10px;color:var(--muted2);width:72px;flex-shrink:0;letter-spacing:.04em;}
+.cbar-track{flex:1;height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;}
+.cbar-fill{height:100%;border-radius:3px;transition:width .5s;}
+.cbar-pct{font-family:var(--mono);font-size:11px;color:var(--text);width:38px;text-align:right;flex-shrink:0;}
+
+/* ── WEEK TABLE ── */
+.week-tbl{width:100%;border-collapse:collapse;font-size:12px;}
+.week-tbl th{padding:6px 10px;text-align:right;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);}
+.week-tbl th:first-child{text-align:left;}
+.week-tbl td{padding:8px 10px;text-align:right;font-family:var(--mono);border-bottom:1px dashed var(--border);}
+.week-tbl td:first-child{text-align:left;font-family:var(--font);color:var(--muted2);font-size:11px;}
+.week-tbl tr:last-child td{border-bottom:none;color:var(--text);}
+
+/* ── ADS DETAIL GRID ── */
+.ads-detail-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:20px;}
+.ads-box{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;}
+.ads-box-lbl{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:5px;}
+.ads-box-val{font-size:16px;font-weight:700;font-family:var(--mono);}
+.ads-box-sub{font-size:10px;color:var(--muted2);margin-top:3px;font-family:var(--mono);}
+
+/* ── ML PAGES — Desempenho + ADS Dashboard ── */
+.ml-section{border:1px solid var(--border);border-radius:16px;margin-bottom:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.2);}
+.ml-section-header{background:var(--bg3);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
+.ml-section-title{font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--text);}
+.ml-section-badge{font-size:10px;color:var(--muted2);font-family:var(--mono);}
+.ml-metrics-grid{display:grid;gap:1px;background:var(--border);padding:0;}
+.ml-metrics-row{display:grid;gap:1px;background:var(--border);}
+.ml-metrics-row.cols-4{grid-template-columns:repeat(4,1fr);}
+.ml-metrics-row.cols-3{grid-template-columns:repeat(3,1fr);}
+.ml-metrics-row.cols-5{grid-template-columns:repeat(5,1fr);}
+.ml-metric{background:var(--bg3);padding:16px;border-radius:12px;border:1px solid var(--border);transition:border-color .2s, box-shadow .2s;}
+.ml-metric:hover{border-color:var(--border2);box-shadow:0 4px 20px rgba(0,0,0,0.2);}
+.ml-metric-lbl{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+.ml-metric-val{font-size:22px;font-weight:700;font-family:var(--mono);line-height:1.1;letter-spacing:-.02em;}
+.ml-metric-sub{font-size:10px;color:var(--muted2);margin-top:4px;font-family:var(--mono);}
+.ml-metric-nd{font-size:13px;color:var(--muted);font-family:var(--mono);}
+.ml-divider{height:1px;background:var(--border);margin:0;}
+.ml-ads-kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);}
+.ml-ads-kpi{background:var(--bg3);padding:16px;border-radius:12px;border:1px solid var(--border);transition:border-color .2s;}
+.ml-ads-kpi-lbl{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+.ml-ads-kpi-val{font-size:20px;font-weight:700;font-family:var(--mono);letter-spacing:-.02em;}
+.ml-ads-kpi-sub{font-size:10px;color:var(--muted2);margin-top:3px;font-family:var(--mono);}
+
+/* ── SIMULATOR ── */
+.sim-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+.sim-field label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);display:block;margin-bottom:5px;}
+.sim-field input{width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;font-family:var(--mono);outline:none;transition:border-color .2s;}
+.sim-field input:focus{border-color:var(--gold);}
+.sim-result{margin-top:12px;background:var(--bg3);border-radius:10px;border:1px solid var(--border);}
+.sim-out{padding:14px 16px;}
+.sim-out-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px;}
+.sim-out-row:not(:last-child){border-bottom:1px dashed var(--border);}
+.sim-out-row span:first-child{color:var(--muted2);}
+
+/* ── ABAS DO MODAL ── */
+.modal-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:24px;}
+.modal-tab{padding:10px 20px;font-size:12px;font-weight:600;color:var(--muted2);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;background:none;border-top:none;border-left:none;border-right:none;font-family:var(--font);}
+.modal-tab:hover{color:var(--text);}
+.modal-tab.active{color:var(--gold);border-bottom:2px solid var(--gold);font-weight:600;}
+.modal-tab-content{display:none;}
+.modal-tab-content.active{display:block;}
+
+/* ── ANOTAÇÕES ── */
+.anotacoes-section{margin-top:24px;padding-top:20px;border-top:1px solid var(--border);}
+.anotacoes-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.anotacoes-title{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-weight:600;}
+.anotacoes-periodo{font-size:10px;color:var(--muted2);font-family:var(--mono);}
+.anotacao-item{padding:10px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;margin-bottom:8px;position:relative;}
+.anotacao-texto{font-size:12px;color:var(--text);line-height:1.5;white-space:pre-wrap;}
+.anotacao-meta{font-size:10px;color:var(--muted);margin-top:6px;}
+.anotacao-del{position:absolute;top:8px;right:8px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 6px;border-radius:4px;}
+.anotacao-del:hover{color:var(--red);background:rgba(255,77,106,.1);}
+.anotacao-input{width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:10px 12px;border-radius:8px;font-size:12px;font-family:var(--font);resize:vertical;min-height:72px;outline:none;transition:border-color .2s;box-sizing:border-box;margin-top:8px;}
+.anotacao-input:focus{border-color:var(--gold);}
+.btn-anotacao{margin-top:8px;background:var(--bg3);border:1px solid var(--gold);color:var(--gold);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:var(--font);transition:all .2s;}
+.btn-anotacao:hover{background:var(--gold);color:var(--bg);}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-wrap">
+    <div class="login-badge">⬡ MZCell Platform</div>
+    <div class="login-title">Painel de<br/><span>Rentabilidade</span></div>
+    <div class="login-sub">Mercado Livre · Análise em tempo real</div>
+    <div class="field"><label>Usuário</label><input id="li" type="text" autocomplete="username" placeholder="seu login"/></div>
+    <div class="field"><label>Senha</label><input id="lp" type="password" autocomplete="current-password" placeholder="••••••••"/></div>
+    <button class="btn-login" onclick="fazerLogin()">Entrar →</button>
+    <div class="login-err" id="lerr"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark">MZ<span>Cell</span></div>
+      <div class="logo-sub">Rentabilidade ML</div>
+    </div>
+    <div class="sidebar-user">
+      <div class="user-name" id="uname">—</div>
+      <div class="user-role" id="urole">—</div>
+    </div>
+    <div class="sidebar-nav">
+      <div class="nav-section">Contas</div>
+      <button class="nav-item active" onclick="switchTab('meli01',this)"><span class="icon">◈</span> Meli01</button>
+      <button class="nav-item" onclick="switchTab('meli02',this)"><span class="icon">◈</span> Meli02</button>
+      <button class="nav-item" onclick="switchTab('meli03',this)"><span class="icon">◈</span> Meli03</button>
+      <div class="nav-section">Sistema</div>
+      <button class="nav-item" onclick="switchTab('config',this)"><span class="icon">⚙</span> Configurações</button>
+    </div>
+    <div class="sidebar-bottom">
+      <button class="btn-logout" onclick="logout()">Sair da conta</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-title" id="topbar-title">Meli01 — Rentabilidade</div>
+      <div class="topbar-actions">
+        <div style="font-size:11px;color:var(--muted2);font-family:var(--mono)" id="sync-time"></div>
+      </div>
+    </div>
+    <div class="content">
+      <div class="tab active" id="tab-meli01"><div id="painel-meli01"></div></div>
+      <div class="tab" id="tab-meli02"><div id="painel-meli02"></div></div>
+      <div class="tab" id="tab-meli03"><div id="painel-meli03"></div></div>
+      <div class="tab" id="tab-config"><div class="config-grid" id="config-contas"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PRODUTO -->
+<div class="overlay" id="modal-prod">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-header">
+      <div class="modal-header-info">
+        <div class="modal-prod" id="m-title"></div>
+        <div class="modal-meta">
+          <span class="modal-mlb" id="m-mlb"></span>
+          <span style="color:var(--border2)">·</span>
+          <span class="modal-sku" id="m-sku"></span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-period-bar">
+      <button class="modal-preset" onclick="setModalPreset(7,this)">7d</button>
+      <button class="modal-preset" onclick="setModalPreset(15,this)">15d</button>
+      <button class="modal-preset active" id="mpb-30" onclick="setModalPreset(30,this)">30d</button>
+      <button class="modal-preset" id="mpb-c" onclick="setModalPreset(0,this)">Personalizado</button>
+      <input type="date" id="modal-de" class="modal-date" oninput="ativarModalPersonalizado()"/>
+      <span class="modal-date-sep">→</span>
+      <input type="date" id="modal-ate" class="modal-date" oninput="ativarModalPersonalizado()"/>
+      <button class="btn-sync-produto" onclick="aplicarModalPersonalizado()" style="height:30px;padding:0 12px;font-size:11px">Buscar</button>
+      <div style="margin-left:auto">
+        <button class="btn-sync-produto" id="btn-sync-produto"><span id="sync-icon">↻</span> Sincronizar MLB</button>
+      </div>
+    </div>
+    <div class="modal-tabs">
+      <button class="modal-tab active" onclick="switchModalTab('dados',this)">📊 Dados</button>
+      <button class="modal-tab" onclick="switchModalTab('anotacoes',this)">✏️ Anotações</button>
+    </div>
+    <div id="modal-tab-dados" class="modal-tab-content active">
+      <div id="modal-body"></div>
+    </div>
+    <div id="modal-tab-anotacoes" class="modal-tab-content">
+      <div id="anotacoes-container"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"><span id="toast-msg"></span></div>
+
+<script>
+const API = 'http://127.0.0.1:8001';
+let user = null, db = {}, rawDB = {}, prevDB = {}, marginFilter = {}, contaAtiva = 'meli01';
+let _modalMlb = null, _modalConta = null, _modalPer = null;
+
+const safeFmt = v => (v == null || isNaN(v) || !isFinite(v)) ? '—' : v;
+const safeDiv = (a, b) => (!b || !isFinite(a/b)) ? 0 : a/b;
+const safeN   = v => (v == null || isNaN(v) || !isFinite(v)) ? 0 : v;
+
+// ── UTILS ──────────────────────────────────────────────────────────────────
+const r = (v,d=0) => Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const brl = v => 'R$ ' + r(v,0);
+const brl2 = v => 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const pct = (v,d=2) => (Number(v||0)*100).toFixed(d)+'%';
+const mono = v => `<span class="mono">${v}</span>`;
+
+// Seta de variação vs período anterior (KPIs globais)
+function vb(cur, prv, inv=false) {
+  if(prv==null||prv===0||isNaN(prv)) return '';
+  const p=Math.abs((cur-prv)/Math.abs(prv)*100), up=inv?cur<prv:cur>prv;
+  return ` <span class="${up?'vb-up':'vb-dn'}">${up?'▲':'▼'}${p.toFixed(1)}%</span>`;
+}
+
+// Badge inline para KPIs do modal (ao lado do valor)
+function badge(atual, anterior, inverso=false, tooltip='') {
+  if(!anterior || anterior===0 || !atual) return '';
+  const diff = atual - anterior;
+  if(Math.abs(diff) < 0.0001) return '';
+  const pct  = Math.abs(diff/anterior*100).toFixed(1);
+  const subiu = diff > 0;
+  const bom   = inverso ? !subiu : subiu;
+  const cls   = bom ? 'kpi-badge-up' : 'kpi-badge-dn';
+  const seta  = subiu ? '▲' : '▼';
+  const tip = tooltip ? ` data-tip="${tooltip}"` : '';
+  return `<span class="kpi-badge-var ${cls}"${tip}>${seta}${pct}%</span>`;
+}
+
+// Período anterior com a mesma duração
+function calcPrevPeriod(de, ate) {
+  const d1=new Date(de), d2=new Date(ate), span=d2-d1;
+  const pAte=new Date(d1.getTime()-86400000);
+  return {de:new Date(pAte.getTime()-span).toISOString().split('T')[0], ate:pAte.toISOString().split('T')[0]};
+}
+
+// Agrupa dias em semanas — ads_total e margem_total já vêm distribuídos por dia no sync
+function calcWeeks(prod, de, ate) {
+  if(!prod?.dias||!de||!ate) return [];
+  const dias=prod.dias;
+  const weeks=[], end=new Date(ate);
+  let cur=new Date(de);
+  while(cur<=end) {
+    const wS=cur.toISOString().split('T')[0];
+    const wED=new Date(Math.min(cur.getTime()+6*86400000,end.getTime()));
+    const wE=wED.toISOString().split('T')[0];
+    let rec=0,marg=0,ads=0,un=0;
+    for(let d=new Date(cur);d<=wED;d.setDate(d.getDate()+1)) {
+      const ds=d.toISOString().split('T')[0], day=dias[ds];
+      if(day){rec+=day.receita||0;marg+=day.margem_total||0;ads+=day.ads_total||0;un+=day.unidades||0;}
+    }
+    weeks.push({label:`${wS.slice(5).replace('-','/')}–${wE.slice(5).replace('-','/')}`,
+      receita:rec,margem:marg,ads,tacos:rec>0?ads/rec:0,unidades:un});
+    cur.setDate(cur.getDate()+7);
+  }
+  return weeks;
+}
+
+// Barra de custo (% da receita)
+function cBar(label, val, receita, color) {
+  const p=receita>0?val/receita*100:0;
+  return `<div class="cbar-row"><span class="cbar-lbl">${label}</span>
+    <div class="cbar-track"><div class="cbar-fill" style="width:${Math.min(Math.abs(p),100)}%;background:${color}"></div></div>
+    <span class="cbar-pct">${p.toFixed(1)}%</span></div>`;
+}
+
+function toast(msg, tipo='success') {
+  const el = document.getElementById('toast');
+  el.className = `show ${tipo}`;
+  document.getElementById('toast-msg').textContent = msg;
+  setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+// ── LOGIN ──────────────────────────────────────────────────────────────────
+document.getElementById('lp').addEventListener('keydown', e => { if(e.key==='Enter') fazerLogin(); });
+
+async function fazerLogin() {
+  const login = document.getElementById('li').value.trim();
+  const senha = document.getElementById('lp').value.trim();
+  try {
+    const res = await fetch(`${API}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({login,senha})});
+    if(!res.ok){document.getElementById('lerr').textContent='Usuário ou senha incorretos';return;}
+    const data = await res.json();
+    user = data.usuario;
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('uname').textContent = user.nome;
+    document.getElementById('urole').textContent = user.role;
+    initApp();
+    if (data.syncing && data.syncing.length > 0) iniciarPollSync(data.syncing);
+  } catch(e) {
+    document.getElementById('lerr').textContent = 'Erro ao conectar com o servidor';
+  }
+}
+
+function logout() {
+  user = null;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+// ── TABS ──────────────────────────────────────────────────────────────────
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+  document.getElementById(`tab-${tab}`).classList.add('active');
+  btn.classList.add('active');
+  contaAtiva = tab;
+  const titles = {meli01:'Meli01 — Rentabilidade',meli02:'Meli02 — Rentabilidade',meli03:'Meli03 — Rentabilidade',config:'Configurações'};
+  document.getElementById('topbar-title').textContent = titles[tab] || tab;
+  if(tab==='config') loadConfig();
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+function initApp() {
+  renderPainel('meli01');
+  renderPainel('meli02');
+  renderPainel('meli03');
+}
+
+// ── PAINEL ────────────────────────────────────────────────────────────────
+function defaultPeriod() {
+  const hoje = new Date(), ate = hoje.toISOString().split('T')[0];
+  const de = new Date(hoje-29*86400000).toISOString().split('T')[0];
+  return {de,ate};
+}
+
+function renderPainel(conta) {
+  const {de,ate} = defaultPeriod();
+  document.getElementById(`painel-${conta}`).innerHTML = `
+    <div class="periodo-card">
+      <span class="periodo-label">Período</span>
+      <input type="date" id="de-${conta}" value="${de}" oninput="ativarPersonalizado('${conta}')"/>
+      <span class="periodo-label">até</span>
+      <input type="date" id="ate-${conta}" value="${ate}" oninput="ativarPersonalizado('${conta}')"/>
+      <div class="presets">
+        <button class="preset" onclick="setPreset('${conta}',7,this)">7d</button>
+        <button class="preset" onclick="setPreset('${conta}',15,this)">15d</button>
+        <button class="preset active" onclick="setPreset('${conta}',30,this)">30d</button>
+        <button class="preset" onclick="setPreset('${conta}',0,this)">Personalizado</button>
+      </div>
+      <div class="ml-auto" style="display:flex;gap:8px;align-items:center">
+        <button class="btn-purple" onclick="document.getElementById('up-${conta}').click()">
+          📥 Importar Custos
+        </button>
+        <input type="file" id="up-${conta}" accept=".xlsx" style="display:none" onchange="importarCustos('${conta}',this)"/>
+        <button class="btn-sync" id="btn-sync-${conta}" onclick="syncConta('${conta}')">
+          <span>↻</span> Sincronizar ML
+        </button>
+        <button class="btn-gold" onclick="buscarPeriodo('${conta}')">Buscar</button>
+      </div>
+    </div>
+    <div class="kpis" id="kpis-${conta}"></div>
+    <div class="table-card">
+      <div class="table-head" style="flex-wrap:wrap;gap:10px;">
+        <span class="table-title">${conta.toUpperCase()} — Produtos</span>
+        <div class="marg-chips" id="mchips-${conta}">
+          <button class="marg-chip active"     data-f="all" onclick="setMF('${conta}','all',this)">Todos</button>
+          <button class="marg-chip neg-chip"   data-f="neg" onclick="setMF('${conta}','neg',this)">Negativa</button>
+          <button class="marg-chip low-chip"   data-f="low" onclick="setMF('${conta}','low',this)">&lt;10%</button>
+          <button class="marg-chip med-chip"   data-f="med" onclick="setMF('${conta}','med',this)">10–20%</button>
+          <button class="marg-chip ok-chip"    data-f="ok"  onclick="setMF('${conta}','ok',this)">&gt;20%</button>
+        </div>
+        <div class="search-box" style="margin-left:auto">
+          <input placeholder="Buscar produto, SKU ou MLB..." id="search-${conta}" oninput="filterTable('${conta}')"/>
+        </div>
+      </div>
+      <div id="tbl-${conta}">
+        <div class="empty"><div class="empty-icon">📊</div><div class="empty-text">Clique em Buscar para carregar</div></div>
+      </div>
+    </div>`;
+  loadRentabilidade(conta);
+}
+
+function setPreset(conta, dias, btn) {
+  document.querySelectorAll(`#painel-${conta} .preset`).forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(dias === 0) return; // personalizado — mantém as datas atuais para o usuário editar
+  // Período fechado: ate = ontem em BRT (não inclui o dia atual)
+  const agoraBRT = new Date(new Date().toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
+  const ontem = new Date(agoraBRT - 86400000);
+  const ate = ontem.toISOString().split('T')[0];
+  const de  = new Date(ontem - (dias-1)*86400000).toISOString().split('T')[0];
+  document.getElementById(`de-${conta}`).value = de;
+  document.getElementById(`ate-${conta}`).value = ate;
+  buscarPeriodo(conta);
+}
+
+function ativarPersonalizado(conta) {
+  const presets = document.querySelectorAll(`#painel-${conta} .preset`);
+  presets.forEach(b=>b.classList.remove('active'));
+  const btnCustom = [...presets].find(b=>b.textContent.trim()==='Personalizado');
+  if(btnCustom) btnCustom.classList.add('active');
+}
+
+// ── SYNC INDICATOR ────────────────────────────────────────────────────────
+let _syncTimer = null;
+
+function setSyncIndicator(state, ts) {
+  const el = document.getElementById('sync-time');
+  if (!el) return;
+  if (state === 'syncing') {
+    el.innerHTML = '<span class="loader" style="width:10px;height:10px;border-width:2px;vertical-align:middle;margin-right:4px;display:inline-block"></span>Atualizando dados...';
+  } else {
+    const d = ts ? new Date(ts) : new Date();
+    const hora = d.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+    const dia  = d.toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit'});
+    el.textContent = `Atualizado: ${hora} ${dia}`;
+  }
+}
+
+function iniciarPollSync(contas) {
+  setSyncIndicator('syncing');
+  if (_syncTimer) clearInterval(_syncTimer);
+  _syncTimer = setInterval(async () => {
+    try {
+      const res = await fetch(`${API}/sync/status`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const ainda = contas.filter(c => data.em_andamento.includes(c));
+      if (ainda.length === 0) {
+        clearInterval(_syncTimer); _syncTimer = null;
+        let ts = null;
+        for (const c of contas) {
+          const s = data.contas[c];
+          if (s && s.ultimo_sync) { ts = s.ultimo_sync; break; }
+        }
+        setSyncIndicator('done', ts);
+        for (const c of contas) { await buscarPeriodo(c); }
+      }
+    } catch(e) {}
+  }, 5000);
+}
+
+// ── SYNC ──────────────────────────────────────────────────────────────────
+async function syncConta(conta) {
+  const btn = document.getElementById(`btn-sync-${conta}`);
+  const hoje = new Date(), ateBase = hoje.toISOString().split('T')[0];
+  const deBase = new Date(hoje-29*86400000).toISOString().split('T')[0];
+  if(btn){ btn.disabled=true; btn.innerHTML='<span class="loader"></span> Sincronizando...'; }
+  setSyncIndicator('syncing');
+  try {
+    await fetch(`${API}/sync/${conta}?dias=30&date_from=${deBase}&date_to=${ateBase}`,{method:'POST'});
+    toast(`✓ Sync concluído`);
+    setSyncIndicator('done');
+  } catch(e){ toast('Erro de conexão','error'); }
+  if(btn){ btn.disabled=false; btn.innerHTML='<span>↻</span> Sincronizar ML'; }
+  await buscarPeriodo(conta);
+}
+
+// ── RENTABILIDADE ─────────────────────────────────────────────────────────
+async function loadRentabilidade(conta) {
+  await buscarPeriodo(conta);
+}
+
+async function buscarPeriodo(conta) {
+  const de = document.getElementById(`de-${conta}`)?.value;
+  const ate = document.getElementById(`ate-${conta}`)?.value;
+  if(!de||!ate) return;
+  renderKPIs(conta, null, null);
+  document.getElementById(`tbl-${conta}`).innerHTML = '<div class="empty"><div class="loader"></div></div>';
+  try {
+    const prev = calcPrevPeriod(de, ate);
+    const [res, resPrev, resRaw] = await Promise.all([
+      fetch(`${API}/rentabilidade/${conta}?date_from=${de}&date_to=${ate}`),
+      fetch(`${API}/rentabilidade/${conta}?date_from=${prev.de}&date_to=${prev.ate}`),
+      fetch(`${API}/produtos/${conta}/db`),
+    ]);
+    if(!res.ok){const e=await res.json();document.getElementById(`tbl-${conta}`).innerHTML=`<div class="empty"><div class="empty-text" style="color:var(--red)">${e.detail||'Erro'}</div></div>`;return;}
+    const data=await res.json(); db[conta]=data;
+    if(resPrev.ok){const d=await resPrev.json();prevDB[conta]=d;}
+    if(resRaw.ok){const d=await resRaw.json();rawDB[conta]=d.produtos||{};}
+    renderKPIs(conta, data.kpis, prevDB[conta]?.kpis);
+    renderTable(conta, data.produtos);
+  } catch(e){
+    document.getElementById(`tbl-${conta}`).innerHTML='<div class="empty"><div class="empty-icon">⚡</div><div class="empty-text">Erro ao carregar dados</div></div>';
+    renderKPIs(conta,null,null);
+  }
+}
+async function syncProduto(mlb, conta) {
+  const de  = document.getElementById('modal-de')?.value || '';
+  const ate = document.getElementById('modal-ate')?.value || '';
+  const btn  = document.getElementById('btn-sync-produto');
+  const icon = document.getElementById('sync-icon');
+  btn.disabled = true;
+  icon.className = 'spin';
+  try {
+    const params = de && ate ? `?date_from=${de}&date_to=${ate}` : '';
+    const res = await fetch(`${API}/sync/${conta}/${mlb}/comparar${params}`, {method:'POST'});
+    const data = await res.json();
+    if (!res.ok) { toast('Erro: ' + (data.detail || 'Falha no sync'), 'error'); return; }
+    toast('✓ Produto sincronizado!');
+    // Atualiza prod.periodo direto com os dados frescos da API (sem buscarPeriodo)
+    const prod = db[conta]?.produtos?.find(x => x.mlb === mlb);
+    if (prod && data.metricas) {
+      prod.periodo         = data.metricas;
+      prod.custos          = data.custos || prod.custos;
+      prod.anterior        = data.anterior?.metricas || {};
+      prod.catalog_listing  = data.catalog_listing  ?? prod.catalog_listing  ?? false;
+      prod.variacoes_count  = data.variacoes_count  ?? prod.variacoes_count  ?? 0;
+    }
+    renderModalContent(mlb, conta);
+  } catch(e) {
+    toast('Erro de conexão no sync', 'error');
+  } finally {
+    btn.disabled = false;
+    icon.className = '';
+    icon.textContent = '↻';
+  }
+}
+
+async function importarCustos(conta, input) {
+  const file = input.files[0]; if(!file) return;
+  toast('Importando custos...');
+  const fd = new FormData(); fd.append('file', file);
+  try {
+    const res = await fetch(`${API}/produtos/importar-custos/${conta}`,{method:'POST',body:fd});
+    const data = await res.json();
+    if(data.success){
+      toast(`✓ ${data.atualizados} produtos com CMV, frete e comissão atualizados!`);
+      await syncConta(conta);
+    } else { toast('Erro: '+(data.error||''),'error'); }
+  } catch(e){ toast('Erro ao importar','error'); }
+  input.value='';
+}
+
+// ── KPIs ──────────────────────────────────────────────────────────────────
+function renderKPIs(conta, k, kp) {
+  if(!k){document.getElementById(`kpis-${conta}`).innerHTML='';return;}
+  const mp=(k.margem_pct_global*100), tc=(k.tacos_global*100);
+  const kpiData = [
+    {label:'Receita Total',    val:brl(k.receita_total), sub:'período',    var:vb(k.receita_total,kp?.receita_total),        color:'var(--blue)'},
+    {label:'Margem Líquida',   val:brl(k.margem_total),  sub:mp.toFixed(1)+'%', var:vb(k.margem_total,kp?.margem_total),    color:mp<0?'var(--red)':mp<10?'var(--gold)':'var(--green)'},
+    {label:'Invest. ADS',      val:brl(k.ads_total),     sub:'publicidade', var:vb(k.ads_total,kp?.ads_total,true),          color:'var(--purple)'},
+    {label:'TACOS Global',     val:tc.toFixed(2)+'%',    sub:'sobre receita',var:vb(-tc,kp?-(kp.tacos_global*100):null),    color:tc>10?'var(--red)':tc>6?'var(--gold)':'var(--green)'},
+    {label:'Unidades Vendidas',val:r(k.unidades_total),  sub:'unidades',    var:vb(k.unidades_total,kp?.unidades_total),     color:'var(--text)'},
+    {label:'Produtos Ativos',  val:k.produtos_ativos,    sub:'anúncios',    var:'',                                          color:'var(--muted2)'},
+  ];
+  document.getElementById(`kpis-${conta}`).innerHTML = kpiData.map(kd=>`
+    <div class="kpi" style="--kpi-color:${kd.color}">
+      <div class="kpi-label">${kd.label}</div>
+      <div class="kpi-val">${kd.val}</div>
+      <div class="kpi-footer">
+        <span class="kpi-sub">${kd.sub}</span>
+        <span class="kpi-var">${kd.var||''}</span>
+      </div>
+    </div>`).join('');
+}
+
+// ── TABLE ─────────────────────────────────────────────────────────────────
+let sortCol='receita', sortDir=-1;
+
+function getPosicao(mlb) {
+  try { return JSON.parse(localStorage.getItem(`pos_${mlb}`)||'{}'); } catch{ return {}; }
+}
+
+function renderPosBadge(mlb) {
+  const p = getPosicao(mlb);
+  if(!p.posicao) return `<span class="pos-badge none">— sem dados</span>`;
+  const pg = p.pagina||1, pos = p.posicao;
+  const cls = pg===1&&pos<=5?'top':pg===1?'mid':'low';
+  return `<span class="pos-badge ${cls}">p${pg} #${pos}</span>`;
+}
+
+function setMF(conta, f, btn) {
+  marginFilter[conta]=f;
+  document.querySelectorAll(`#mchips-${conta} .marg-chip`).forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  filterTable(conta);
+}
+
+function renderTable(conta, produtos) {
+  if(!produtos||!produtos.length){
+    document.getElementById(`tbl-${conta}`).innerHTML='<div class="empty"><div class="empty-icon">📦</div><div class="empty-text">Nenhum produto. Sincronize primeiro.</div></div>';
+    return;
+  }
+  // Atualiza contadores nos chips
+  const cnt={all:produtos.length,neg:0,low:0,med:0,ok:0};
+  produtos.forEach(p=>{const mp=p.periodo.margem_pct;if(mp<0)cnt.neg++;else if(mp<0.10)cnt.low++;else if(mp<0.20)cnt.med++;else cnt.ok++;});
+  document.querySelectorAll(`#mchips-${conta} .marg-chip`).forEach(b=>{const f=b.dataset.f;if(cnt[f]!=null)b.textContent=b.textContent.replace(/ \(\d+\)$/,'')+` (${cnt[f]})`;});
+  // Aplica filtro de margem
+  const f=marginFilter[conta]||'all';
+  let lista=produtos;
+  if(f==='neg')lista=produtos.filter(p=>p.periodo.margem_pct<0);
+  else if(f==='low')lista=produtos.filter(p=>p.periodo.margem_pct>=0&&p.periodo.margem_pct<0.10);
+  else if(f==='med')lista=produtos.filter(p=>p.periodo.margem_pct>=0.10&&p.periodo.margem_pct<0.20);
+  else if(f==='ok')lista=produtos.filter(p=>p.periodo.margem_pct>=0.20);
+  if(!lista.length){document.getElementById(`tbl-${conta}`).innerHTML='<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">Nenhum produto nesta faixa.</div></div>';return;}
+  produtos=lista;
+  const cols=[
+    {k:'titulo',l:'Produto',align:'left'},
+    {k:'receita',l:'Receita'},
+    {k:'unidades',l:'Un. / Conv.'},
+    {k:'ads_total',l:'ADS'},
+    {k:'tacos',l:'TACOS'},
+    {k:'roas',l:'ROAS'},
+    {k:'margem_total',l:'Margem R$'},
+    {k:'margem_pct',l:'Margem %'},
+    {k:'posicao',l:'Posição ML',align:'center'},
+  ];
+  const thead = cols.map(c=>`<th onclick="sortTable('${conta}','${c.k}')" style="${c.align?`text-align:${c.align}`:''}">${c.l}${sortCol===c.k?(sortDir>0?' ↑':' ↓'):''}</th>`).join('');
+  const tbody = produtos.map(p=>{
+    const per=p.periodo;
+    const tc=((per.tacos||0)*100), mp=((per.margem_pct||0)*100);
+    const tCls=tc>10?'chip-neg':tc>6?'chip-warn':'chip-pos';
+    const mCls=per.margem_total<0?'chip-neg':mp<8?'chip-warn':'chip-pos';
+    const tacosW=Math.min(tc/20*100,100);
+    const tacosC=tc>10?'var(--red)':tc>6?'var(--gold)':'var(--green)';
+    return `
+      <tr class="${per.margem_pct<0?'row-neg':''}" onclick="openModal('${p.mlb}','${conta}')">
+        <td>
+          <div class="td-prod">${p.titulo||p.mlb}</div>
+          <div class="td-sku">${p.sku||''}</div>
+          <div class="td-mlb">${p.mlb}</div>
+        </td>
+        <td class="mono">${brl(per.receita)}</td>
+        <td class="mono">${per.unidades||0}<div style="font-size:10px;color:var(--muted2);margin-top:2px;font-family:var(--mono)">${((per.conversao||0)*100).toFixed(2)}%</div></td>
+        <td class="mono">${brl(per.ads_total)}</td>
+        <td>
+          <div class="tacos-bar">
+            <span class="mono ${tCls}">${tc.toFixed(2)}%</span>
+            <div class="tacos-track"><div class="tacos-fill" style="width:${tacosW}%;background:${tacosC}"></div></div>
+          </div>
+        </td>
+        <td class="mono">${per.roas?.toFixed(2)||'—'}</td>
+        <td class="mono ${mCls}">${brl(per.margem_total)}</td>
+        <td class="mono ${mCls}">${mp.toFixed(1)}%</td>
+        <td style="text-align:center">${renderPosBadge(p.mlb)}</td>
+      </tr>`;
+  }).join('');
+  document.getElementById(`tbl-${conta}`).innerHTML=`<table class="tbl"><thead><tr>${thead}</tr></thead><tbody id="tbody-${conta}">${tbody}</tbody></table>`;
+}
+
+function filterTable(conta) {
+  const q=document.getElementById(`search-${conta}`)?.value.toLowerCase()||'';
+  const data=db[conta]; if(!data) return;
+  const txt=q?data.produtos.filter(p=>(p.titulo||'').toLowerCase().includes(q)||(p.sku||'').toLowerCase().includes(q)||p.mlb.toLowerCase().includes(q)):data.produtos;
+  renderTable(conta, txt);
+}
+
+function sortTable(conta, col) {
+  if(sortCol===col) sortDir*=-1; else{sortCol=col;sortDir=-1;}
+  const data=db[conta]; if(!data) return;
+  const sorted=[...data.produtos].sort((a,b)=>{
+    const va=col==='titulo'?(a.titulo||''):(a.periodo[col]||0);
+    const vb=col==='titulo'?(b.titulo||''):(b.periodo[col]||0);
+    return typeof va==='string'?va.localeCompare(vb)*sortDir:(va-vb)*sortDir;
+  });
+  renderTable(conta,sorted);
+}
+
+// ── MODAL ─────────────────────────────────────────────────────────────────
+
+// Agrega métricas dos dias locais (rawDB) para o período do modal — espelha agregar_periodo do Python
+function agregarPeriodoLocal(prod, de, ate) {
+  if (!prod?.dias) return null;
+  const dias = prod.dias;
+  const total = {
+    receita:0, receita_paga:0, ads_total:0, receita_publi:0,
+    receita_publi_direta:0, impressoes:0, cliques:0,
+    vendas_publi:0, vendas_indiretas:0, visitas:0,
+    unidades:0, unidades_pagas:0, qtd_vendas:0, qtd_pedidos_pagos:0,
+    cmv_total:0, imposto_total:0, comissao_total:0, frete_total:0, margem_total:0
+  };
+  for (const [dia, vals] of Object.entries(dias)) {
+    if (dia === '_ads_') continue;
+    if (de <= dia && dia <= ate) {
+      for (const k of Object.keys(total)) total[k] += vals[k] || 0;
+    }
+  }
+  const ads = dias['_ads_'] || {};
+  total.cpc_medio   = ads.cpc || 0;
+  total.ctr         = ads.ctr || 0;
+  total.share       = ads.share || 0;
+  total.advertising_fee    = ads.advertising_fee || 0;
+  total.compradores_unicos = ads.compradores_unicos || 0;
+  total.tacos_campanha     = ads.tacos_campanha || 0;
+
+  const exato = ads._periodo_de === de && ads._periodo_ate === ate && !!ads._periodo_de;
+  if (exato && 'vendas_publi' in ads) {
+    total.vendas_publi     = ads.vendas_publi;
+    total.vendas_indiretas = ads.vendas_indiretas || 0;
+  }
+  total.vendas_com_ads = total.vendas_publi + total.vendas_indiretas;
+  if (exato && 'vendas_sem_publi' in ads) {
+    total.vendas_sem_publi = ads.vendas_sem_publi;
+  } else {
+    const base = total.unidades_pagas > 0 ? total.unidades_pagas : total.unidades;
+    total.vendas_sem_publi = Math.max(0, base - total.vendas_com_ads);
+  }
+  const dp = Math.round((new Date(ate) - new Date(de)) / 86400000) + 1;
+  total.margem_pct  = total.receita > 0 ? total.margem_total / total.receita : 0;
+  total.margem_unit = total.unidades > 0 ? total.margem_total / total.unidades : 0;
+  total.tacos       = total.receita > 0 ? total.ads_total / total.receita : 0;
+  total.acos        = total.receita_publi > 0 ? total.ads_total / total.receita_publi : 0;
+  total.roas        = total.ads_total > 0 ? total.receita_publi / total.ads_total : 0;
+  total.conversao   = total.visitas > 0 ? total.qtd_vendas / total.visitas : 0;
+  total.unidades_dia = dp > 0 ? total.unidades / dp : 0;
+  total.dias_periodo = dp;
+  return total;
+}
+
+function setModalPreset(dias, btn) {
+  document.querySelectorAll('.modal-preset').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (dias === 0) return; // personalizado — mantém datas para o usuário editar
+  // Período fechado: ate = ontem em BRT (não inclui o dia atual)
+  const agoraBRT = new Date(new Date().toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
+  const ontem = new Date(agoraBRT - 86400000);
+  const ate = ontem.toISOString().split('T')[0];
+  const de  = new Date(ontem - (dias - 1) * 86400000).toISOString().split('T')[0];
+  document.getElementById('modal-de').value = de;
+  document.getElementById('modal-ate').value = ate;
+  if (_modalMlb && _modalConta) syncProduto(_modalMlb, _modalConta);
+}
+
+function ativarModalPersonalizado() {
+  document.querySelectorAll('.modal-preset').forEach(b => b.classList.remove('active'));
+  const btn = [...document.querySelectorAll('.modal-preset')].find(b => b.textContent.trim() === 'Personalizado');
+  if (btn) btn.classList.add('active');
+  // Não dispara sync — usuário precisa clicar "Buscar"
+}
+
+function aplicarModalPersonalizado() {
+  document.querySelectorAll('.modal-preset').forEach(b => b.classList.remove('active'));
+  document.getElementById('mpb-c')?.classList.add('active');
+  if (_modalMlb && _modalConta) syncProduto(_modalMlb, _modalConta);
+}
+
+function _setModalPresetActive(de, ate) {
+  const ateHoje = new Date().toISOString().split('T')[0];
+  if (ate !== ateHoje) {
+    document.querySelectorAll('.modal-preset').forEach(b => b.classList.remove('active'));
+    const btn = [...document.querySelectorAll('.modal-preset')].find(b => b.textContent.trim() === 'Personalizado');
+    if (btn) btn.classList.add('active');
+    return;
+  }
+  const diff = Math.round((new Date(ate) - new Date(de)) / 86400000) + 1;
+  document.querySelectorAll('.modal-preset').forEach(b => {
+    const d = parseInt(b.textContent);
+    b.classList.toggle('active', d === diff);
+  });
+}
+
+function openModal(mlb, conta) {
+  _modalMlb = mlb; _modalConta = conta;
+  // Reset abas — sempre começa em Dados
+  document.querySelectorAll('.modal-tab').forEach((b,i) => b.classList.toggle('active', i===0));
+  document.querySelectorAll('.modal-tab-content').forEach((c,i) => c.classList.toggle('active', i===0));
+  // Limpa container de anotações para evitar mostrar dados do MLB anterior
+  const ac = document.getElementById('anotacoes-container');
+  if (ac) ac.innerHTML = '';
+  const data = db[conta]; if (!data) return;
+  const p = data.produtos.find(x => x.mlb === mlb); if (!p) return;
+
+  document.getElementById('m-title').textContent = p.titulo || mlb;
+  document.getElementById('m-mlb').textContent = mlb;
+  document.getElementById('m-sku').textContent = p.sku || '';
+
+  // Sempre abre com 30d
+  setModalPreset(30, document.getElementById('mpb-30'));
+
+  // Botão sync lê datas do modal no momento do clique
+  const btnSync = document.getElementById('btn-sync-produto');
+  btnSync.disabled = false;
+  btnSync.onclick = () => syncProduto(_modalMlb, _modalConta);
+
+  renderModalContent(mlb, conta);
+  document.getElementById('modal-prod').classList.add('open');
+}
+
+function renderModalContent(mlb, conta) {
+  const de  = document.getElementById('modal-de')?.value || '';
+  const ate = document.getElementById('modal-ate')?.value || '';
+  const dbProd = db[conta]?.produtos?.find(x => x.mlb === mlb);
+  if (!dbProd) return;
+  const c = dbProd.custos, pos = getPosicao(mlb);
+
+  // per vem sempre de dbProd.periodo — atualizado pelo sync antes desta chamada
+  const per = dbProd.periodo;
+  const prev = dbProd.anterior || {};
+  _modalPer = per;
+
+  // Datas fixas do bloco ADS 30D (sempre últimos 30 dias, independente do período selecionado)
+  const hoje30 = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Sao_Paulo"}));
+  const ontem30 = new Date(hoje30-86400000);
+  const ate30 = ontem30.toISOString().split('T')[0];
+  const de30  = new Date(ontem30-29*86400000).toISOString().split('T')[0];
+
+  // Se período é 30d, salva como referência fixa
+  const diasModal30 = Math.round((new Date(ate)-new Date(de))/86400000)+1;
+  if(diasModal30 === 30) {
+    dbProd._per30d = per;
+  }
+  const per30 = dbProd._per30d || per;
+  // Se per30 não tem dados ADS reais, usa per (evita exibir zeros enquanto _per30d não foi gravado)
+  const per30ads = (per30.ads_total > 0) ? per30 : per;
+
+  // Período anterior para tooltips dos badges
+  const modalDe  = document.getElementById('modal-de')?.value || '';
+  const modalAte = document.getElementById('modal-ate')?.value || '';
+  const diasModal = modalDe && modalAte ? Math.round((new Date(modalAte)-new Date(modalDe))/86400000)+1 : 0;
+  const prevAte  = modalDe ? new Date(new Date(modalDe)-86400000).toISOString().split('T')[0] : '';
+  const prevDe   = prevAte && diasModal ? new Date(new Date(prevAte)-(diasModal-1)*86400000).toISOString().split('T')[0] : '';
+  const tooltipPrev = prevDe && prevAte ? `Comparado com: ${prevDe} a ${prevAte}` : '';
+
+  // Helpers
+  const pR=v=>per.receita>0?((v/per.receita)*100).toFixed(1)+'%':'—';
+  const clr=v=>v<0?'var(--red)':v===0?'var(--muted2)':'var(--green)';
+  const precoUnit=per.unidades>0?per.receita/per.unidades:0;
+
+  // Evolução semanal
+  const weeks=calcWeeks(rawDB[conta]?.[mlb], de, ate);
+  const weekRows=weeks.length?weeks.map(w=>`<tr>
+    <td>${w.label}</td>
+    <td>${brl(w.receita)}</td>
+    <td>${brl(w.ads)}</td>
+    <td style="color:${w.tacos>0.10?'var(--red)':w.tacos>0.06?'var(--gold)':'var(--green)'}">${(w.tacos*100).toFixed(2)}%</td>
+    <td style="color:${clr(w.margem)}">${brl(w.margem)}</td>
+    <td>${w.unidades}</td></tr>`).join('')
+    :'<tr><td colspan="6" style="text-align:center;color:var(--muted2);padding:16px">Sincronize para ver evolução semanal</td></tr>';
+
+  // ── helpers de cor ─────────────────────────────────────────────────────────
+  const tacosClr = t => t>0.10?'var(--red)':t>0.06?'var(--gold)':'var(--green)';
+  // CPC: prefere cpc_medio do backend (_ads_), fallback para cálculo local
+  const cpcCalc  = (per.cpc_medio||0) > 0 ? per.cpc_medio : (per.cliques>0 ? per.ads_total/per.cliques : 0);
+  // CTR: prefere ctr do backend (_ads_) em decimal, converte para %; fallback local
+  const ctrCalc  = (per.ctr||0) > 0 ? per.ctr*100 : (per.impressoes>0 ? per.cliques/per.impressoes*100 : 0);
+  const vendDireta = per.vendas_publi||0;
+  const vendIndir  = per.vendas_indiretas||0;
+  const vendComAds = per.vendas_com_ads||(vendDireta+vendIndir);
+  const vendSemAds = per.vendas_sem_publi||0;
+  // Conversão: usa campo já calculado no backend; fallback para cálculo local
+  const convTxt  = per.conversao>0 ? (per.conversao*100).toFixed(2)+'%'
+                 : per.visitas>0   ? ((per.qtd_vendas/per.visitas)*100).toFixed(2)+'%' : '—';
+  const compUnicos = per.compradores_unicos||0;
+  const recPaga    = per.receita_paga||0;
+  // receita_publi_direta: backend não expõe separado — usa receita_publi como proxy
+  const recPubliDireta = per.receita_publi_direta||per.receita_publi||0;
+
+  document.getElementById('modal-body').innerHTML = `
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         SEÇÃO 1 — DESEMPENHO DO ANÚNCIO
+         Equivale a: ML > Anúncios > Métricas > rendimiento-item
+    ═══════════════════════════════════════════════════════════════ -->
+    <div class="ml-section">
+      <div class="ml-section-header">
+        <span class="ml-section-title">Desempenho do Anúncio</span>
+        <span class="ml-section-badge">${de} → ${ate}</span>
+      </div>
+      <div class="ml-metrics-grid">
+        <div class="ml-metrics-row cols-3">
+          <div class="ml-metric">
+            <div class="ml-metric-lbl">Visitas Únicas</div>
+            <div class="ml-metric-val">${r(per.visitas)}${badge(per.visitas,prev.visitas,false,tooltipPrev)}</div>
+            <div class="ml-metric-sub">/items/{id}/visits → total_visits</div>
+          </div>
+          <div class="ml-metric">
+            <div class="ml-metric-lbl">Unidades Vendidas</div>
+            <div class="ml-metric-val">${r(per.unidades)}${badge(per.unidades,prev.unidades,false,tooltipPrev)}</div>
+            <div class="ml-metric-sub">${r(per.unidades_dia?.toFixed(1)||0)} un/dia · ${per.dias_periodo}d</div>
+          </div>
+          <div class="ml-metric">
+            <div class="ml-metric-lbl">Conversão</div>
+            <div class="ml-metric-val" style="color:var(--gold)">${convTxt}${badge(per.conversao,prev.conversao,false,tooltipPrev)}</div>
+            <div class="ml-metric-sub">pedidos / visitas</div>
+          </div>
+        </div>
+        <div class="ml-metrics-row cols-4">
+          <div class="ml-metric">
+            <div class="ml-metric-lbl">Vendas Brutas</div>
+            <div class="ml-metric-val" style="color:var(--blue)">${brl2(per.receita)}${badge(per.receita,prev.receita,false,tooltipPrev)}</div>
+            <div class="ml-metric-sub">todos os pedidos iniciados</div>
+          </div>
+          <div class="ml-metric">
+            <div class="ml-metric-lbl">Vendas Concluídas</div>
+            <div class="ml-metric-val" style="color:var(--green)">${brl2(per.receita_paga)}${badge(per.receita_paga,prev.receita_paga,false,tooltipPrev)}</div>
+            <div class="ml-metric-sub">pago / entregue / enviado</div>
+          </div>
+          <div class="ml-metric">
+            <div class="ml-metric-lbl">Qtd Vendas Brutas</div>
+            <div class="ml-metric-val">${r(per.qtd_vendas)}${badge(per.qtd_vendas,prev.qtd_vendas,false,tooltipPrev)}</div>
+            <div class="ml-metric-sub">pedidos não cancelados</div>
+          </div>
+          <div class="ml-metric">
+            <div class="ml-metric-lbl">Preço Médio/Unidade</div>
+            <div class="ml-metric-val">${brl2(per.unidades>0?per.receita/per.unidades:0)}</div>
+            <div class="ml-metric-sub">receita / unidades</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         SEÇÃO 2A — ADS DASHBOARD 30D FIXO
+    ═══════════════════════════════════════════════════════════════ -->
+    <div class="ml-section">
+      <div class="ml-section-header">
+        <span class="ml-section-title">ADS DASHBOARD — 30 DIAS FIXO</span>
+        <span class="ml-section-badge">${de30} → ${ate30}</span>
+      </div>
+      <div class="ml-ads-kpi-row">
+        <div class="ml-ads-kpi"><div class="ml-ads-kpi-lbl">TACOS</div><div class="ml-ads-kpi-val" style="color:${tacosClr(per30ads.tacos)}">${per30ads.tacos>0?(per30ads.tacos*100).toFixed(2)+'%':'—'}</div><div class="ml-ads-kpi-sub">custo / receita bruta</div></div>
+        <div class="ml-ads-kpi"><div class="ml-ads-kpi-lbl">ACOS</div><div class="ml-ads-kpi-val">${per30ads.acos>0?(per30ads.acos*100).toFixed(2)+'%':'—'}</div><div class="ml-ads-kpi-sub">custo / receita ADS</div></div>
+        <div class="ml-ads-kpi"><div class="ml-ads-kpi-lbl">ROAS</div><div class="ml-ads-kpi-val" style="color:var(--green)">${per30ads.roas>0?per30ads.roas.toFixed(2)+'×':'—'}</div><div class="ml-ads-kpi-sub">receita ADS / custo</div></div>
+        <div class="ml-ads-kpi"><div class="ml-ads-kpi-lbl">INVESTIMENTO ADS</div><div class="ml-ads-kpi-val" style="color:var(--purple)">${brl2(per30ads.ads_total)}</div><div class="ml-ads-kpi-sub">R$ ${safeDiv(per30ads.ads_total,30).toFixed(2)}/dia</div></div>
+        <div class="ml-ads-kpi"><div class="ml-ads-kpi-lbl">RECEITA ADS</div><div class="ml-ads-kpi-val">${brl2(per30ads.receita_publi)}</div><div class="ml-ads-kpi-sub">amount_total da campanha</div></div>
+        <div class="ml-ads-kpi"><div class="ml-ads-kpi-lbl">ROAS OBJETIVO</div><div class="ml-ads-kpi-val" style="color:var(--gold)">${per30ads.roas_target>0?per30ads.roas_target.toFixed(2)+'×':'—'}</div><div class="ml-ads-kpi-sub">meta da campanha ADS</div></div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         SEÇÃO 2 — ADS DASHBOARD
+         Equivale a: ML > Publicidade > Product Ads > Campanhas
+    ═══════════════════════════════════════════════════════════════ -->
+    <div class="ml-section">
+      <div class="ml-section-header">
+        <span class="ml-section-title">ADS DASHBOARD — PRODUCT ADS · ${de} → ${ate}</span>
+      </div>
+      <div class="ml-metrics-grid">
+        ${(dbProd.catalog_listing && (dbProd.variacoes_count || 0) >= 3) ? `
+        <div style="margin-bottom:12px;padding:10px 14px;background:rgba(246,201,14,0.06);border:1px solid rgba(246,201,14,0.25);border-radius:8px;display:flex;align-items:flex-start;gap:10px;">
+          <span style="font-size:14px;flex-shrink:0">⚠️</span>
+          <span style="font-size:11px;color:var(--muted2);line-height:1.5">
+            <strong style="color:var(--gold)">Campanha ADS compartilhada</strong><br>
+            Este produto faz parte de um catálogo com múltiplas variações. Os dados de ADS exibidos correspondem à campanha inteira —
+            consulte o painel de <strong>Product Ads</strong> no Seller Center para ver o desempenho por variação individualmente.
+          </span>
+        </div>` : ''}
+        <!-- KPIs principais ADS -->
+        <div class="ml-ads-kpi-row">
+          <div class="ml-ads-kpi">
+            <div class="ml-ads-kpi-lbl">TACOS</div>
+            <div class="ml-ads-kpi-val" style="color:${tacosClr(per.tacos)}">${per.tacos>0?(per.tacos*100).toFixed(2)+'%':'—'}${badge(per.tacos, prev.tacos, true, tooltipPrev)}</div>
+            <div class="ml-ads-kpi-sub">custo / receita bruta</div>
+          </div>
+          <div class="ml-ads-kpi">
+            <div class="ml-ads-kpi-lbl">ACOS</div>
+            <div class="ml-ads-kpi-val">${per.acos>0?(per.acos*100).toFixed(2)+'%':'—'}${badge(per.acos, prev.acos, true, tooltipPrev)}</div>
+            <div class="ml-ads-kpi-sub">custo / receita ADS</div>
+          </div>
+          <div class="ml-ads-kpi">
+            <div class="ml-ads-kpi-lbl">ROAS</div>
+            <div class="ml-ads-kpi-val" style="color:var(--green)">${per.roas>0?per.roas.toFixed(2)+'×':'—'}${badge(per.roas, prev.roas, false, tooltipPrev)}</div>
+            <div class="ml-ads-kpi-sub">receita ADS / custo</div>
+          </div>
+          <div class="ml-ads-kpi">
+            <div class="ml-ads-kpi-lbl">Investimento ADS</div>
+            <div class="ml-ads-kpi-val" style="color:var(--purple)">${brl2(per.ads_total)}${badge(per.ads_total, prev.ads_total, true, tooltipPrev)}</div>
+            <div class="ml-ads-kpi-sub">R$ ${safeDiv(per.ads_total,(per.dias_periodo||1)).toFixed(2)}/dia</div>
+          </div>
+          <div class="ml-ads-kpi">
+            <div class="ml-ads-kpi-lbl">Receita ADS</div>
+            <div class="ml-ads-kpi-val">${brl2(per.receita_publi)}${badge(per.receita_publi, prev.receita_publi, false, tooltipPrev)}</div>
+            <div class="ml-ads-kpi-sub">amount_total da campanha</div>
+          </div>
+          <div class="ml-ads-kpi">
+            <div class="ml-ads-kpi-lbl">ROAS Objetivo</div>
+            <div class="ml-ads-kpi-val" style="color:var(--gold)">${per.roas_target>0?per.roas_target.toFixed(2)+'×':'—'}</div>
+            <div class="ml-ads-kpi-sub">meta da campanha ADS</div>
+          </div>
+        </div>
+        <!-- Vendas com/sem ADS + métricas de clique -->
+        <div class="ml-metrics-row cols-4">
+          <div class="ml-metric">
+            <div class="ml-metric-lbl">Vendas c/ Product Ads</div>
+            <div class="ml-metric-val" style="color:var(--green)">${r(vendComAds)}${badge(vendComAds, prev.vendas_com_ads||0, false, tooltipPrev)}</div>
+            <div class="ml-metric-sub">dir. ${r(vendDireta)} + ind. ${r(vendIndir)}</div>
+          </div>
+          <div class="ml-metric">
+            <div class="ml-metric-lbl">Vendas Sem Product Ads</div>
+            <div class="ml-metric-val">${r(vendSemAds)}${badge(vendSemAds, prev.vendas_sem_publi||0, false, tooltipPrev)}</div>
+            <div class="ml-metric-sub">orgânicas</div>
+          </div>
+          <div class="ml-metric">
+            <div class="ml-metric-lbl">Cliques</div>
+            <div class="ml-metric-val">${r(per.cliques)}${badge(per.cliques, prev.cliques, false, tooltipPrev)}</div>
+            <div class="ml-metric-sub">CPC ${brl2(cpcCalc)}</div>
+          </div>
+          <div class="ml-metric">
+            <div class="ml-metric-lbl">Impressões</div>
+            <div class="ml-metric-val">${r(per.impressoes)}${badge(per.impressoes, prev.impressoes, false, tooltipPrev)}</div>
+            <div class="ml-metric-sub">CTR ${ctrCalc.toFixed(2)}%</div>
+          </div>
+        </div>
+        <!-- Evolução semanal (proxy de diária) -->
+        <div style="padding:16px;background:var(--bg2)">
+          <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Evolução Semanal — distribuição proporcional à receita</div>
+          <table class="week-tbl">
+            <thead><tr><th>Semana</th><th>Receita</th><th>ADS</th><th>TACOS</th><th>Margem</th><th>Un.</th></tr></thead>
+            <tbody>${weekRows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         DECOMPOSIÇÃO DA MARGEM
+    ═══════════════════════════════════════════════════════════════ -->
+    <div class="section-title">Decomposição da Margem</div>
+    <div style="display:grid;grid-template-columns:1fr 230px;gap:20px;margin-bottom:20px">
+      <div>
+        <div class="calc-line"><span class="calc-op"></span><span class="calc-lab">Receita bruta</span><span class="calc-val">${brl(per.receita)}</span></div>
+        <div class="calc-line"><span class="calc-op">−</span><span class="calc-lab">CMV<span class="calc-pct">${pR(per.cmv_total)}</span></span><span class="calc-val">${brl(per.cmv_total)}</span></div>
+        <div class="calc-line"><span class="calc-op">−</span><span class="calc-lab">Imposto ${(c.imposto_pct*100).toFixed(0)}%<span class="calc-pct">${pR(per.imposto_total)}</span></span><span class="calc-val">${brl(per.imposto_total)}</span></div>
+        <div class="calc-line"><span class="calc-op">−</span><span class="calc-lab">Comissão ML ${(c.comissao_pct*100).toFixed(0)}%<span class="calc-pct">${pR(per.comissao_total)}</span></span><span class="calc-val">${brl(per.comissao_total)}</span></div>
+        <div class="calc-line"><span class="calc-op">−</span><span class="calc-lab">Frete<span class="calc-pct">${pR(per.frete_total)}</span></span><span class="calc-val">${brl(per.frete_total)}</span></div>
+        ${per.rebot_total > 0 ? `<div class="calc-line"><span class="calc-op">+</span><span class="calc-lab">Rebot <small class="pct-badge" style="background:rgba(0,184,148,0.15);color:var(--green)">${brl2(per.rebot_unit)}/un · ${per.rebot_inicio} → ${per.rebot_fim}</small></span><span class="calc-val" style="color:var(--green)">${brl2(per.rebot_total)}</span></div>` : ''}
+        <div class="calc-line"><span class="calc-op">−</span><span class="calc-lab">ADS<span class="calc-pct">${pR(per.ads_total)}</span></span><span class="calc-val">${brl(per.ads_total)}</span></div>
+        <div class="calc-line calc-total"><span class="calc-op">=</span><span class="calc-lab">Margem Líquida</span><span class="calc-val ${per.margem_total<0?'neg':'pos'}">${brl(per.margem_total)} <small style="font-size:10px;opacity:.7">(${(per.margem_pct*100).toFixed(2)}%)</small></span></div>
+      </div>
+      <div style="padding-top:4px">
+        <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">% sobre receita</div>
+        ${cBar('CMV',per.cmv_total,per.receita,'var(--red)')}
+        ${cBar('Imposto',per.imposto_total,per.receita,'var(--orange)')}
+        ${cBar('Comissão',per.comissao_total,per.receita,'var(--purple)')}
+        ${cBar('Frete',per.frete_total,per.receita,'var(--blue)')}
+        ${per.rebot_total > 0 ? cBar('Rebot',per.rebot_total,per.receita,'var(--green)') : ''}
+        ${cBar('ADS',per.ads_total,per.receita,'var(--gold)')}
+      </div>
+    </div>
+
+    <div class="section-title">Simulador de Cenário</div>
+    <div class="sim-grid">
+      <div class="sim-field"><label>Preço unit (R$)</label><input type="number" id="s-preco" value="${precoUnit.toFixed(2)}" step="0.01" oninput="calcSim('${mlb}','${conta}')"/></div>
+      <div class="sim-field"><label>CMV unit (R$)</label><input type="number" id="s-cmv" value="${c.cmv_unit||0}" step="0.01" oninput="calcSim('${mlb}','${conta}')"/></div>
+      <div class="sim-field"><label>Frete unit (R$)</label><input type="number" id="s-frete" value="${(c.frete_unit||0).toFixed(2)}" step="0.01" placeholder="0.00" oninput="calcSim('${mlb}','${conta}')"/></div>
+      <div class="sim-field"><label>Rebot (R$/un)</label><input type="number" id="s-rebot" value="${(per.rebot_unit||c.rebot_unit||0).toFixed(2)}" step="0.01" placeholder="0.00" oninput="calcSim('${mlb}','${conta}')"/></div>
+      <div class="sim-field"><label>Comissão ML (%)</label><input type="number" id="s-com" value="${((c.comissao_pct||0.11)*100).toFixed(1)}" step="0.1" placeholder="Ex: 11" oninput="calcSim('${mlb}','${conta}')"/></div>
+      <div class="sim-field"><label>Imposto (%)</label><input type="number" id="s-imp" value="${((c.imposto_pct||0.10)*100).toFixed(1)}" step="0.1" placeholder="Ex: 10" oninput="calcSim('${mlb}','${conta}')"/></div>
+      <div class="sim-field"><label>TACOS (%)</label><input type="number" id="s-tacos" value="${per.tacos>0?(per.tacos*100).toFixed(2):0}" step="0.1" placeholder="Ex: 5" oninput="calcSim('${mlb}','${conta}')"/></div>
+      <div class="sim-field"><label>Rebot início</label><input type="date" id="s-rebot-ini" value="${per.rebot_inicio||''}" oninput="calcSim('${mlb}','${conta}')"/></div>
+      <div class="sim-field"><label>Rebot fim</label><input type="date" id="s-rebot-fim" value="${per.rebot_fim||''}" oninput="calcSim('${mlb}','${conta}')"/></div>
+    </div>
+    <div id="sim-out"></div>
+
+    <div class="section-title">Posicionamento no Mercado Livre</div>
+    <div class="pos-section">
+      <div style="font-size:12px;color:var(--muted2);margin-bottom:12px">Registre a posição do anúncio na busca. Ex: posição 3 na página 1 = primeiros resultados.</div>
+      <div class="pos-input-row">
+        <span style="color:var(--muted2);font-size:12px;white-space:nowrap">Página</span>
+        <input type="number" id="pos-pag" value="${pos.pagina||1}" min="1" max="99" style="width:70px"/>
+        <span style="color:var(--muted2);font-size:12px;white-space:nowrap">Posição</span>
+        <input type="number" id="pos-num" value="${pos.posicao||''}" min="1" max="99" placeholder="Ex: 3"/>
+        <input type="text" id="pos-kw" value="${pos.keyword||''}" placeholder="Palavra-chave buscada" style="flex:2"/>
+        <button class="btn-sm" onclick="salvarPosicao('${mlb}','${conta}')">Salvar</button>
+      </div>
+      ${pos.historico?.length?`<div class="pos-history">${pos.historico.slice(-6).map(h=>`<div class="pos-entry"><span class="pos-date">${h.data}</span><span class="pos-badge ${h.pagina===1&&h.posicao<=5?'top':h.pagina===1?'mid':'low'}">p${h.pagina} #${h.posicao}</span><span style="color:var(--muted2)">${h.keyword||''}</span></div>`).join('')}</div>`:''}
+    </div>
+
+  `;
+  calcSim(mlb, conta);
+
+}
+
+function calcSim(mlb, conta) {
+  const p=db[conta]?.produtos?.find(x=>x.mlb===mlb); if(!p) return;
+  const per = _modalPer || p.periodo;
+  const preco    = parseFloat(document.getElementById('s-preco')?.value)||0;
+  const cmv      = parseFloat(document.getElementById('s-cmv')?.value)||0;
+  const com      = (parseFloat(document.getElementById('s-com')?.value)||11)/100;
+  const imp      = (parseFloat(document.getElementById('s-imp')?.value)||10)/100;
+  const frete    = parseFloat(document.getElementById('s-frete')?.value)||0;
+  const tacos    = (parseFloat(document.getElementById('s-tacos')?.value)||0)/100;
+  const rebotUnit= parseFloat(document.getElementById('s-rebot')?.value)||0;
+  const rebotIni = document.getElementById('s-rebot-ini')?.value||'';
+  const rebotFim = document.getElementById('s-rebot-fim')?.value||'';
+  const un = per.unidades||0;
+  const recSim = preco*un;
+  const pDe  = document.getElementById('modal-de')?.value||'';
+  const pAte = document.getElementById('modal-ate')?.value||'';
+
+  // Rebot — intersecção do período de vigência com o período selecionado
+  let rebotSim=0;
+  if(rebotUnit>0 && rebotIni && rebotFim && pDe && pAte) {
+    try {
+      const rIni=new Date(rebotIni), rFim=new Date(rebotFim);
+      const pIni=new Date(pDe),      pFim=new Date(pAte);
+      const iIni=rIni>pIni?rIni:pIni;
+      const iFim=rFim<pFim?rFim:pFim;
+      if(iFim>=iIni) {
+        const totalDias=(pFim-pIni)/86400000+1;
+        const interDias=(iFim-iIni)/86400000+1;
+        const ratio=totalDias>0?Math.min(interDias/totalDias,1):1;
+        rebotSim=Math.round(rebotUnit*(un*ratio)*100)/100;
+      }
+    } catch(e){}
+  }
+
+  const adsSim  = recSim*tacos;
+  const margSim = recSim-cmv*un-recSim*imp-recSim*com-frete*un-adsSim+rebotSim;
+  const mpSim   = recSim>0?margSim/recSim*100:0;
+  const tacosSim= tacos*100;
+  const diff    = margSim-per.margem_total;
+  const outEl=document.getElementById('sim-out'); if(!outEl) return;
+  outEl.innerHTML=`<div class="sim-result"><div class="sim-out">
+    <div class="sim-out-row"><span>Receita simulada</span><span class="mono">${brl(recSim)}</span></div>
+    <div class="sim-out-row"><span>Margem simulada</span><span class="mono" style="color:${margSim<0?'var(--red)':'var(--green)'}">${brl(margSim)} <small>(${mpSim.toFixed(2)}%)</small></span></div>
+    <div class="sim-out-row"><span>Δ vs atual</span><span class="mono ${diff>=0?'vb-up':'vb-dn'}">${diff>=0?'+':''}${brl(diff)}</span></div>
+    <div class="sim-out-row"><span>TACOS</span><span class="mono">${tacosSim.toFixed(2)}%</span></div>
+    <div class="sim-out-row"><span>Invest. ADS simulado</span><span class="mono">${brl(adsSim)}</span></div>
+    ${rebotSim>0?`<div class="sim-out-row"><span>Rebot simulado</span><span class="mono" style="color:var(--green)">${brl(rebotSim)}</span></div>`:''}
+  </div></div>`;
+}
+
+// ── ABAS DO MODAL ─────────────────────────────────────────────────────────────
+function switchModalTab(tab, btn) {
+  document.querySelectorAll('.modal-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.modal-tab-content').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(`modal-tab-${tab}`)?.classList.add('active');
+  if (tab === 'anotacoes') {
+    const ac = document.getElementById('anotacoes-container');
+    if (ac) ac.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:11px">Carregando...</div>';
+    renderAnotacoesTab(_modalMlb, _modalConta);
+  }
+}
+
+// ── ANOTAÇÕES ─────────────────────────────────────────────────────────────────
+async function renderAnotacoesTab(mlb, conta) {
+  mlb   = _modalMlb   || mlb;
+  conta = _modalConta || conta;
+
+  const container = document.getElementById('anotacoes-container');
+  if (!container) return;
+  const de  = document.getElementById('modal-de')?.value  || '';
+  const ate = document.getElementById('modal-ate')?.value || '';
+
+  container.innerHTML = '<div style="padding:8px 0 16px;color:var(--muted);font-size:11px">Carregando...</div>';
+
+  try {
+    const res  = await fetch(`${API}/anotacoes/${conta}/${mlb}`);
+    const data = await res.json();
+    const list = data.anotacoes || [];
+
+    container.innerHTML = `
+      <div style="margin-bottom:16px;">
+        <textarea class="anotacao-input" id="anotacao-input"
+          placeholder="Escreva uma anotação sobre este produto..."></textarea>
+        <button class="btn-anotacao" onclick="salvarAnotacao('${mlb}','${conta}')">
+          💾 Salvar Anotação
+        </button>
+      </div>
+      <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">
+        ${list.length} anotaç${list.length !== 1 ? 'ões' : 'ão'} registrada${list.length !== 1 ? 's' : ''}
+      </div>
+      ${list.length === 0 ? '<div style="font-size:12px;color:var(--muted);padding:16px 0;text-align:center">Nenhuma anotação ainda.</div>' : ''}
+      ${list.map(a => `
+        <div class="anotacao-item">
+          <button class="anotacao-del" onclick="deletarAnotacao('${mlb}','${conta}','${a.id}')" title="Excluir">✕</button>
+          <div class="anotacao-texto">${a.texto.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+          <div class="anotacao-meta">📅 ${a.criado_em}</div>
+        </div>
+      `).join('')}
+    `;
+  } catch(e) {
+    container.innerHTML = '<div style="color:var(--red);font-size:12px">Erro ao carregar anotações.</div>';
+  }
+}
+
+async function salvarAnotacao(mlb, conta) {
+  mlb = _modalMlb || mlb; conta = _modalConta || conta;
+  const input = document.getElementById('anotacao-input');
+  const texto = input?.value?.trim();
+  if (!texto) { toast('Digite uma anotação antes de salvar', 'error'); return; }
+  try {
+    const res = await fetch(`${API}/anotacoes/${conta}/${mlb}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({texto})
+    });
+    if (!res.ok) { toast('Erro ao salvar anotação', 'error'); return; }
+    input.value = '';
+    toast('✓ Anotação salva!');
+    renderAnotacoesTab(mlb, conta);
+  } catch(e) { toast('Erro de conexão', 'error'); }
+}
+
+async function deletarAnotacao(mlb, conta, id) {
+  if (!confirm('Excluir esta anotação?')) return;
+  try {
+    await fetch(`${API}/anotacoes/${conta}/${mlb}/${id}`, {method: 'DELETE'});
+    toast('Anotação excluída');
+    renderAnotacoesTab(mlb, conta);
+  } catch(e) { toast('Erro ao excluir', 'error'); }
+}
+
+function closeModal() {
+  document.getElementById('modal-prod').classList.remove('open');
+  _modalMlb = null; _modalConta = null;
+  // Volta sempre para a aba Dados ao fechar
+  document.querySelectorAll('.modal-tab').forEach((b,i) => b.classList.toggle('active', i===0));
+  document.querySelectorAll('.modal-tab-content').forEach((c,i) => c.classList.toggle('active', i===0));
+}
+document.getElementById('modal-prod').addEventListener('click', function(e){if(e.target===this)closeModal();});
+
+function salvarPosicao(mlb, conta) {
+  const pag = parseInt(document.getElementById('pos-pag').value)||1;
+  const pos = parseInt(document.getElementById('pos-num').value)||0;
+  const kw  = document.getElementById('pos-kw').value.trim();
+  if(!pos){toast('Informe a posição','error');return;}
+  const key = `pos_${mlb}`;
+  const existing = (() => { try{return JSON.parse(localStorage.getItem(key)||'{}')} catch{return {}} })();
+  const hist = existing.historico||[];
+  hist.push({data:new Date().toLocaleDateString('pt-BR'),pagina:pag,posicao:pos,keyword:kw});
+  const novo = {pagina:pag,posicao:pos,keyword:kw,historico:hist.slice(-20)};
+  localStorage.setItem(key, JSON.stringify(novo));
+  toast(`✓ Posição salva: página ${pag}, #${pos}`);
+  // Atualiza badge na tabela
+  const badge = document.querySelector(`tr[onclick*="${mlb}"] td:last-child`);
+  if(badge) badge.innerHTML = renderPosBadge(mlb);
+  closeModal();
+}
+
+// ── CONFIG ────────────────────────────────────────────────────────────────
+async function loadConfig() {
+  try {
+    const res = await fetch(`${API}/config/contas`);
+    const contas = await res.json();
+    document.getElementById('config-contas').innerHTML = Object.entries(contas).map(([key,c])=>`
+      <div class="config-card">
+        <div class="config-card-title">${c.nome}</div>
+        <div class="config-card-sub">Configuração OAuth Mercado Livre</div>
+        <div class="token-pill ${c.token_ok?'ok':'fail'}">
+          <div class="token-dot"></div>
+          ${c.token_ok?'Token ativo':'Token inativo'}
+          ${c.token_expires_at?' · expira '+new Date(c.token_expires_at).toLocaleString('pt-BR'):''}
+        </div>
+        <div class="cfield"><label>Client ID</label><input type="text" id="cid-${key}" placeholder="Ex: 1234567890"/></div>
+        <div class="cfield"><label>Client Secret</label><input type="password" id="csec-${key}" placeholder="Secret key"/></div>
+        <button class="btn-auth" id="btn-auth-${key}" onclick="salvarEAutorizar('${key}')">🔐 Conectar com ML</button>
+        <div class="auth-info" id="url-${key}"></div>
+        <div class="cfield" style="margin-top:12px"><label>Código TG-... (após autorizar)</label><input type="text" id="code-${key}" placeholder="Cole o código TG-... aqui"/></div>
+        <button class="btn-save" onclick="trocarCodigo('${key}')">Trocar por Token</button>
+      </div>`).join('');
+  } catch(e){document.getElementById('config-contas').innerHTML='<div style="color:var(--red);padding:20px">Erro ao carregar configurações</div>';}
+}
+
+async function salvarEAutorizar(conta) {
+  const cid=document.getElementById(`cid-${conta}`).value.trim();
+  const csec=document.getElementById(`csec-${conta}`).value.trim();
+  if(!cid||!csec){toast('Preencha Client ID e Secret','error');return;}
+  await fetch(`${API}/config/conta`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conta,client_id:cid,client_secret:csec})});
+  const res=await fetch(`${API}/auth/url/${conta}`);
+  const data=await res.json();
+  if(window.electronAPI){
+    const btn=document.getElementById(`btn-auth-${conta}`);
+    btn.disabled=true; btn.innerHTML='<span class="loader"></span> Aguardando login...';
+    const result=await window.electronAPI.abrirOAuth(data.url,conta);
+    if(result.success&&result.code){
+      const ar=await fetch(`${API}/auth/autorizar`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conta,code:result.code})});
+      if(ar.ok){toast('✓ '+conta.toUpperCase()+' conectado!');loadConfig();}
+      else{const e=await ar.json();toast('Erro: '+(e.detail||''),'error');}
+    } else toast('Autorização cancelada','error');
+    btn.disabled=false; btn.innerHTML='🔐 Conectar com ML';
+  } else {
+    const box=document.getElementById(`url-${conta}`);
+    box.style.display='block';
+    box.innerHTML=`<a href="${data.url}" target="_blank">${data.url}</a><br/><small style="color:var(--muted2)">Abra em aba anônima logado na conta correta, autorize e cole o código TG abaixo.</small>`;
+    toast('✓ Config salva — abra a URL para autorizar');
+  }
+}
+
+async function trocarCodigo(conta) {
+  const code=document.getElementById(`code-${conta}`)?.value.trim();
+  if(!code){toast('Cole o código TG-...','error');return;}
+  const res=await fetch(`${API}/auth/autorizar`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conta,code})});
+  if(res.ok){toast('✓ Token gerado com sucesso!');loadConfig();}
+  else{const e=await res.json();toast('Erro: '+(e.detail||''),'error');}
+}
+</script>
+</body>
+</html>

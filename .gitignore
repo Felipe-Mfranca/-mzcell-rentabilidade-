@@ -1,0 +1,25 @@
+﻿# Dados locais (não sobem para o GitHub)
+config.json
+produtos.json
+anotacoes.json
+usuarios.json
+sync_status.json
+log_atividades.json
+historico_rentabilidade.json
+alertas.json
+contas.json
+pkce_temp.json
+__pycache__/
+*.pyc
+venv/
+python-embed/
+python-embed.zip
+mzcell-rentabilidade/
+mzcell-electron/node_modules/
+mzcell-electron/dist/
+*.zip
+*.exe
+_test_*.py
+_dump_*.py
+_inspect_*.py
+screenshot.png
