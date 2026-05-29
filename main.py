@@ -648,10 +648,18 @@ async def get_alertas():
 
 @app.get("/sistema/houve-atualizacao")
 async def houve_atualizacao_endpoint():
-    flag_path = os.path.join(BASE_DIR, "flag_atualizacao.txt")
-    if os.path.exists(flag_path):
-        os.remove(flag_path)
-        return {"houve": True}
+    version_path = os.path.join(BASE_DIR, "version.txt")
+    anterior_path = os.path.join(BASE_DIR, "version_anterior.txt")
+    try:
+        versao_atual = open(version_path, encoding="utf-8").read().strip()
+    except FileNotFoundError:
+        return {"houve": False}
+    versao_anterior = None
+    if os.path.exists(anterior_path):
+        versao_anterior = open(anterior_path, encoding="utf-8").read().strip()
+    if versao_anterior != versao_atual:
+        open(anterior_path, "w", encoding="utf-8").write(versao_atual)
+        return {"houve": True, "versao": versao_atual}
     return {"houve": False}
 
 

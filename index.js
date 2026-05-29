@@ -157,9 +157,6 @@ app.whenReady().then(async () => {
       defaultId: 0
     }).catch(() => {});
   }
-  if (houve_atualizacao) {
-    fs.writeFileSync(path.join(RESOURCES, 'flag_atualizacao.txt'), '1', 'utf8');
-  }
   iniciarBackend();
   aguardarBackend();
 });
