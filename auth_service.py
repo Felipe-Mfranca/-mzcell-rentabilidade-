@@ -22,7 +22,7 @@ def h(s): return hashlib.sha256(s.encode()).hexdigest()
 
 def verificar_login(login, senha):
     for u in load_usuarios():
-        if u["login"]==login and u["senha"]==h(senha):
+        if u["login"]==login.lower() and u["senha"]==h(senha):
             return u
     return None
 

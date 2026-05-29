@@ -233,6 +233,10 @@ input.modal-date:focus{border-color:var(--gold);}
 .login-field input:focus{border-color:var(--gold);}
 .login-btn{width:100%;background:var(--gold);color:var(--bg);font-weight:700;padding:14px;border:none;border-radius:10px;cursor:pointer;font-size:14px;font-family:var(--font);transition:all .2s;margin-top:6px;}
 .login-btn:hover{background:var(--gold2);transform:translateY(-1px);}
+.pw-wrap{position:relative;display:flex;align-items:center;}
+.pw-wrap input{flex:1;padding-right:38px!important;}
+.pw-eye{position:absolute;right:10px;background:none;border:none;cursor:pointer;color:var(--muted2);padding:0;line-height:0;display:flex;align-items:center;}
+.pw-eye:hover{color:var(--text);}
 
 /* ── VARIATION BADGES ── */
 .vb-up{color:var(--green);font-size:12px;font-weight:700;font-family:var(--mono);}
@@ -359,7 +363,7 @@ input.modal-date:focus{border-color:var(--gold);}
     </div>
     <div id="login-erro" class="login-erro" style="display:none"></div>
     <div class="login-field"><label>Usuário</label><input type="text" id="login-user" placeholder="seu login" autocomplete="username"/></div>
-    <div class="login-field"><label>Senha</label><input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password"/></div>
+    <div class="login-field"><label>Senha</label><div class="pw-wrap"><input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password"/><button type="button" class="pw-eye" onclick="toggleSenha('login-pass',this)" tabindex="-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
     <button class="login-btn" onclick="fazerLogin()">Entrar →</button>
     <div style="text-align:center;margin-top:12px">
       <a href="#" onclick="mostrarRecuperarSenha();return false;" style="color:var(--muted2);font-size:12px;text-decoration:none">Esqueci minha senha</a>
@@ -453,7 +457,18 @@ input.modal-date:focus{border-color:var(--gold);}
       <div class="tab active" id="tab-meli01"><div id="painel-meli01"></div></div>
       <div class="tab" id="tab-meli02"><div id="painel-meli02"></div></div>
       <div class="tab" id="tab-meli03"><div id="painel-meli03"></div></div>
-      <div class="tab" id="tab-config"><div class="config-grid" id="config-contas"></div></div>
+      <div class="tab" id="tab-config">
+        <div class="config-grid" id="config-contas"></div>
+        <div class="config-card" style="margin-top:24px;max-width:420px">
+          <div class="config-card-title">Alterar senha</div>
+          <div class="config-card-sub">Redefina sua senha de acesso ao sistema</div>
+          <div id="cfg-senha-erro" class="login-erro" style="display:none"></div>
+          <div class="cfield"><label>Senha atual</label><div class="pw-wrap"><input type="password" id="cfg-senha-atual" placeholder="••••••••"/><button type="button" class="pw-eye" onclick="toggleSenha('cfg-senha-atual',this)" tabindex="-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+          <div class="cfield"><label>Nova senha</label><div class="pw-wrap"><input type="password" id="cfg-senha-nova" placeholder="mínimo 6 caracteres"/><button type="button" class="pw-eye" onclick="toggleSenha('cfg-senha-nova',this)" tabindex="-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+          <div class="cfield"><label>Confirmar nova senha</label><div class="pw-wrap"><input type="password" id="cfg-senha-confirma" placeholder="repita a nova senha"/><button type="button" class="pw-eye" onclick="toggleSenha('cfg-senha-confirma',this)" tabindex="-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+          <button class="btn-save" style="margin-top:8px" onclick="alterarSenha()">Salvar nova senha</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -584,10 +599,20 @@ function toast(msg, tipo='success') {
 // ── LOGIN ──────────────────────────────────────────────────────────────────
 let _loginAtual = null;
 
+const _svgEye    = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const _svgEyeOff = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+
+function toggleSenha(id, btn) {
+  const inp = document.getElementById(id);
+  const show = inp.type === 'password';
+  inp.type = show ? 'text' : 'password';
+  btn.innerHTML = show ? _svgEyeOff : _svgEye;
+}
+
 document.getElementById('login-pass').addEventListener('keydown', e => { if(e.key==='Enter') fazerLogin(); });
 
 async function fazerLogin() {
-  const login = document.getElementById('login-user').value.trim();
+  const login = document.getElementById('login-user').value.trim().toLowerCase();
   const senha = document.getElementById('login-pass').value;
   if (!login || !senha) { mostrarErroLogin('Preencha todos os campos'); return; }
   try {
@@ -1675,6 +1700,29 @@ async function trocarCodigo(conta) {
   const res=await fetch(`${API}/auth/autorizar`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conta,code})});
   if(res.ok){toast('✓ Token gerado com sucesso!');loadConfig();}
   else{const e=await res.json();toast('Erro: '+(e.detail||''),'error');}
+}
+
+async function alterarSenha() {
+  const atual    = document.getElementById('cfg-senha-atual').value;
+  const nova     = document.getElementById('cfg-senha-nova').value;
+  const confirma = document.getElementById('cfg-senha-confirma').value;
+  const erroEl   = document.getElementById('cfg-senha-erro');
+  erroEl.style.display = 'none';
+  if (nova !== confirma) { erroEl.textContent='Confirmação não confere'; erroEl.style.display='block'; return; }
+  if (nova.length < 6)   { erroEl.textContent='Mínimo 6 caracteres';    erroEl.style.display='block'; return; }
+  try {
+    const res  = await fetch(`${API}/usuario/senha`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({login: user.login, senha_atual: atual, senha_nova: nova, senha_nova_confirmacao: confirma})
+    });
+    const data = await res.json();
+    if (!res.ok) { erroEl.textContent = data.detail || 'Erro ao alterar senha'; erroEl.style.display='block'; return; }
+    toast('✓ Senha alterada com sucesso!');
+    document.getElementById('cfg-senha-atual').value   = '';
+    document.getElementById('cfg-senha-nova').value    = '';
+    document.getElementById('cfg-senha-confirma').value = '';
+  } catch(e) { erroEl.textContent='Erro de conexão'; erroEl.style.display='block'; }
 }
 </script>
 </body>

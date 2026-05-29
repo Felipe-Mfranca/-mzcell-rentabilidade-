@@ -84,13 +84,6 @@ def log_atividade(msg: str):
     logs.append({"ts": datetime.now().isoformat(), "msg": msg})
     save_json(LOG_PATH, logs[-500:])
 
-def verificar_usuario(login: str, senha: str) -> Optional[dict]:
-    usuarios = load_json(USUARIOS_PATH)
-    for u in usuarios:
-        if u["login"] == login and u["senha"] == senha:
-            return u
-    return None
-
 
 # ─── FRONTEND ────────────────────────────────────────────────────────────────
 
@@ -177,6 +170,26 @@ async def redefinir_senha(payload: dict):
         raise HTTPException(status_code=404, detail="Email não encontrado")
     auth_service.atualizar_email_senha(u["login"], email, nova_senha)
     return {"success": True}
+
+
+@app.post("/usuario/senha")
+async def alterar_senha_usuario(payload: dict):
+    login_val     = payload.get("login", "").strip().lower()
+    senha_atual   = payload.get("senha_atual", "")
+    senha_nova    = payload.get("senha_nova", "")
+    senha_confirm = payload.get("senha_nova_confirmacao", "")
+    if not login_val:
+        raise HTTPException(status_code=400, detail="Login não informado")
+    if len(senha_nova) < 6:
+        raise HTTPException(status_code=400, detail="Nova senha deve ter pelo menos 6 caracteres")
+    if senha_nova != senha_confirm:
+        raise HTTPException(status_code=400, detail="Confirmação de senha não confere")
+    u = auth_service.verificar_login(login_val, senha_atual)
+    if not u:
+        raise HTTPException(status_code=401, detail="Senha atual incorreta")
+    auth_service.atualizar_email_senha(login_val, u.get("email", ""), senha_nova)
+    log_atividade(f"Senha alterada: {login_val}")
+    return {"success": True, "msg": "Senha alterada com sucesso!"}
 
 
 # ─── CONFIG / CONTAS ─────────────────────────────────────────────────────────
