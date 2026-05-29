@@ -646,6 +646,15 @@ async def get_alertas():
     return {"alertas": load_json(ALERTAS_PATH) or []}
 
 
+@app.get("/sistema/houve-atualizacao")
+async def houve_atualizacao_endpoint():
+    flag_path = os.path.join(BASE_DIR, "flag_atualizacao.txt")
+    if os.path.exists(flag_path):
+        os.remove(flag_path)
+        return {"houve": True}
+    return {"houve": False}
+
+
 if __name__ == "__main__":
     import uvicorn
     config = load_json(CONFIG_PATH)

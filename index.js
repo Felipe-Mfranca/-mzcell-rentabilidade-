@@ -158,9 +158,7 @@ app.whenReady().then(async () => {
     }).catch(() => {});
   }
   if (houve_atualizacao) {
-    mainWindow.webContents.once('did-finish-load', () => {
-      mainWindow.webContents.executeJavaScript('window.__houve_atualizacao = true;').catch(() => {});
-    });
+    fs.writeFileSync(path.join(RESOURCES, 'flag_atualizacao.txt'), '1', 'utf8');
   }
   iniciarBackend();
   aguardarBackend();

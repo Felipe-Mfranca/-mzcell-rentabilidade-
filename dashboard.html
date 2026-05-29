@@ -630,11 +630,9 @@ async function fazerLogin() {
       document.getElementById('uname').textContent = user.nome;
       document.getElementById('urole').textContent = user.role;
       initApp();
-      // Popup de novidades — exibe se houver atualização recente
-      console.log('__houve_atualizacao:', window.__houve_atualizacao);
-      if (window.__houve_atualizacao) {
-        setTimeout(() => mostrarPopupChangelog(), 800);
-      }
+      fetch('/sistema/houve-atualizacao').then(r => r.json()).then(d => {
+        if (d.houve) setTimeout(() => mostrarPopupChangelog(), 800);
+      }).catch(() => {});
     }
   } catch(e) { mostrarErroLogin('Erro de conexão com o servidor'); }
 }
