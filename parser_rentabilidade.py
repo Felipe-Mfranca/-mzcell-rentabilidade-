@@ -201,6 +201,13 @@ def processar_orders(orders_data: dict, date_from: str, date_to: str) -> dict:
         if not (date_from <= date_str <= date_to):
             continue
 
+        # pack_splitted: cancelamento técnico interno do ML ao dividir um pack.
+        # A receita migra para o order substituto (já contabilizado como paid).
+        # Validado em 2 MLBs x 4 cenários — alinhado ao comportamento do Seller Center.
+        cd_code = (order.get("cancel_detail") or {}).get("code", "")
+        if cd_code in {"pack_splitted"}:
+            continue
+
         is_nao_pago   = status in STATUS_NAO_PAGOS
         is_concluido  = status in STATUS_CONCLUIDOS
 

@@ -19,6 +19,7 @@ const ARQUIVOS_ONLINE = [
 
 let mainWindow = null;
 let backendProc = null;
+let houve_atualizacao = false;
 
 function criarJanela() {
   mainWindow = new BrowserWindow({
@@ -91,6 +92,7 @@ async function verificarEAtualizar() {
   if (versaoOnline === versaoLocal) {
     setProgress(100, 'Iniciando servidor...'); return;
   }
+  houve_atualizacao = true;
   setProgress(10, `Atualizando para versão ${versaoOnline}...`);
   for (let i = 0; i < ARQUIVOS_ONLINE.length; i++) {
     const arquivo = ARQUIVOS_ONLINE[i];
@@ -145,6 +147,16 @@ app.whenReady().then(async () => {
   criarJanela();
   await verificarEAtualizar();
   setProgress(100, 'Iniciando servidor...');
+  if (houve_atualizacao) {
+    await dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'MZ Rentabilidade v1.1.3 — atualizado ✓',
+      message: 'Novidades desta versão:',
+      detail: '• Receita bruta agora alinhada com o Seller Center do ML\n• Pedidos internos do ML não inflam mais os números de vendas\n• Validado em múltiplos anúncios e períodos',
+      buttons: ['Entendi, continuar'],
+      defaultId: 0
+    }).catch(() => {});
+  }
   iniciarBackend();
   aguardarBackend();
 });
