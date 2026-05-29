@@ -157,6 +157,11 @@ app.whenReady().then(async () => {
       defaultId: 0
     }).catch(() => {});
   }
+  if (houve_atualizacao) {
+    mainWindow.webContents.once('did-finish-load', () => {
+      mainWindow.webContents.executeJavaScript('window.__houve_atualizacao = true;').catch(() => {});
+    });
+  }
   iniciarBackend();
   aguardarBackend();
 });
