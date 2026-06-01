@@ -14,7 +14,8 @@ const RESOURCES = app.isPackaged
 const GITHUB_RAW = 'https://raw.githubusercontent.com/Felipe-Mfranca/-mzcell-rentabilidade-/main';
 const ARQUIVOS_ONLINE = [
   'dashboard.html','main.py','ml_api.py','sync_produto.py',
-  'parser_rentabilidade.py','sync_service.py','refresh_ml_token.py','ranking_ml.py'
+  'parser_rentabilidade.py','sync_service.py','refresh_ml_token.py','ranking_ml.py',
+  'auth_service.py'
 ];
 
 let mainWindow = null;
