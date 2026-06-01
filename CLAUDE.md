@@ -153,3 +153,43 @@ npx electron .
 - **version.txt nunca salvar com `Set-Content -Encoding UTF8`** — adiciona BOM, o que quebra a comparação de versão no Electron. Usar `[System.IO.File]::WriteAllText` com `UTF8Encoding($false)`.
 - **Porta 8001 em uso:** se o servidor não iniciar, verificar com `netstat -ano | findstr :8001` e encerrar o processo antes.
 - **SSL no httpx/requests:** o ambiente usa `verify=False` nas chamadas à API ML por questões de certificado local.
+
+---
+
+## HISTÓRICO DE DECISÕES TÉCNICAS
+
+### Sessão 29/05/2026 — Auditoria de receita + melhorias de autenticação
+
+#### Correção pack_splitted (v1.1.3)
+- **Problema:** sistema incluía pedidos `pack_splitted` no GMV bruto, inflando receita
+- **Causa:** ML cancela order original e recria novo ao dividir pack — são cancelamentos técnicos, não reais
+- **Solução:** `parser_rentabilidade.py` — excluir orders com `cancel_detail.code == "pack_splitted"` antes de acumular receita
+- **Validação:** 2 MLBs × 4 cenários vs Seller Center — impacto −R$2.216,25 no período 28/04→27/05
+- **Decisão fuso:** manter `-04:00` — trocar para `-03:00` piora C3 sem benefício nos demais; resíduo de ~R$66–138 por período é aceitável (~0,09%)
+
+#### Melhorias de autenticação (v1.1.5)
+- Eye icon mostrar/ocultar senha no login e em configurações
+- Login case-insensitive — `.lower()` em `auth_service.py:verificar_login()`
+- Novo endpoint `POST /usuario/senha` — alteração de senha pelo próprio usuário
+- Removida função morta `verificar_usuario()` em `main.py` (comparava senha sem hash)
+
+#### Varredura de arquivos não atualizáveis
+- `auth_service.py` não estava em `ARQUIVOS_ONLINE` no `index.js` — corrigido em v1.1.9
+- `index.js` fica dentro de `app.asar` — **nunca é atualizado via push no GitHub**
+- Consequência: qualquer lógica nova no `index.js` só chega ao usuário via novo instalador
+
+#### Popup de changelog (pendente — v1.2.0)
+- Implementado mas não funcional — popup dispara antes do login, usuário não vê
+- Abordagem via `flag_atualizacao.txt` não funciona pois `index.js` está no `app.asar`
+- Abordagem via comparação `version.txt` vs `version_anterior.txt` implementada mas popup ainda não aparece
+- **Decisão:** mover para v1.2.0 junto com redesign e renomeação
+
+#### Redesign do dashboard (pendente — v1.2.0)
+- Protótipo aprovado: fundo branco, cinza grafite na topbar, verde escuro nos destaques, escala de cinza nos elementos estruturais
+- Paleta semântica: verde `#166534` positivo, âmbar `#854d0e` atenção, vermelho `#991b1b` alerta
+- Aguarda aprovação da diretoria antes de implementar
+
+#### Decisões arquiteturais
+- Alíquota de imposto meli02: **não corrigir no parser** — virá via importar custos (produtos.json sobrescreve o default)
+- Controle de acesso por role nos endpoints de importação: `tem_permissao()` existe mas não está conectada — implementar na v1.1.x
+- SHA-256 sem salt nas senhas: risco baixo no momento — mover para v1.2.0
