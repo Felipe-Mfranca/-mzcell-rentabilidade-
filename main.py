@@ -409,7 +409,7 @@ async def importar_custos_xlsx(conta: str, file: UploadFile = File(...)):
         mlb_val = str(get_val(row, "mlb") or "").strip()
         sku_val  = str(get_val(row, "sku")  or "").strip().upper()
 
-        mlb = mlb_index.get(mlb_val) or sku_index.get(sku_val)
+        mlb = mlb_index.get(mlb_val) or mlb_index.get(f"MLB{mlb_val}") or sku_index.get(sku_val)
         if not mlb:
             if mlb_val or sku_val:
                 nao_encontrados.append(mlb_val or sku_val)
