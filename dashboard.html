@@ -954,6 +954,7 @@ async function importarCustos(conta, input) {
     if(data.success){
       toast(`✓ ${data.atualizados} produtos com CMV, frete e comissão atualizados!`);
       await syncConta(conta);
+      if (_modalMlb && _modalConta === conta) syncProduto(_modalMlb, _modalConta);
     } else { toast('Erro: '+(data.error||''),'error'); }
   } catch(e){ toast('Erro ao importar','error'); }
   input.value='';
