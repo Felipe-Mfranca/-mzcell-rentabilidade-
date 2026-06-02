@@ -1,5 +1,5 @@
 ﻿const { app, BrowserWindow, dialog } = require('electron');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const path = require('path');
 const http = require('http');
 const https = require('https');
@@ -107,6 +107,22 @@ async function verificarEAtualizar() {
   setProgress(95, 'Atualização concluída!');
 }
 
+async function liberarPorta() {
+  try {
+    const saida = execSync(`netstat -ano | findstr :${PORT}`, { encoding: 'utf8' });
+    const pids = new Set();
+    for (const linha of saida.split('\n')) {
+      const col = linha.trim().split(/\s+/);
+      const pid = col[col.length - 1];
+      if (pid && /^\d+$/.test(pid) && pid !== '0') pids.add(pid);
+    }
+    for (const pid of pids) {
+      try { execSync(`taskkill /PID ${pid} /F`, { encoding: 'utf8' }); } catch (_) {}
+    }
+    if (pids.size > 0) await new Promise(r => setTimeout(r, 500));
+  } catch (_) {}
+}
+
 function iniciarBackend() {
   const pythonExe = fs.existsSync(path.join(RESOURCES, 'python-embed', 'python.exe'))
     ? path.join(RESOURCES, 'python-embed', 'python.exe')
@@ -158,6 +174,7 @@ app.whenReady().then(async () => {
       defaultId: 0
     }).catch(() => {});
   }
+  await liberarPorta();
   iniciarBackend();
   aguardarBackend();
 });

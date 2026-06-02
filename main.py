@@ -810,7 +810,17 @@ async def houve_atualizacao_endpoint():
 
 
 if __name__ == "__main__":
-    import uvicorn
+    import subprocess, time, uvicorn
+    try:
+        saida = subprocess.check_output("netstat -ano | findstr :8001", shell=True).decode()
+        for linha in saida.strip().split('\n'):
+            col = linha.strip().split()
+            pid = col[-1] if col else ""
+            if pid.isdigit() and pid != '0':
+                subprocess.run(f"taskkill /PID {pid} /F", shell=True, capture_output=True)
+        time.sleep(0.5)
+    except Exception:
+        pass
     config = load_json(CONFIG_PATH)
     host = config.get("servidor", {}).get("host", "127.0.0.1")
     port = config.get("servidor", {}).get("port", 8001)
