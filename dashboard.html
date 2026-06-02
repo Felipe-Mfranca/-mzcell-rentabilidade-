@@ -473,6 +473,31 @@ input.modal-date:focus{border-color:var(--gold);}
   </div>
 </div>
 
+<!-- MODAL IMPORTAÇÃO LOG -->
+<div class="overlay" id="modal-import-log">
+  <div class="modal" style="width:600px;max-width:90vw;">
+    <button class="modal-close" onclick="closeImportLog()">✕</button>
+    <div class="modal-header">
+      <div class="modal-header-info">
+        <div class="modal-prod">Importação concluída com avisos</div>
+      </div>
+    </div>
+    <p id="import-log-count" style="margin:0 0 16px;font-size:14px;color:var(--green);font-weight:600;"></p>
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:8px 12px;border-bottom:1px solid var(--border2);color:var(--muted2);font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;">ID</th>
+          <th style="text-align:left;padding:8px 12px;border-bottom:1px solid var(--border2);color:var(--muted2);font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;">Motivo</th>
+        </tr>
+      </thead>
+      <tbody id="import-log-tbody"></tbody>
+    </table>
+    <div style="text-align:center;margin-top:20px;">
+      <button class="btn-gold" onclick="closeImportLog()">OK</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL PRODUTO -->
 <div class="overlay" id="modal-prod">
   <div class="modal">
@@ -775,10 +800,13 @@ function renderPainel(conta) {
         <button class="preset" onclick="setPreset('${conta}',0,this)">Personalizado</button>
       </div>
       <div class="ml-auto" style="display:flex;gap:8px;align-items:center">
-        <button class="btn-purple" onclick="document.getElementById('up-${conta}').click()">
-          📥 Importar Custos
-        </button>
-        <input type="file" id="up-${conta}" accept=".xlsx" style="display:none" onchange="importarCustos('${conta}',this)"/>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+          <button class="btn-purple" onclick="document.getElementById('up-${conta}').click()">
+            📥 Importar Custos
+          </button>
+          <input type="file" id="up-${conta}" accept=".xlsx" style="display:none" onchange="importarCustos('${conta}',this)"/>
+          <a href="#" onclick="baixarModelo('${conta}');return false;" style="font-size:11px;color:var(--muted2);text-decoration:none;">↓ baixar modelo .xlsx</a>
+        </div>
         <button class="btn-sync" id="btn-sync-${conta}" onclick="syncConta('${conta}')">
           <span>↻</span> Sincronizar ML
         </button>
@@ -955,9 +983,42 @@ async function importarCustos(conta, input) {
       toast(`✓ ${data.atualizados} produtos com CMV, frete e comissão atualizados!`);
       await syncConta(conta);
       if (_modalMlb && _modalConta === conta) syncProduto(_modalMlb, _modalConta);
+      showImportLog(data.atualizados, data.nao_encontrados || []);
     } else { toast('Erro: '+(data.error||''),'error'); }
   } catch(e){ toast('Erro ao importar','error'); }
   input.value='';
+}
+
+function showImportLog(atualizados, naoEncontrados) {
+  document.querySelector('#modal-import-log .modal-prod').textContent =
+    naoEncontrados.length === 0 ? 'Importação concluída' : 'Importação concluída com avisos';
+  document.getElementById('import-log-count').textContent =
+    `${atualizados} produto${atualizados !== 1 ? 's' : ''} atualizado${atualizados !== 1 ? 's' : ''} com sucesso`;
+  const tbody = document.getElementById('import-log-tbody');
+  if(naoEncontrados.length === 0){
+    tbody.innerHTML = `<tr><td colspan="2" style="padding:14px 12px;text-align:center;color:var(--muted2);font-size:13px;">Todos os produtos foram encontrados e atualizados.</td></tr>`;
+  } else {
+    tbody.innerHTML = naoEncontrados.map(item =>
+      `<tr>
+        <td style="padding:8px 12px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:12px;">${item.id}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid var(--border);color:var(--muted2);font-size:13px;">${item.motivo}</td>
+      </tr>`
+    ).join('');
+  }
+  document.getElementById('modal-import-log').classList.add('open');
+}
+
+function closeImportLog() {
+  document.getElementById('modal-import-log').classList.remove('open');
+}
+
+function baixarModelo(conta) {
+  const a = document.createElement('a');
+  a.href = `${API}/modelos/${conta}`;
+  a.download = `modelo_custos_${conta}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 // ── KPIs ──────────────────────────────────────────────────────────────────

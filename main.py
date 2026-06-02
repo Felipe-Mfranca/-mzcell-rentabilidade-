@@ -11,7 +11,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 import io
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -316,13 +316,128 @@ async def salvar_custos(payload: CustosPayload):
 
 # ─── SYNC — Puxa dados da API ML e atualiza DB ───────────────────────────────
 
+@app.get("/modelos/{conta}")
+async def baixar_modelo_custos(conta: str):
+    """Gera e retorna o modelo .xlsx de importação de custos pré-preenchido com os produtos da conta."""
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font, Alignment
+
+    cfg      = parser.load_config()
+    impostos = cfg.get("impostos", {})
+    aliq_com_st = impostos.get(f"{conta}_com_st", {}).get("aliquota", 0.10)
+    aliq_sem_st = impostos.get(f"{conta}_sem_st", {}).get("aliquota", 0.08)
+
+    produtos_db    = parser.load_produtos()
+    produtos_conta = sorted(
+        [(mlb, p) for mlb, p in produtos_db.items() if p.get("conta") == conta],
+        key=lambda x: x[1].get("titulo", ""),
+    )
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Importação"
+
+    fill_amarelo = PatternFill("solid", fgColor="FFF176")
+    fill_header  = PatternFill("solid", fgColor="1A1A24")
+    fill_dica    = PatternFill("solid", fgColor="EEEEEE")
+
+    COLS    = ["A","B","C","D","E","F","G","H","I","J"]
+    HEADERS = ["ID do anúncio","SKU","Título","Preço de Custo",
+               "Frete","Comissão","Imposto","Rebot","Rebot Início","Rebot Fim"]
+    WIDTHS  = [22, 15, 46, 16, 12, 12, 12, 12, 14, 14]
+
+    # Linha 1 — título
+    ws.merge_cells("A1:J1")
+    ws["A1"].value     = f"Modelo de Importação — MZ Rentabilidade · {conta}"
+    ws["A1"].font      = Font(bold=True, size=13)
+    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 30
+
+    # Linha 2 — alíquotas editáveis (B2 = COM ST, D2 = SEM ST)
+    ws["A2"].value     = "Alíquota COM ST:"
+    ws["A2"].font      = Font(size=10)
+    ws["A2"].alignment = Alignment(vertical="center")
+
+    ws["B2"].value         = round(aliq_com_st * 100, 4)
+    ws["B2"].fill          = fill_amarelo
+    ws["B2"].font          = Font(bold=True, size=10)
+    ws["B2"].number_format = "0.00"
+    ws["B2"].alignment     = Alignment(horizontal="center", vertical="center")
+
+    ws["C2"].value     = "|   Alíquota SEM ST:"
+    ws["C2"].font      = Font(size=10)
+    ws["C2"].alignment = Alignment(vertical="center")
+
+    ws["D2"].value         = round(aliq_sem_st * 100, 4)
+    ws["D2"].fill          = fill_amarelo
+    ws["D2"].font          = Font(bold=True, size=10)
+    ws["D2"].number_format = "0.00"
+    ws["D2"].alignment     = Alignment(horizontal="center", vertical="center")
+
+    try:
+        from openpyxl.workbook.defined_name import DefinedName
+        wb.defined_names["aliquota_com_st"] = DefinedName("aliquota_com_st", attr_text="Importação!$B$2")
+        wb.defined_names["aliquota_sem_st"] = DefinedName("aliquota_sem_st", attr_text="Importação!$D$2")
+    except Exception:
+        pass
+
+    ws.row_dimensions[2].height = 22
+
+    # Linha 3 — dica (antes do cabeçalho para não ser processada como dado)
+    ws.merge_cells("A3:J3")
+    ws["A3"].value     = "  Imposto: COM ST ou SEM ST  ·  Comissão em % (ex: 11 para 11%)  ·  Datas: DD/MM/AAAA  ·  Deixe em branco campos sem valor"
+    ws["A3"].fill      = fill_dica
+    ws["A3"].font      = Font(italic=True, size=9, color="9E9E9E")
+    ws["A3"].alignment = Alignment(vertical="center")
+    ws.row_dimensions[3].height = 16
+
+    # Linha 4 — cabeçalhos
+    for col, header in zip(COLS, HEADERS):
+        c            = ws[f"{col}4"]
+        c.value      = header
+        c.fill       = fill_header
+        c.font       = Font(bold=True, color="FFFFFF", size=10)
+        c.alignment  = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[4].height = 22
+
+    # Linhas 5+ — produtos (sem linha de dica entre cabeçalho e dados)
+    def _num(val):
+        return val if val is not None else ""
+
+    for row_num, (mlb, p) in enumerate(produtos_conta, start=5):
+        comissao_val = round((p.get("comissao_pct") or 0.11) * 100, 2)
+        tem_st_val   = "COM ST" if p.get("tem_st", True) else "SEM ST"
+        ws.cell(row=row_num, column=1).value  = mlb
+        ws.cell(row=row_num, column=2).value  = p.get("sku", "")
+        ws.cell(row=row_num, column=3).value  = p.get("titulo", "")
+        ws.cell(row=row_num, column=4).value  = _num(p.get("cmv_unit"))
+        ws.cell(row=row_num, column=5).value  = _num(p.get("frete_unit"))
+        ws.cell(row=row_num, column=6).value  = comissao_val
+        ws.cell(row=row_num, column=7).value  = tem_st_val
+        ws.cell(row=row_num, column=8).value  = _num(p.get("rebot_unit"))
+        ws.cell(row=row_num, column=9).value  = p.get("rebot_inicio") or ""
+        ws.cell(row=row_num, column=10).value = p.get("rebot_fim") or ""
+
+    for col_letter, width in zip(COLS, WIDTHS):
+        ws.column_dimensions[col_letter].width = width
+    ws.freeze_panes = "A5"
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=modelo_custos_{conta}.xlsx"},
+    )
+
+
 @app.post("/produtos/importar-custos/{conta}")
 async def importar_custos_xlsx(conta: str, file: UploadFile = File(...)):
     """
     Lê o modelo xlsx MZCell e atualiza custos no produtos.json.
-    Formato esperado: aba 'Relatório' com colunas:
-    ID do anúncio | Anúncio | Status | Variação | Frete | Preço de Custo | SKU | Imposto | Comissão | Rebot | Rebot Início | Rebot Fim
-    Dados começam na linha 5 (linhas 1-4 são cabeçalhos).
+    Colunas: ID do anúncio | SKU | Título | Preço de Custo | Frete | Comissão | Imposto | Rebot | Rebot Início | Rebot Fim
+    B2 = alíquota COM ST (%) · D2 = alíquota SEM ST (%) — sobrepõem config.json quando preenchidos.
     """
     import openpyxl
     from datetime import datetime
@@ -333,51 +448,64 @@ async def importar_custos_xlsx(conta: str, file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro ao ler xlsx: {e}")
 
-    # Busca aba Relatório
+    # Busca aba pelo nome
     sheet_name = None
     for name in wb.sheetnames:
-        if "relat" in name.lower() or "custo" in name.lower():
+        if "relat" in name.lower() or "custo" in name.lower() or "importa" in name.lower():
             sheet_name = name
             break
     if not sheet_name:
         sheet_name = wb.sheetnames[0]
     ws = wb[sheet_name]
 
+    # Lê alíquotas de B2/D2 se o modelo MZCell foi usado (sobrepõem config.json)
+    def _parse_aliq(val):
+        try:
+            v = float(val)
+            return v / 100 if v > 1 else v
+        except Exception:
+            return None
+
+    aliq_com_st_override = _parse_aliq(ws["B2"].value)
+    aliq_sem_st_override = _parse_aliq(ws["D2"].value)
+
     # Detecta linha de cabeçalho procurando "ID do anúncio" ou "SKU"
+    # Cada linha é varrida de forma independente; só é aceita se contiver mlb OU sku,
+    # evitando que linhas de título com "custo" sejam confundidas com cabeçalho.
     header_row = None
     col_map = {}
     for row in ws.iter_rows(min_row=1, max_row=10):
+        row_map = {}
         for cell in row:
             val = str(cell.value or "").lower().strip()
             if "id do" in val or ("anúncio" in val and "id" in val):
-                col_map["mlb"] = cell.column
+                row_map["mlb"] = cell.column
             elif val in ["frete", "frete (r$)"]:
-                col_map["frete"] = cell.column
+                row_map["frete"] = cell.column
             elif "custo" in val or "cmv" in val:
-                col_map["cmv"] = cell.column
+                row_map["cmv"] = cell.column
             elif "sku" in val:
-                col_map["sku"] = cell.column
+                row_map["sku"] = cell.column
             elif "imposto" in val:
-                col_map["imposto"] = cell.column
+                row_map["imposto"] = cell.column
             elif "comiss" in val:
-                col_map["comissao"] = cell.column
+                row_map["comissao"] = cell.column
             elif val == "rebot\n(r$/un)" or (val.startswith("rebot") and "início" not in val and "fim" not in val and "inicio" not in val):
-                col_map["rebot"] = cell.column
+                row_map["rebot"] = cell.column
             elif "início" in val or "inicio" in val:
-                col_map["rebot_inicio"] = cell.column
-            elif "fim" in val and "rebot" in str(ws.cell(row=cell.row, column=cell.column - 1).value or "").lower():
-                col_map["rebot_fim"] = cell.column
-        if "mlb" in col_map or "sku" in col_map:
+                row_map["rebot_inicio"] = cell.column
+            elif "fim" in val and "rebot" in row_map:
+                row_map["rebot_fim"] = cell.column
+        if "mlb" in row_map or "sku" in row_map:
+            col_map = row_map
             header_row = cell.row
             break
 
     if not header_row:
         raise HTTPException(status_code=400, detail="Cabeçalho não encontrado. Verifique o formato do arquivo.")
 
-    # Carrega produtos.json
+    # Carrega produtos.json e monta índices
     produtos_db = parser.load_produtos()
-
-    # Índice MLB direto + SKU como fallback
     mlb_index = {mlb: mlb for mlb in produtos_db if produtos_db[mlb].get("conta") == conta}
     sku_index  = {}
     for mlb, p in produtos_db.items():
@@ -400,19 +528,42 @@ async def importar_custos_xlsx(conta: str, file: UploadFile = File(...)):
                 pass
         return d
 
+    # Alíquotas: planilha (B2/D2) tem prioridade sobre config.json
+    cfg      = parser.load_config()
+    impostos = cfg.get("impostos", {})
+    aliq_com_st = aliq_com_st_override if aliq_com_st_override is not None \
+        else impostos.get(f"{conta}_com_st", {}).get("aliquota", 0.10)
+    aliq_sem_st = aliq_sem_st_override if aliq_sem_st_override is not None \
+        else impostos.get(f"{conta}_sem_st", {}).get("aliquota", 0.08)
+
     atualizados, nao_encontrados = [], []
 
-    for row in ws.iter_rows(min_row=header_row + 1, values_only=True):
+    for row_idx, row in enumerate(ws.iter_rows(min_row=header_row + 1, values_only=True), start=header_row + 1):
         if not any(v is not None for v in row):
             continue
 
-        mlb_val = str(get_val(row, "mlb") or "").strip()
+        mlb_val  = str(get_val(row, "mlb") or "").strip()
         sku_val  = str(get_val(row, "sku")  or "").strip().upper()
+        linha_id = mlb_val or sku_val or f"linha {row_idx}"
+
+        # Validar campos obrigatórios (apenas colunas presentes na planilha)
+        campos_faltando = []
+        if not (mlb_val or sku_val):
+            campos_faltando.append("ID do anúncio / SKU")
+        for campo, nome in [("cmv", "Preço de Custo"), ("frete", "Frete"),
+                             ("comissao", "Comissão"), ("imposto", "Imposto")]:
+            if campo in col_map:
+                v = get_val(row, campo)
+                if v is None or str(v).strip() == "":
+                    campos_faltando.append(nome)
+        if campos_faltando:
+            nao_encontrados.append({"id": linha_id,
+                                    "motivo": f"campo(s) obrigatório(s) não preenchido(s): {', '.join(campos_faltando)}"})
+            continue
 
         mlb = mlb_index.get(mlb_val) or mlb_index.get(f"MLB{mlb_val}") or sku_index.get(sku_val)
         if not mlb:
-            if mlb_val or sku_val:
-                nao_encontrados.append(mlb_val or sku_val)
+            nao_encontrados.append({"id": mlb_val or sku_val, "motivo": "não encontrado nos produtos cadastrados"})
             continue
 
         frete    = float(get_val(row, "frete")    or 0)
@@ -422,13 +573,8 @@ async def importar_custos_xlsx(conta: str, file: UploadFile = File(...)):
             comissao = comissao / 100
 
         imposto_str = str(get_val(row, "imposto") or "").strip().upper()
-        tem_st = imposto_str == "COM ST"
-        cfg = parser.load_config()
-        impostos = cfg.get("impostos", {})
-        if tem_st:
-            imposto = impostos.get(conta, {}).get("aliquota", 0.10)
-        else:
-            imposto = impostos.get(f"{conta}_sem_st", {}).get("aliquota", 0.08)
+        tem_st  = imposto_str == "COM ST"
+        imposto = aliq_com_st if tem_st else aliq_sem_st
 
         rebot     = float(get_val(row, "rebot")        or 0)
         rb_inicio = fmt_data(get_val(row, "rebot_inicio"))

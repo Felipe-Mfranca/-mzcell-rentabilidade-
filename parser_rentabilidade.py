@@ -32,12 +32,8 @@ def save_produtos(data: dict):
 def get_aliquota(conta: str, tem_st: bool = True) -> float:
     config = load_config()
     impostos = config.get("impostos", {})
-    if conta == "meli01":
-        return impostos.get("meli01", {}).get("aliquota", 0.10)
-    elif conta == "meli03":
-        key = "meli03_com_st" if tem_st else "meli03_sem_st"
-        return impostos.get(key, {}).get("aliquota", 0.10)
-    return 0.10
+    key = f"{conta}_com_st" if tem_st else f"{conta}_sem_st"
+    return impostos.get(key, {}).get("aliquota", 0.10)
 
 def get_comissao(config: dict) -> float:
     return config.get("comissao_ml", 0.11)
