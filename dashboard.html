@@ -957,7 +957,7 @@ async function syncProduto(mlb, conta) {
     const prod = db[conta]?.produtos?.find(x => x.mlb === mlb);
     if (prod && data.metricas) {
       prod.periodo         = data.metricas;
-      prod.custos          = data.custos || prod.custos;
+      prod.custos          = data.custos ? {...data.custos, simulador: prod.custos?.simulador} : prod.custos;
       prod.anterior        = data.anterior?.metricas || {};
       prod.catalog_listing  = data.catalog_listing  ?? prod.catalog_listing  ?? false;
       prod.variacoes_count  = data.variacoes_count  ?? prod.variacoes_count  ?? 0;
@@ -1519,17 +1519,17 @@ function renderModalContent(mlb, conta) {
     </div>
 
     <div class="section-title">Simulador de Cenário</div>
-    <div class="sim-grid">
-      <div class="sim-field"><label>Preço unit (R$)</label><input type="number" id="s-preco" value="${precoUnit.toFixed(2)}" step="0.01" oninput="calcSim('${mlb}','${conta}')"/></div>
-      <div class="sim-field"><label>CMV unit (R$)</label><input type="number" id="s-cmv" value="${c.cmv_unit||0}" step="0.01" oninput="calcSim('${mlb}','${conta}')"/></div>
-      <div class="sim-field"><label>Frete unit (R$)</label><input type="number" id="s-frete" value="${(c.frete_unit||0).toFixed(2)}" step="0.01" placeholder="0.00" oninput="calcSim('${mlb}','${conta}')"/></div>
-      <div class="sim-field"><label>Rebot (R$/un)</label><input type="number" id="s-rebot" value="${(per.rebot_unit||c.rebot_unit||0).toFixed(2)}" step="0.01" placeholder="0.00" oninput="calcSim('${mlb}','${conta}')"/></div>
-      <div class="sim-field"><label>Comissão ML (%)</label><input type="number" id="s-com" value="${((c.comissao_pct||0.11)*100).toFixed(1)}" step="0.1" placeholder="Ex: 11" oninput="calcSim('${mlb}','${conta}')"/></div>
-      <div class="sim-field"><label>Imposto (%)</label><input type="number" id="s-imp" value="${((c.imposto_pct||0.10)*100).toFixed(1)}" step="0.1" placeholder="Ex: 10" oninput="calcSim('${mlb}','${conta}')"/></div>
-      <div class="sim-field"><label>TACOS (%)</label><input type="number" id="s-tacos" value="${per.tacos>0?(per.tacos*100).toFixed(2):0}" step="0.1" placeholder="Ex: 5" oninput="calcSim('${mlb}','${conta}')"/></div>
-      <div class="sim-field"><label>Rebot início</label><input type="date" id="s-rebot-ini" value="${per.rebot_inicio||''}" oninput="calcSim('${mlb}','${conta}')"/></div>
-      <div class="sim-field"><label>Rebot fim</label><input type="date" id="s-rebot-fim" value="${per.rebot_fim||''}" oninput="calcSim('${mlb}','${conta}')"/></div>
-    </div>
+    <div class="sim-grid">${(()=>{const sim=c.simulador||{};return`
+      <div class="sim-field"><label>Preço unit (R$)</label><input type="number" id="s-preco" value="${(sim.preco??precoUnit).toFixed(2)}" step="0.01" oninput="calcSim('${mlb}','${conta}')"/></div>
+      <div class="sim-field"><label>CMV unit (R$)</label><input type="number" id="s-cmv" value="${sim.cmv_unit??(c.cmv_unit||0)}" step="0.01" oninput="calcSim('${mlb}','${conta}')"/></div>
+      <div class="sim-field"><label>Frete unit (R$)</label><input type="number" id="s-frete" value="${((sim.frete_unit??(c.frete_unit||0))).toFixed(2)}" step="0.01" placeholder="0.00" oninput="calcSim('${mlb}','${conta}')"/></div>
+      <div class="sim-field"><label>Rebot (R$/un)</label><input type="number" id="s-rebot" value="${((sim.rebot_unit??(per.rebot_unit||c.rebot_unit||0))).toFixed(2)}" step="0.01" placeholder="0.00" oninput="calcSim('${mlb}','${conta}')"/></div>
+      <div class="sim-field"><label>Comissão ML (%)</label><input type="number" id="s-com" value="${(((sim.comissao_pct??(c.comissao_pct||0.11))*100)).toFixed(2)}" step="0.01" placeholder="Ex: 11" oninput="calcSim('${mlb}','${conta}')"/></div>
+      <div class="sim-field"><label>Imposto (%)</label><input type="number" id="s-imp" value="${(((sim.imposto_pct??(c.imposto_pct||0.10))*100)).toFixed(2)}" step="0.01" placeholder="Ex: 10" oninput="calcSim('${mlb}','${conta}')"/></div>
+      <div class="sim-field"><label>TACOS (%)</label><input type="number" id="s-tacos" value="${((sim.tacos??(per.tacos>0?per.tacos:0))*100).toFixed(2)}" step="0.01" placeholder="Ex: 5" oninput="calcSim('${mlb}','${conta}')"/></div>
+      <div class="sim-field"><label>Rebot início</label><input type="date" id="s-rebot-ini" value="${sim.rebot_inicio??(per.rebot_inicio||'')}" oninput="calcSim('${mlb}','${conta}')"/></div>
+      <div class="sim-field"><label>Rebot fim</label><input type="date" id="s-rebot-fim" value="${sim.rebot_fim??(per.rebot_fim||'')}" oninput="calcSim('${mlb}','${conta}')"/></div>
+    `})()}</div>
     <div id="sim-out"></div>
 
     <div class="section-title">Posicionamento no Mercado Livre</div>
@@ -1563,42 +1563,58 @@ function calcSim(mlb, conta) {
   const rebotUnit= parseFloat(document.getElementById('s-rebot')?.value)||0;
   const rebotIni = document.getElementById('s-rebot-ini')?.value||'';
   const rebotFim = document.getElementById('s-rebot-fim')?.value||'';
-  const un = per.unidades||0;
-  const recSim = preco*un;
   const pDe  = document.getElementById('modal-de')?.value||'';
   const pAte = document.getElementById('modal-ate')?.value||'';
 
-  // Rebot — intersecção do período de vigência com o período selecionado
+  // Rebot — aplica se hoje (ou qualquer dia do período) está dentro da vigência
   let rebotSim=0;
   if(rebotUnit>0 && rebotIni && rebotFim && pDe && pAte) {
     try {
       const rIni=new Date(rebotIni), rFim=new Date(rebotFim);
       const pIni=new Date(pDe),      pFim=new Date(pAte);
-      const iIni=rIni>pIni?rIni:pIni;
-      const iFim=rFim<pFim?rFim:pFim;
-      if(iFim>=iIni) {
-        const totalDias=(pFim-pIni)/86400000+1;
-        const interDias=(iFim-iIni)/86400000+1;
-        const ratio=totalDias>0?Math.min(interDias/totalDias,1):1;
-        rebotSim=Math.round(rebotUnit*(un*ratio)*100)/100;
-      }
+      if(rFim>=pIni && rIni<=pFim) rebotSim=rebotUnit;
     } catch(e){}
   }
 
-  const adsSim  = recSim*tacos;
-  const margSim = recSim-cmv*un-recSim*imp-recSim*com-frete*un-adsSim+rebotSim;
-  const mpSim   = recSim>0?margSim/recSim*100:0;
-  const tacosSim= tacos*100;
-  const diff    = margSim-per.margem_total;
+  // Fórmulas por unidade
+  const recSim  = preco;
+  const adsSim  = preco * tacos;
+  const impSim  = preco * imp;
+  const comSim  = preco * com;
+  const margSim = preco - cmv - impSim - comSim - frete - adsSim + rebotSim;
+  const mpSim   = recSim>0 ? margSim/recSim*100 : 0;
+  const diff    = margSim - (per.margem_unit||0);
+
   const outEl=document.getElementById('sim-out'); if(!outEl) return;
   outEl.innerHTML=`<div class="sim-result"><div class="sim-out">
-    <div class="sim-out-row"><span>Receita simulada</span><span class="mono">${brl(recSim)}</span></div>
-    <div class="sim-out-row"><span>Margem simulada</span><span class="mono" style="color:${margSim<0?'var(--red)':'var(--green)'}">${brl(margSim)} <small>(${mpSim.toFixed(2)}%)</small></span></div>
-    <div class="sim-out-row"><span>Δ vs atual</span><span class="mono ${diff>=0?'vb-up':'vb-dn'}">${diff>=0?'+':''}${brl(diff)}</span></div>
-    <div class="sim-out-row"><span>TACOS</span><span class="mono">${tacosSim.toFixed(2)}%</span></div>
-    <div class="sim-out-row"><span>Invest. ADS simulado</span><span class="mono">${brl(adsSim)}</span></div>
-    ${rebotSim>0?`<div class="sim-out-row"><span>Rebot simulado</span><span class="mono" style="color:var(--green)">${brl(rebotSim)}</span></div>`:''}
+    <div class="sim-out-row"><span>Receita unit</span><span class="mono">${brl2(recSim)}</span></div>
+    <div class="sim-out-row"><span>(-) Imposto</span><span class="mono">${brl2(-impSim)} <small>(${(imp*100).toFixed(2)}%)</small></span></div>
+    <div class="sim-out-row"><span>(-) CMV</span><span class="mono">${brl2(-cmv)}</span></div>
+    <div class="sim-out-row"><span>(-) Frete</span><span class="mono">${brl2(-frete)}</span></div>
+    <div class="sim-out-row"><span>(-) Comissão ML</span><span class="mono">${brl2(-comSim)} <small>(${(com*100).toFixed(2)}%)</small></span></div>
+    <div class="sim-out-row"><span>(-) ADS (TACoS)</span><span class="mono">${brl2(-adsSim)} <small>(${(tacos*100).toFixed(2)}%)</small></span></div>
+    <div class="sim-out-row"><span>(+) Rebot</span><span class="mono" style="color:${rebotSim>0?'var(--green)':'inherit'}">${brl2(rebotSim)}</span></div>
+    <div class="sim-out-row" style="border-top:1px solid var(--border2);margin-top:4px;padding-top:8px;">
+      <span style="font-weight:600;">= Margem unit</span>
+      <span class="mono" style="font-weight:600;color:${margSim<0?'var(--red)':'var(--green)'}">${brl2(margSim)} <small>(${mpSim.toFixed(2)}%)</small></span>
+    </div>
+    ${(per.margem_unit||0)!==0?`<div class="sim-out-row"><span>Δ vs atual (1 un)</span><span class="mono ${diff>=0?'vb-up':'vb-dn'}">${diff>=0?'+':''}${brl2(diff)}</span></div>`:''}
   </div></div>`;
+
+  // Persiste estado do simulador no produtos.json
+  const simPayload = {
+    mlb,
+    simulador: {preco, cmv_unit:cmv, frete_unit:frete, comissao_pct:com,
+                imposto_pct:imp, tacos, rebot_unit:rebotUnit,
+                rebot_inicio:rebotIni, rebot_fim:rebotFim}
+  };
+  clearTimeout(window._simSaveTimer);
+  window._simSaveTimer = setTimeout(() => {
+    fetch(`${API}/produtos/custos`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(simPayload)})
+      .then(r=>r.json())
+      .then(d=>{ if(d.success && p.custos) p.custos.simulador = simPayload.simulador; })
+      .catch(()=>{});
+  }, 800);
 }
 
 // ── ABAS DO MODAL ─────────────────────────────────────────────────────────────

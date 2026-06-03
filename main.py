@@ -291,6 +291,7 @@ class CustosPayload(BaseModel):
     rebot_unit: float = 0.0
     rebot_inicio: str = ""
     rebot_fim: str = ""
+    simulador: Optional[dict] = None
 
 @app.post("/produtos/custos")
 async def salvar_custos(payload: CustosPayload):
@@ -299,16 +300,15 @@ async def salvar_custos(payload: CustosPayload):
     if payload.mlb not in produtos:
         raise HTTPException(status_code=404, detail="Produto não encontrado no DB")
     p = produtos[payload.mlb]
-    p["cmv_unit"]      = payload.cmv_unit
-    p["frete_unit"]    = payload.frete_unit
-    p["roas_objetivo"] = payload.roas_objetivo
-    p["rebot_unit"]    = payload.rebot_unit
-    p["rebot_inicio"]  = payload.rebot_inicio
-    p["rebot_fim"]     = payload.rebot_fim
-    if payload.imposto_pct is not None:
-        p["imposto_pct"] = payload.imposto_pct
-    if payload.comissao_pct is not None:
-        p["comissao_pct"] = payload.comissao_pct
+    if payload.cmv_unit      != 0.0: p["cmv_unit"]      = payload.cmv_unit
+    if payload.frete_unit    != 0.0: p["frete_unit"]    = payload.frete_unit
+    if payload.roas_objetivo != 0.0: p["roas_objetivo"] = payload.roas_objetivo
+    if payload.rebot_unit    != 0.0: p["rebot_unit"]    = payload.rebot_unit
+    if payload.rebot_inicio  != "":  p["rebot_inicio"]  = payload.rebot_inicio
+    if payload.rebot_fim     != "":  p["rebot_fim"]     = payload.rebot_fim
+    if payload.imposto_pct   is not None: p["imposto_pct"]  = payload.imposto_pct
+    if payload.comissao_pct  is not None: p["comissao_pct"] = payload.comissao_pct
+    if payload.simulador     is not None: p["simulador"]    = payload.simulador
     save_json(PRODUTOS_PATH, produtos)
     log_atividade(f"Custos atualizados: {payload.mlb}")
     return {"success": True}
@@ -754,6 +754,7 @@ async def rentabilidade(conta: str, date_from: str, date_to: str):
                 "comissao_pct": produto.get("comissao_pct"),
                 "roas_objetivo": produto.get("roas_objetivo"),
                 "rebot_unit":  produto.get("rebot_unit"),
+                "simulador":   produto.get("simulador"),
             },
             "periodo": agregado,
         })
