@@ -210,3 +210,46 @@ npx electron .
 - **Dados disponíveis:** receita diária e ADS diário já estão no produtos.json por dia
 - **Objetivo:** análise visual rápida sem precisar exportar dados
 - **Status:** ideia aprovada — aguarda protótipo para aprovação antes de implementar
+
+---
+
+### Sessão 03/06/2026 — Importação de custos + Simulador + Build instalador
+
+#### Importação de custos redesenhada (v1.2.0)
+- Endpoint GET /modelos/{conta}: gera xlsx dinâmico com produtos pré-preenchidos
+- Alíquotas COM ST/SEM ST editáveis nas células B2/D2 da planilha
+- Detecção de cabeçalho robusta: row_map isolado por linha evita falso positivo em títulos
+- Validação de campos obrigatórios por linha com motivo específico em nao_encontrados
+- Modal pós-importação sempre exibido com botão OK obrigatório
+- Link "↓ baixar modelo .xlsx" abaixo do botão Importar
+- load_config() movido para fora do loop (uma única leitura)
+- Chave COM ST unificada para {conta}_com_st em todo o sistema
+- merge parcial real em salvar_custos() — só atualiza campos enviados explicitamente
+
+#### Simulador de cenário redesenhado (v1.2.1)
+- Cálculo por unidade (não por período)
+- Ordem DRE: Receita → Imposto → CMV → Frete → Comissão → ADS → Rebot → Margem
+- Rebot sempre visível (branco=0, verde>0)
+- Valores com 2 casas decimais em R$ e percentuais
+- Persistência no produtos.json via POST /produtos/custos com debounce 800ms
+- Simulador preservado após sync do produto (spread operator preserva c.simulador)
+- Δ vs atual (1 un) — exibe só quando há vendas no período
+
+#### Versão na sidebar (v1.2.1)
+- Endpoint GET /sistema/versao retorna versão atual do version.txt
+- Versão exibida abaixo do logo na sidebar (ex: v1.2.1)
+
+#### Build do instalador v1.2.0
+- python-embed recriado em C:\python-embed com todos os pacotes necessários
+- Copiado para dentro do projeto (C:\mzcell-rentabilidade-zicri\python-embed\)
+- package.json: "from": "." — aponta para raiz do projeto
+- python-embed/ no .gitignore — não vai para o repositório
+- Build requer PowerShell como Administrador (erro de symlink no winCodeSign)
+- Instalador publicado no GitHub Releases como v1.2.0
+- Usuários com versão anterior devem desinstalar antes de reinstalar (limpeza total)
+
+#### Decisões importantes
+- Auto-update via push funciona para: dashboard.html, main.py e demais .py
+- index.js está no app.asar — só atualiza via novo instalador
+- Bumpar version.txt só quando quiser distribuir para usuários (não a cada commit)
+- python-embed não está no git — precisa recriar se mudar de máquina de build
