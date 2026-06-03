@@ -193,3 +193,20 @@ npx electron .
 - Alíquota de imposto meli02: **não corrigir no parser** — virá via importar custos (produtos.json sobrescreve o default)
 - Controle de acesso por role nos endpoints de importação: `tem_permissao()` existe mas não está conectada — implementar na v1.1.x
 - SHA-256 sem salt nas senhas: risco baixo no momento — mover para v1.2.0
+
+---
+
+### Ideias futuras — backlog de funcionalidades
+
+#### 1. Campanhas de promoção ML (Rebot automático)
+- **O que é:** o ML oferece rebate (devolução de valor) em troca de redução de preço do produto
+- **Situação atual:** funcionário acessa cada produto manualmente para verificar elegibilidade
+- **Objetivo:** buscar via API se o MLB está elegível ou participando de campanha, exibir no app e adicionar botão para entrar automaticamente
+- **Endpoints a explorar:** `/seller-promotions/search?seller_id=&status=candidate` e `/items/{mlb}/promotions`
+- **Status:** ideia aprovada — aguarda validação dos endpoints
+
+#### 2. Gráficos de vendas diárias
+- **O que é:** gráfico de barras por dia mostrando vendas com ADS e sem ADS separadamente (estilo painel ADS do ML)
+- **Dados disponíveis:** receita diária e ADS diário já estão no produtos.json por dia
+- **Objetivo:** análise visual rápida sem precisar exportar dados
+- **Status:** ideia aprovada — aguarda protótipo para aprovação antes de implementar
