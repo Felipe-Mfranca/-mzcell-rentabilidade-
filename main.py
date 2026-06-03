@@ -793,6 +793,15 @@ async def get_alertas():
     return {"alertas": load_json(ALERTAS_PATH) or []}
 
 
+@app.get("/sistema/versao")
+async def get_versao():
+    try:
+        v = open(os.path.join(BASE_DIR, "version.txt"), encoding="utf-8").read().strip()
+    except FileNotFoundError:
+        v = "?"
+    return {"versao": v}
+
+
 @app.get("/sistema/houve-atualizacao")
 async def houve_atualizacao_endpoint():
     version_path = os.path.join(BASE_DIR, "version.txt")

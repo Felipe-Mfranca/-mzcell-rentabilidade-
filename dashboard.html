@@ -57,6 +57,7 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
 .logo-mark{font-size:22px;font-weight:800;letter-spacing:-.03em;color:var(--text);}
 .logo-mark span{color:var(--gold);}
 .logo-sub{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:2px;}
+.logo-versao{font-size:9px;color:var(--muted2);letter-spacing:.05em;margin-top:2px;}
 .sidebar-user{padding:16px 20px;border-bottom:1px solid var(--border);}
 .user-name{font-size:13px;font-weight:600;}
 .user-role{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-top:2px;}
@@ -428,6 +429,7 @@ input.modal-date:focus{border-color:var(--gold);}
     <div class="sidebar-logo">
       <div class="logo-mark">MZ<span>Cell</span></div>
       <div class="logo-sub">Rentabilidade ML</div>
+      <div class="logo-versao" id="logo-versao">v—</div>
     </div>
     <div class="sidebar-user">
       <div class="user-name" id="uname">—</div>
@@ -776,6 +778,10 @@ function initApp() {
   renderPainel('meli01');
   renderPainel('meli02');
   renderPainel('meli03');
+  fetch(`${API}/sistema/versao`)
+    .then(r=>r.json())
+    .then(d=>{ const el=document.getElementById('logo-versao'); if(el&&d.versao) el.textContent='v'+d.versao; })
+    .catch(()=>{});
 }
 
 // ── PAINEL ────────────────────────────────────────────────────────────────
