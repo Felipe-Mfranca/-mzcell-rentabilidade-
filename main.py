@@ -314,6 +314,17 @@ async def salvar_custos(payload: CustosPayload):
     return {"success": True}
 
 
+@app.post("/produtos/{mlb}/arquivar")
+async def arquivar_produto(mlb: str, payload: dict):
+    produtos = load_json(PRODUTOS_PATH)
+    if mlb not in produtos:
+        raise HTTPException(status_code=404, detail="Produto não encontrado")
+    produtos[mlb]["arquivado"] = payload.get("arquivado", True)
+    save_json(PRODUTOS_PATH, produtos)
+    log_atividade(f"Produto {'arquivado' if payload.get('arquivado') else 'desarquivado'}: {mlb}")
+    return {"success": True, "arquivado": produtos[mlb]["arquivado"]}
+
+
 # ─── SYNC — Puxa dados da API ML e atualiza DB ───────────────────────────────
 
 @app.get("/modelos/{conta}")
@@ -747,6 +758,7 @@ async def rentabilidade(conta: str, date_from: str, date_to: str):
             "titulo":    produto.get("titulo"),
             "sku":       produto.get("sku"),
             "variacao":  produto.get("variacao"),
+            "arquivado": produto.get("arquivado", False),
             "custos": {
                 "cmv_unit":    produto.get("cmv_unit"),
                 "frete_unit":  produto.get("frete_unit"),

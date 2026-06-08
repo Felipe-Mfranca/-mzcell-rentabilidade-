@@ -130,6 +130,7 @@ input[type=date]:focus{border-color:var(--gold);}
 .td-prod{font-weight:600;font-size:13px;max-width:280px;line-height:1.3;}
 .td-sku{font-size:10px;color:var(--muted2);font-family:var(--mono);margin-top:3px;}
 .td-mlb{font-size:10px;color:var(--muted);font-family:var(--mono);}
+.td-arq{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted2);background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:1px 5px;margin-top:3px;}
 .mono{font-family:var(--mono);}
 .pos-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(77,166,255,.1);border:1px solid rgba(77,166,255,.2);color:var(--blue);border-radius:6px;padding:3px 8px;font-size:11px;font-family:var(--mono);font-weight:600;white-space:nowrap;}
 .pos-badge.top{background:rgba(0,217,126,.1);border-color:rgba(0,217,126,.2);color:var(--green);}
@@ -256,6 +257,7 @@ input.modal-date:focus{border-color:var(--gold);}
 .marg-chip.low-chip.active{background:rgba(251,146,60,.1);border-color:rgba(251,146,60,.3);color:var(--orange);}
 .marg-chip.med-chip.active{background:rgba(246,201,14,.1);border-color:rgba(246,201,14,.3);color:var(--gold);}
 .marg-chip.ok-chip.active{background:rgba(0,217,126,.1);border-color:rgba(0,217,126,.3);color:var(--green);}
+.marg-chip.arq-chip.active{background:var(--bg3);border-color:var(--border2);color:var(--muted2);}
 
 /* ── NEGATIVE MARGIN ROW ── */
 .row-neg{background:rgba(255,77,106,.04) !important;}
@@ -523,7 +525,8 @@ input.modal-date:focus{border-color:var(--gold);}
       <span class="modal-date-sep">→</span>
       <input type="date" id="modal-ate" class="modal-date" oninput="ativarModalPersonalizado()"/>
       <button class="btn-sync-produto" onclick="aplicarModalPersonalizado()" style="height:30px;padding:0 12px;font-size:11px">Buscar</button>
-      <div style="margin-left:auto">
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <button class="btn-sync-produto" id="btn-arq-produto" style="border-color:var(--border2);color:var(--muted2)">Arquivar</button>
         <button class="btn-sync-produto" id="btn-sync-produto"><span id="sync-icon">↻</span> Sincronizar MLB</button>
       </div>
     </div>
@@ -829,6 +832,7 @@ function renderPainel(conta) {
           <button class="marg-chip low-chip"   data-f="low" onclick="setMF('${conta}','low',this)">&lt;10%</button>
           <button class="marg-chip med-chip"   data-f="med" onclick="setMF('${conta}','med',this)">10–20%</button>
           <button class="marg-chip ok-chip"    data-f="ok"  onclick="setMF('${conta}','ok',this)">&gt;20%</button>
+          <button class="marg-chip arq-chip"  data-f="arq" onclick="setMF('${conta}','arq',this)">Arquivados</button>
         </div>
         <div class="search-box" style="margin-left:auto">
           <input placeholder="Buscar produto, SKU ou MLB..." id="search-${conta}" oninput="filterTable('${conta}')"/>
@@ -978,6 +982,29 @@ async function syncProduto(mlb, conta) {
   }
 }
 
+async function arquivarProduto(mlb, conta) {
+  const p = db[conta]?.produtos?.find(x => x.mlb === mlb);
+  if (!p) return;
+  const novoEstado = !p.arquivado;
+  try {
+    const res = await fetch(`${API}/produtos/${mlb}/arquivar`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({arquivado: novoEstado, conta}),
+    });
+    if (!res.ok) { toast('Erro ao arquivar produto', 'error'); return; }
+    p.arquivado = novoEstado;
+    toast(novoEstado ? 'Produto arquivado' : 'Produto desarquivado');
+    const btnArq = document.getElementById('btn-arq-produto');
+    if (btnArq) {
+      btnArq.textContent = novoEstado ? 'Desarquivar' : 'Arquivar';
+      btnArq.style.borderColor = novoEstado ? 'var(--border2)' : 'var(--gold)';
+      btnArq.style.color = novoEstado ? 'var(--muted2)' : 'var(--gold)';
+    }
+    filterTable(conta);
+  } catch(e) { toast('Erro de conexão', 'error'); }
+}
+
 async function importarCustos(conta, input) {
   const file = input.files[0]; if(!file) return;
   toast('Importando custos...');
@@ -1078,16 +1105,17 @@ function renderTable(conta, produtos) {
     return;
   }
   // Atualiza contadores nos chips
-  const cnt={all:produtos.length,neg:0,low:0,med:0,ok:0};
-  produtos.forEach(p=>{const mp=p.periodo.margem_pct;if(mp<0)cnt.neg++;else if(mp<0.10)cnt.low++;else if(mp<0.20)cnt.med++;else cnt.ok++;});
+  const naoArq=produtos.filter(p=>!p.arquivado);
+  const cnt={all:naoArq.length,neg:0,low:0,med:0,ok:0,arq:produtos.length-naoArq.length};
+  naoArq.forEach(p=>{const mp=p.periodo.margem_pct;if(mp<0)cnt.neg++;else if(mp<0.10)cnt.low++;else if(mp<0.20)cnt.med++;else cnt.ok++;});
   document.querySelectorAll(`#mchips-${conta} .marg-chip`).forEach(b=>{const f=b.dataset.f;if(cnt[f]!=null)b.textContent=b.textContent.replace(/ \(\d+\)$/,'')+` (${cnt[f]})`;});
   // Aplica filtro de margem
   const f=marginFilter[conta]||'all';
-  let lista=produtos;
-  if(f==='neg')lista=produtos.filter(p=>p.periodo.margem_pct<0);
-  else if(f==='low')lista=produtos.filter(p=>p.periodo.margem_pct>=0&&p.periodo.margem_pct<0.10);
-  else if(f==='med')lista=produtos.filter(p=>p.periodo.margem_pct>=0.10&&p.periodo.margem_pct<0.20);
-  else if(f==='ok')lista=produtos.filter(p=>p.periodo.margem_pct>=0.20);
+  let lista=f==='arq'?produtos.filter(p=>p.arquivado):naoArq;
+  if(f==='neg')lista=lista.filter(p=>p.periodo.margem_pct<0);
+  else if(f==='low')lista=lista.filter(p=>p.periodo.margem_pct>=0&&p.periodo.margem_pct<0.10);
+  else if(f==='med')lista=lista.filter(p=>p.periodo.margem_pct>=0.10&&p.periodo.margem_pct<0.20);
+  else if(f==='ok')lista=lista.filter(p=>p.periodo.margem_pct>=0.20);
   if(!lista.length){document.getElementById(`tbl-${conta}`).innerHTML='<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">Nenhum produto nesta faixa.</div></div>';return;}
   produtos=lista;
   const cols=[
@@ -1114,6 +1142,7 @@ function renderTable(conta, produtos) {
         <td>
           <div class="td-prod">${p.titulo||p.mlb}</div>
           <div class="td-sku">${p.sku||''}</div>
+          ${p.arquivado?'<div class="td-arq">Arquivado</div>':''}
           <div class="td-mlb">${p.mlb}</div>
         </td>
         <td class="mono">${brl(per.receita)}</td>
@@ -1268,6 +1297,9 @@ function openModal(mlb, conta) {
   btnSync.disabled = false;
   btnSync.onclick = () => syncProduto(_modalMlb, _modalConta);
 
+  const btnArq = document.getElementById('btn-arq-produto');
+  btnArq.onclick = () => arquivarProduto(_modalMlb, _modalConta);
+
   renderModalContent(mlb, conta);
   document.getElementById('modal-prod').classList.add('open');
 }
@@ -1278,6 +1310,15 @@ function renderModalContent(mlb, conta) {
   const dbProd = db[conta]?.produtos?.find(x => x.mlb === mlb);
   if (!dbProd) return;
   const c = dbProd.custos, pos = getPosicao(mlb);
+
+  // Sincroniza estado do botão arquivar
+  const btnArqMC = document.getElementById('btn-arq-produto');
+  if (btnArqMC) {
+    const isArq = !!dbProd.arquivado;
+    btnArqMC.textContent = isArq ? 'Desarquivar' : 'Arquivar';
+    btnArqMC.style.borderColor = isArq ? 'var(--border2)' : 'var(--gold)';
+    btnArqMC.style.color = isArq ? 'var(--muted2)' : 'var(--gold)';
+  }
 
   // per vem sempre de dbProd.periodo — atualizado pelo sync antes desta chamada
   const per = dbProd.periodo;
@@ -1509,7 +1550,7 @@ function renderModalContent(mlb, conta) {
         <div class="calc-line"><span class="calc-op">−</span><span class="calc-lab">Imposto ${(c.imposto_pct*100).toFixed(0)}%<span class="calc-pct">${pR(per.imposto_total)}</span></span><span class="calc-val">${brl(per.imposto_total)}</span></div>
         <div class="calc-line"><span class="calc-op">−</span><span class="calc-lab">Comissão ML ${(c.comissao_pct*100).toFixed(0)}%<span class="calc-pct">${pR(per.comissao_total)}</span></span><span class="calc-val">${brl(per.comissao_total)}</span></div>
         <div class="calc-line"><span class="calc-op">−</span><span class="calc-lab">Frete<span class="calc-pct">${pR(per.frete_total)}</span></span><span class="calc-val">${brl(per.frete_total)}</span></div>
-        ${per.rebot_total > 0 ? `<div class="calc-line"><span class="calc-op">+</span><span class="calc-lab">Rebot <small class="pct-badge" style="background:rgba(0,184,148,0.15);color:var(--green)">${brl2(per.rebot_unit)}/un · ${per.rebot_inicio} → ${per.rebot_fim}</small></span><span class="calc-val" style="color:var(--green)">${brl2(per.rebot_total)}</span></div>` : ''}
+        <div class="calc-line"><span class="calc-op">+</span><span class="calc-lab">Rebot ${per.rebot_unit > 0 ? `<small class="pct-badge" style="background:rgba(0,184,148,0.15);color:var(--green)">${brl2(per.rebot_unit)}/un · ${per.rebot_inicio} → ${per.rebot_fim}</small>` : ''}</span><span class="calc-val" style="color:${per.rebot_total>0?'var(--green)':'inherit'}">${brl2(per.rebot_total||0)}</span></div>
         <div class="calc-line"><span class="calc-op">−</span><span class="calc-lab">ADS<span class="calc-pct">${pR(per.ads_total)}</span></span><span class="calc-val">${brl(per.ads_total)}</span></div>
         <div class="calc-line calc-total"><span class="calc-op">=</span><span class="calc-lab">Margem Líquida</span><span class="calc-val ${per.margem_total<0?'neg':'pos'}">${brl(per.margem_total)} <small style="font-size:10px;opacity:.7">(${(per.margem_pct*100).toFixed(2)}%)</small></span></div>
       </div>
