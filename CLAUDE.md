@@ -253,3 +253,47 @@ npx electron .
 - index.js está no app.asar — só atualiza via novo instalador
 - Bumpar version.txt só quando quiser distribuir para usuários (não a cada commit)
 - python-embed não está no git — precisa recriar se mudar de máquina de build
+
+---
+
+### Sessão 09/06/2026 — Correções de ADS, CTR, arquivamento e sync catalog
+
+#### Bug crítico ADS corrigido (v1.2.3)
+- **Causa raiz:** ml_api.py linha 292 — condição `if not item_info.get("catalog_listing", True)` marcava 100% dos produtos como orgânicos porque catalog_listing retorna False para produtos normais do ML
+- **Impacto:** nenhum produto estava tendo ADS calculado exceto os 3 com catalog_listing=True
+- **Correção:** substituir critério de orgânico por ausência de campaign_id: `if not item_info.get("campaign_id")`
+- **Validação:** testados 4 produtos — 3 que já funcionavam continuam OK, MLB4610521053 passou de R$0 para R$1.160 de ADS
+
+#### CTR corrigido (v1.2.3)
+- CTR estava sendo multiplicado por 100 duas vezes — exibia 24% em vez de 0,24%
+- Correção: remover `* 100` no branch do backend (valor já chega em % do backend)
+
+#### Posicionamento ML (v1.2.3)
+- Movido para o topo do modal (antes do Desempenho do Anúncio)
+
+#### Arquivamento de produtos (v1.2.2)
+- Endpoint POST /produtos/{mlb}/arquivar — togla arquivado no produtos.json
+- Botão Arquivar/Desarquivar no modal
+- Filtro "Arquivados" na tabela — excluídos do filtro "Todos" por padrão
+- Tag visual "Arquivado" na linha da tabela
+
+#### Sync Catalog Listing em lote (v1.2.3)
+- Endpoint POST /sistema/sync-catalog/{conta} com SSE (Server-Sent Events)
+- Modal de progresso em tempo real com barra animada
+- Processa em lotes de 10 com delay de 2s entre lotes
+- Botão "🔄 Sync Catalog" na toolbar de cada conta
+
+#### Versão na sidebar (v1.2.2)
+- Endpoint GET /sistema/versao retorna versão atual
+- Versão exibida abaixo do logo na sidebar
+
+#### Rebot sempre visível no modal (v1.2.2)
+- DRE exibe linha de Rebot mesmo quando zero (cor neutra)
+- Badge com R$/un e datas só aparece quando rebot_unit > 0
+
+#### Simulador de cenário redesenhado (v1.2.1)
+- Cálculo por unidade (não por período)
+- Ordem DRE: Receita → Imposto → CMV → Frete → Comissão → ADS → Rebot → Margem
+- Persistência no produtos.json com debounce 800ms
+- Preservado após sync do produto
+- Δ vs atual (1 un) exibido só quando há vendas no período
