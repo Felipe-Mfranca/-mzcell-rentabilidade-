@@ -285,11 +285,6 @@ async def metricas_ads(conta: str, mlb: str, date_from: str, date_to: str) -> di
         item_info = r1.json()
         campaign_id = item_info.get("campaign_id")
         if not campaign_id:
-            return {"success": False, "error": "campaign_id não encontrado", "data": {}}
-
-        # Anúncios orgânicos (catalog_listing=False) compartilham a campanha do item
-        # de catálogo mas o gasto ADS pertence exclusivamente ao catálogo
-        if not item_info.get("catalog_listing", True):
             return {"success": False, "error": "organico", "data": {}, "is_organic": True}
 
         # 2. Busca métricas da campanha — são dados reais deste produto (1 produto/campanha)
@@ -347,3 +342,24 @@ async def campanhas_ads(conta: str) -> dict:
     if resp.status_code != 200:
         return {"success": False, "error": resp.text}
     return {"success": True, "data": resp.json()}
+
+
+async def get_catalog_listing(conta: str, mlb: str) -> dict:
+    """
+    Consulta apenas o endpoint /advertising/product_ads/items/{mlb}
+    para obter catalog_listing e variacoes_count sem precisar de datas.
+    """
+    headers = {**_headers(conta), "api-version": "2"}
+    async with httpx.AsyncClient(timeout=20, verify=False) as client:
+        r = await client.get(
+            f"{ML_BASE_URL}/advertising/product_ads/items/{mlb}",
+            headers=headers,
+        )
+    if r.status_code != 200:
+        return {"success": False, "error": f"status {r.status_code}"}
+    data = r.json()
+    return {
+        "success": True,
+        "catalog_listing": data.get("catalog_listing", False),
+        "variacoes_count": len(data.get("variations", [])),
+    }

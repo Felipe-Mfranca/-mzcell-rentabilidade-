@@ -831,6 +831,42 @@ async def houve_atualizacao_endpoint():
     return {"houve": False}
 
 
+@app.post("/sistema/sync-catalog/{conta}")
+async def sync_catalog_listing(conta: str):
+    """SSE — preenche catalog_listing dos produtos da conta que ainda não têm o campo."""
+    produtos = load_json(PRODUTOS_PATH)
+    pendentes = [
+        (mlb, v) for mlb, v in produtos.items()
+        if v.get("conta") == conta and v.get("catalog_listing") is None
+    ]
+    total = len(pendentes)
+
+    async def generator():
+        atualizados = 0
+        erros = 0
+        db = load_json(PRODUTOS_PATH)
+        for i, (mlb, v) in enumerate(pendentes, 1):
+            yield f"data: {json.dumps({'tipo':'progresso','atual':i,'total':total,'mlb':mlb,'titulo':v.get('titulo','')})}\n\n"
+            try:
+                res = await ml_api.get_catalog_listing(conta, mlb)
+                if res["success"]:
+                    db[mlb]["catalog_listing"] = res["catalog_listing"]
+                    db[mlb]["variacoes_count"]  = res["variacoes_count"]
+                    atualizados += 1
+                else:
+                    erros += 1
+            except Exception:
+                erros += 1
+            if i % 10 == 0:
+                save_json(PRODUTOS_PATH, db)
+                await asyncio.sleep(2)
+        save_json(PRODUTOS_PATH, db)
+        yield f"data: {json.dumps({'tipo':'concluido','total':total,'atualizados':atualizados,'erros':erros})}\n\n"
+
+    return StreamingResponse(generator(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
 if __name__ == "__main__":
     import subprocess, time, uvicorn
     try:

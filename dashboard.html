@@ -258,6 +258,9 @@ input.modal-date:focus{border-color:var(--gold);}
 .marg-chip.med-chip.active{background:rgba(246,201,14,.1);border-color:rgba(246,201,14,.3);color:var(--gold);}
 .marg-chip.ok-chip.active{background:rgba(0,217,126,.1);border-color:rgba(0,217,126,.3);color:var(--green);}
 .marg-chip.arq-chip.active{background:var(--bg3);border-color:var(--border2);color:var(--muted2);}
+.modal-catalog{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:28px 28px 24px;width:100%;max-width:440px;box-shadow:0 8px 40px rgba(0,0,0,.5);}
+.catalog-prog-bar{background:var(--bg3);border-radius:8px;height:8px;overflow:hidden;margin:14px 0 10px;}
+.catalog-prog-fill{height:100%;background:var(--gold);border-radius:8px;transition:width .3s;}
 
 /* ── NEGATIVE MARGIN ROW ── */
 .row-neg{background:rgba(255,77,106,.04) !important;}
@@ -498,6 +501,19 @@ input.modal-date:focus{border-color:var(--gold);}
     </table>
     <div style="text-align:center;margin-top:20px;">
       <button class="btn-gold" onclick="closeImportLog()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL SYNC CATALOG -->
+<div class="overlay" id="modal-catalog-sync" style="display:none;align-items:center;justify-content:center;">
+  <div class="modal-catalog">
+    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">Sync Catalog Listing</div>
+    <div style="font-size:11px;color:var(--muted2);margin-bottom:2px" id="catalog-sync-label">Iniciando...</div>
+    <div class="catalog-prog-bar"><div class="catalog-prog-fill" id="catalog-prog-fill" style="width:0%"></div></div>
+    <div style="font-size:11px;color:var(--muted);font-family:var(--mono);min-height:18px;word-break:break-all" id="catalog-sync-title"></div>
+    <div style="margin-top:20px;text-align:right">
+      <button class="btn-sm" id="btn-catalog-fechar" disabled onclick="document.getElementById('modal-catalog-sync').style.display='none'">Fechar</button>
     </div>
   </div>
 </div>
@@ -819,6 +835,9 @@ function renderPainel(conta) {
         <button class="btn-sync" id="btn-sync-${conta}" onclick="syncConta('${conta}')">
           <span>↻</span> Sincronizar ML
         </button>
+        <button class="btn-sync" id="btn-catalog-${conta}" onclick="syncCatalog('${conta}')" title="Preenche catalog_listing dos produtos sem dados">
+          🔄 Sync Catalog
+        </button>
         <button class="btn-gold" onclick="buscarPeriodo('${conta}')">Buscar</button>
       </div>
     </div>
@@ -919,6 +938,59 @@ async function syncConta(conta) {
   } catch(e){ toast('Erro de conexão','error'); }
   if(btn){ btn.disabled=false; btn.innerHTML='<span>↻</span> Sincronizar ML'; }
   await buscarPeriodo(conta);
+}
+
+async function syncCatalog(conta) {
+  const btn = document.getElementById(`btn-catalog-${conta}`);
+  if (btn) { btn.disabled = true; }
+
+  const modal   = document.getElementById('modal-catalog-sync');
+  const label   = document.getElementById('catalog-sync-label');
+  const fill    = document.getElementById('catalog-prog-fill');
+  const titulo  = document.getElementById('catalog-sync-title');
+  const fechar  = document.getElementById('btn-catalog-fechar');
+
+  label.textContent  = 'Iniciando...';
+  fill.style.width   = '0%';
+  titulo.textContent = '';
+  fechar.disabled    = true;
+  modal.style.display = 'flex';
+
+  try {
+    const res = await fetch(`${API}/sistema/sync-catalog/${conta}`, { method: 'POST' });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const ev = JSON.parse(line.slice(6));
+        if (ev.tipo === 'progresso') {
+          const pct = Math.round(ev.atual / ev.total * 100);
+          fill.style.width   = pct + '%';
+          label.textContent  = `Sincronizando ${ev.atual} de ${ev.total}`;
+          titulo.textContent = ev.titulo || ev.mlb;
+        } else if (ev.tipo === 'concluido') {
+          fill.style.width   = '100%';
+          label.textContent  = `Concluído — ${ev.atualizados} atualizados, ${ev.erros} erros`;
+          titulo.textContent = '';
+          fechar.disabled    = false;
+          toast(`✓ Catalog sync: ${ev.atualizados} produtos atualizados`);
+          await buscarPeriodo(conta);
+        }
+      }
+    }
+  } catch(e) {
+    label.textContent = 'Erro de conexão';
+    fechar.disabled   = false;
+    toast('Erro no sync catalog', 'error');
+  }
+  if (btn) { btn.disabled = false; }
 }
 
 // ── RENTABILIDADE ─────────────────────────────────────────────────────────
@@ -1369,7 +1441,7 @@ function renderModalContent(mlb, conta) {
   // CPC: prefere cpc_medio do backend (_ads_), fallback para cálculo local
   const cpcCalc  = (per.cpc_medio||0) > 0 ? per.cpc_medio : (per.cliques>0 ? per.ads_total/per.cliques : 0);
   // CTR: prefere ctr do backend (_ads_) em decimal, converte para %; fallback local
-  const ctrCalc  = (per.ctr||0) > 0 ? per.ctr*100 : (per.impressoes>0 ? per.cliques/per.impressoes*100 : 0);
+  const ctrCalc  = (per.ctr||0) > 0 ? per.ctr : (per.impressoes>0 ? per.cliques/per.impressoes*100 : 0);
   const vendDireta = per.vendas_publi||0;
   const vendIndir  = per.vendas_indiretas||0;
   const vendComAds = per.vendas_com_ads||(vendDireta+vendIndir);
@@ -1388,6 +1460,20 @@ function renderModalContent(mlb, conta) {
          SEÇÃO 1 — DESEMPENHO DO ANÚNCIO
          Equivale a: ML > Anúncios > Métricas > rendimiento-item
     ═══════════════════════════════════════════════════════════════ -->
+    <div class="section-title">Posicionamento no Mercado Livre</div>
+    <div class="pos-section">
+      <div style="font-size:12px;color:var(--muted2);margin-bottom:12px">Registre a posição do anúncio na busca. Ex: posição 3 na página 1 = primeiros resultados.</div>
+      <div class="pos-input-row">
+        <span style="color:var(--muted2);font-size:12px;white-space:nowrap">Página</span>
+        <input type="number" id="pos-pag" value="${pos.pagina||1}" min="1" max="99" style="width:70px"/>
+        <span style="color:var(--muted2);font-size:12px;white-space:nowrap">Posição</span>
+        <input type="number" id="pos-num" value="${pos.posicao||''}" min="1" max="99" placeholder="Ex: 3"/>
+        <input type="text" id="pos-kw" value="${pos.keyword||''}" placeholder="Palavra-chave buscada" style="flex:2"/>
+        <button class="btn-sm" onclick="salvarPosicao('${mlb}','${conta}')">Salvar</button>
+      </div>
+      ${pos.historico?.length?`<div class="pos-history">${pos.historico.slice(-6).map(h=>`<div class="pos-entry"><span class="pos-date">${h.data}</span><span class="pos-badge ${h.pagina===1&&h.posicao<=5?'top':h.pagina===1?'mid':'low'}">p${h.pagina} #${h.posicao}</span><span style="color:var(--muted2)">${h.keyword||''}</span></div>`).join('')}</div>`:''}
+    </div>
+
     <div class="ml-section">
       <div class="ml-section-header">
         <span class="ml-section-title">Desempenho do Anúncio</span>
@@ -1578,20 +1664,6 @@ function renderModalContent(mlb, conta) {
       <div class="sim-field"><label>Rebot fim</label><input type="date" id="s-rebot-fim" value="${sim.rebot_fim??(per.rebot_fim||'')}" oninput="calcSim('${mlb}','${conta}')"/></div>
     `})()}</div>
     <div id="sim-out"></div>
-
-    <div class="section-title">Posicionamento no Mercado Livre</div>
-    <div class="pos-section">
-      <div style="font-size:12px;color:var(--muted2);margin-bottom:12px">Registre a posição do anúncio na busca. Ex: posição 3 na página 1 = primeiros resultados.</div>
-      <div class="pos-input-row">
-        <span style="color:var(--muted2);font-size:12px;white-space:nowrap">Página</span>
-        <input type="number" id="pos-pag" value="${pos.pagina||1}" min="1" max="99" style="width:70px"/>
-        <span style="color:var(--muted2);font-size:12px;white-space:nowrap">Posição</span>
-        <input type="number" id="pos-num" value="${pos.posicao||''}" min="1" max="99" placeholder="Ex: 3"/>
-        <input type="text" id="pos-kw" value="${pos.keyword||''}" placeholder="Palavra-chave buscada" style="flex:2"/>
-        <button class="btn-sm" onclick="salvarPosicao('${mlb}','${conta}')">Salvar</button>
-      </div>
-      ${pos.historico?.length?`<div class="pos-history">${pos.historico.slice(-6).map(h=>`<div class="pos-entry"><span class="pos-date">${h.data}</span><span class="pos-badge ${h.pagina===1&&h.posicao<=5?'top':h.pagina===1?'mid':'low'}">p${h.pagina} #${h.posicao}</span><span style="color:var(--muted2)">${h.keyword||''}</span></div>`).join('')}</div>`:''}
-    </div>
 
   `;
   calcSim(mlb, conta);
