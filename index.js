@@ -135,7 +135,7 @@ function iniciarBackend() {
     cwd: RESOURCES,
     env: { ...process.env, PYTHONPATH: RESOURCES }
   });
-  const logPath = path.join(RESOURCES, 'server_error.log');
+  const logPath = path.join(app.getPath('userData'), 'server_error.log');
   const logStream = fs.createWriteStream(logPath, {flags:'w'});
   backendProc.stderr.on('data', d => { logStream.write(d); console.error('[backend]', d.toString()); });
   backendProc.stdout.on('data', d => { logStream.write(d); });
@@ -143,7 +143,7 @@ function iniciarBackend() {
 
 function aguardarBackend(tentativas = 0) {
   if (tentativas > 40) {
-    const logPath = path.join(RESOURCES, 'server_error.log');
+    const logPath = path.join(app.getPath('userData'), 'server_error.log');
     let logMsg = '';
     try { logMsg = fs.readFileSync(logPath, 'utf8').slice(-500); } catch(e) {}
     dialog.showErrorBox('Erro ao iniciar servidor',

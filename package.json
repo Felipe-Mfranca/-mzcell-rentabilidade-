@@ -1,6 +1,6 @@
 {
   "name": "mzcell-rentabilidade",
-  "version": "1.2.0",
+  "version": "1.2.4",
   "description": "MZCell — Painel de Rentabilidade Mercado Livre",
   "main": "index.js",
   "author": "Felipe Mfranca",
@@ -15,8 +15,11 @@
       "target": "nsis",
       "icon": "icon.ico"
     },
+    "asar": true,
     "nsis": {
       "oneClick": false,
+      "perMachine": true,
+      "allowElevation": true,
       "allowToChangeInstallationDirectory": true,
       "installerIcon": "icon.ico",
       "uninstallerIcon": "icon.ico",
