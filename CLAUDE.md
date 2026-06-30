@@ -297,3 +297,49 @@ npx electron .
 - Persistência no produtos.json com debounce 800ms
 - Preservado após sync do produto
 - Δ vs atual (1 un) exibido só quando há vendas no período
+
+---
+
+### Sessão 29/06/2026 — Descoberta crítica: ML depreciou endpoint de ADS
+
+#### Bug crítico — ADS zerado para TODOS os usuários (v1.2.5)
+- Causa raiz: Mercado Livre depreciou o endpoint
+  /advertising/product_ads/campaigns/{id}/metrics em junho de 2025
+- Sintoma: endpoint retornava 404 com corpo vazio para qualquer
+  campanha (catalog listing ou normal), independente de status,
+  periodo ou parametros testados
+- Como foi descoberto: inspecionado o trafego de rede do painel
+  web de ADS do ML (DevTools -> Network), encontrado o Referer apontando
+  para o dashboard real, e pesquisada a documentacao oficial atualizada
+- Endpoint correto (novo):
+  GET /marketplace/advertising/{site_id}/product_ads/ads/{mlb}
+  ?date_from=&date_to=&metrics=clicks,prints,ctr,cost,cpc,acos,roas,direct_amount,indirect_amount,total_amount,units_quantity
+  header: api-version: 2
+- Mudanca estrutural: reduzido de 3 chamadas (item -> campaign_id -> metrics)
+  para 2 chamadas (metrics direto + dados da campanha via campaign_id)
+- Validado nas 3 contas: meli01, meli02, meli03 — todos retornando dados corretos
+- Importante: essa correcao NAO requer novo instalador — ml_api.py
+  esta em ARQUIVOS_ONLINE e atualiza via auto-update normal
+
+#### Licao aprendida
+APIs de terceiros podem ser depreciadas sem aviso previo claro.
+Quando um endpoint que funcionava comeca a retornar 404 universalmente
+(mesmo com token valido, parametros corretos, em qualquer variacao testada),
+suspeitar de depreciacao antes de assumir bug no codigo.
+Metodo eficaz: inspecionar trafego de rede do painel web oficial via
+DevTools para descobrir o endpoint real em uso.
+
+#### Setup de maquina nova — pontos de atencao
+- python-embed e venv nunca estao no git — sempre recriar
+- Python deve estar instalado e no PATH (testado com 3.12.10)
+- OneDrive pode alterar o caminho da Area de Trabalho — usar
+  [Environment]::GetFolderPath("Desktop") para confirmar o caminho real
+- Sempre rodar Sync Catalog Listing apos restaurar produtos.json de backup
+  em maquina nova, pois catalog_listing pode nao estar atualizado
+
+#### Instalador corrigido para multiplos usuarios (v1.2.4)
+- package.json: perMachine=true, allowElevation=true — instala para
+  todos os usuarios da maquina com elevacao de privilegio
+- index.js: server_error.log movido de resources/ (sem permissao em
+  Program Files) para AppData (sempre gravavel)
+- Resolve erro EPERM ao tentar criar log em instalacoes perMachine
