@@ -266,68 +266,60 @@ async def visitas_diarias(conta: str, mlb: str, date_from: str, date_to: str) ->
 # ─── ADS ─────────────────────────────────────────────────────────────────────
 
 async def metricas_ads(conta: str, mlb: str, date_from: str, date_to: str) -> dict:
-    """
-    Fluxo correto:
-    1. Busca o item no Product Ads → pega campaign_id
-    2. Busca métricas da campanha pelo campaign_id
-    """
+    site_id = mlb.rstrip("0123456789")  # MLB6161189080 → MLB
     headers = {**_headers(conta), "api-version": "2"}
+    metrics_param = (
+        "clicks,prints,ctr,cost,cpc,acos,roas,"
+        "direct_amount,indirect_amount,total_amount,units_quantity"
+    )
 
     async with httpx.AsyncClient(timeout=30, verify=False) as client:
-        # 1. Pega campaign_id do item
-        r1 = await client.get(
-            f"{ML_BASE_URL}/advertising/product_ads/items/{mlb}",
+        r = await client.get(
+            f"{ML_BASE_URL}/marketplace/advertising/{site_id}/product_ads/ads/{mlb}"
+            f"?date_from={date_from}&date_to={date_to}&metrics={metrics_param}",
             headers=headers
         )
-        if r1.status_code != 200:
-            return {"success": False, "error": f"Item ADS não encontrado: {r1.status_code}", "data": {}}
+        if r.status_code == 404:
+            return {"success": False, "error": "organico", "data": {}, "is_organic": True}
+        if r.status_code != 200:
+            return {"success": False, "error": f"ADS erro: {r.status_code}", "data": {}}
 
-        item_info = r1.json()
-        campaign_id = item_info.get("campaign_id")
+        info = r.json()
+        campaign_id = info.get("campaign_id")
         if not campaign_id:
             return {"success": False, "error": "organico", "data": {}, "is_organic": True}
 
-        # 2. Busca métricas da campanha — são dados reais deste produto (1 produto/campanha)
+        m = info.get("metrics", {})
+
+        # Busca roas_target, acos_target, budget e strategy da campanha
         r2 = await client.get(
-            f"{ML_BASE_URL}/advertising/product_ads/campaigns/{campaign_id}/metrics"
-            f"?date_from={date_from}&date_to={date_to}&seller_id={get_seller_id(conta)}",
-            headers=headers
-        )
-        if r2.status_code != 200:
-            return {"success": False, "error": f"Métricas ADS erro: {r2.status_code}", "data": {}}
-
-        m = r2.json()
-
-        # 3. Busca roas_target e acos_target direto da campanha
-        r3 = await client.get(
             f"{ML_BASE_URL}/advertising/product_ads/campaigns/{campaign_id}",
             headers=headers
         )
-        camp = r3.json() if r3.status_code == 200 else {}
+        camp = r2.json() if r2.status_code == 200 else {}
 
         return {
             "success": True,
             "data": {
-                "campaign_id":        campaign_id,
-                "catalog_listing":    item_info.get("catalog_listing", False),
-                "variacoes_count":    len(item_info.get("variations", [])),
-                "ads_total":          m.get("cost", 0.0),
-                "cliques":            m.get("clicks", 0),
-                "impressoes":         m.get("impressions", 0),
-                "tacos":              m.get("tacos", 0.0),
-                "vendas_publi":       m.get("sold_quantity_direct", 0),
-                "vendas_indiretas":   m.get("sold_quantity_indirect", 0),
-                "vendas_publi_total": m.get("sold_quantity_total", 0),
-                "receita_publi":      m.get("amount_total", 0.0),
-                "receita_publi_direta": m.get("amount_direct", 0.0),
-                "cpc":                m.get("cpc", 0.0),
-                "ctr":                m.get("ctr", 0.0),
-                "share":              m.get("share", 0.0),
-                "advertising_fee":    m.get("advertising_fee", 0.0),
-                "roas_target":        camp.get("roas_target", 0.0),
-                "acos_target":        camp.get("acos_target", 0.0),
-                "budget":             camp.get("budget", 0.0),
-                "strategy":           camp.get("strategy", ""),
+                "campaign_id":          campaign_id,
+                "catalog_listing":      info.get("catalog_listing", False),
+                "ads_total":            m.get("cost", 0.0),
+                "cliques":              m.get("clicks", 0),
+                "impressoes":           m.get("prints", 0),
+                "tacos":                m.get("acos", 0.0),
+                "ctr":                  m.get("ctr", 0.0),
+                "roas":                 m.get("roas", 0.0),
+                "cpc":                  m.get("cpc", 0.0),
+                "vendas_publi":         m.get("direct_units_quantity", 0),
+                "vendas_indiretas":     m.get("indirect_units_quantity", 0),
+                "vendas_publi_total":   m.get("units_quantity", 0),
+                "receita_publi":        m.get("direct_amount", 0.0),
+                "receita_publi_direta": m.get("direct_amount", 0.0),
+                "receita_publi_total":  m.get("total_amount", 0.0),
+                "roas_target":          camp.get("roas_target", 0.0),
+                "acos_target":          camp.get("acos_target", 0.0),
+                "budget":               camp.get("budget", 0.0),
+                "strategy":             camp.get("strategy", ""),
             }
         }
 
