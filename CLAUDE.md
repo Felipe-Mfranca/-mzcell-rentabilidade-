@@ -45,8 +45,8 @@ Já estão no `.gitignore`. Não usar `git add -f` neles.
 | `email_config.json` | Senha de app Gmail (SMTP) |
 | `venv/` | Ambiente Python (pesado, regenerável) |
 | `python-embed/` | Python embarcado para o instalador |
-| `mzcell-electron/node_modules/` | Dependências Node (regeneráveis) |
-| `mzcell-electron/dist/` | Instaladores gerados |
+| `node_modules/` | Dependências Node (regeneráveis) |
+| `dist/` | Instaladores gerados |
 
 ---
 
@@ -54,7 +54,7 @@ Já estão no `.gitignore`. Não usar `git add -f` neles.
 
 ### Visão geral
 ```
-mzcell-rentabilidade/
+C:\mzcell-rentabilidade-zicri\
 ├── main.py                  # Backend FastAPI — porta 8001
 ├── ml_api.py                # Integração API Mercado Livre
 ├── sync_service.py          # Sincronização em background
@@ -65,14 +65,15 @@ mzcell-rentabilidade/
 ├── auth_service.py          # Autenticação: login, email, recuperação de senha
 ├── dashboard.html           # Frontend SPA (HTML + CSS + JS inline)
 ├── version.txt              # Versão atual (ex: 1.1.2) — controla auto-update
+├── requirements.txt         # Dependências Python (instalar no venv)
+├── verificar_dados.py       # Valida .json antes de subir o servidor
+├── index.js                 # Entry point Electron + auto-update (na raiz)
+├── package.json             # Config build Electron (versão deve espelhar version.txt)
+├── preload.js               # Preload Electron
 ├── config.json              # Credenciais ML e configurações (NÃO sobe)
 ├── produtos.json            # DB local de produtos e rentabilidade (NÃO sobe)
 ├── usuarios.json            # Usuários com senhas SHA-256 (NÃO sobe)
-├── email_config.json        # Config SMTP Gmail (NÃO sobe)
-└── mzcell-electron/
-    ├── index.js             # Entry point Electron + auto-update
-    ├── package.json         # Config build (versão deve espelhar version.txt)
-    └── preload.js
+└── email_config.json        # Config SMTP Gmail (NÃO sobe)
 ```
 
 ### Stack
@@ -132,7 +133,7 @@ Na próxima abertura do app instalado, o auto-update detecta a nova versão e ba
 ## COMO INICIAR O SERVIDOR (DESENVOLVIMENTO)
 
 ```powershell
-cd E:\mzcell-rentabilidade
+cd C:\mzcell-rentabilidade-zicri
 .\venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8001
 ```
 
@@ -141,7 +142,7 @@ Acessar em: http://127.0.0.1:8001
 ## COMO INICIAR O APP ELECTRON (DESENVOLVIMENTO)
 
 ```powershell
-cd E:\mzcell-rentabilidade\mzcell-electron
+cd C:\mzcell-rentabilidade-zicri
 npx electron .
 ```
 
