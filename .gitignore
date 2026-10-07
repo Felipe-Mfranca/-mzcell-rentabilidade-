@@ -24,3 +24,8 @@ _test_*.py
 _dump_*.py
 _inspect_*.py
 screenshot.png
+
+# Monitor de buybox (dados locais)
+slack_config.json
+buybox_state.json
+buybox_relatorio_*.txt
