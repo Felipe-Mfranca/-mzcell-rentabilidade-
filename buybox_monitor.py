@@ -12,6 +12,8 @@ Uso:
   python buybox_monitor.py --contas meli03         # só meli03
   python buybox_monitor.py --contas meli03 --enviar  # envia ao Slack
   python buybox_monitor.py --loop                  # roda nos horários do slack_config.json
+  python buybox_monitor.py --marcas                # concorrentes nos catálogos das nossas marcas
+  python buybox_monitor.py --marcas --enviar       # idem, enviando aos destinatários do Slack
 """
 
 import argparse
@@ -287,6 +289,132 @@ def montar_relatorio(v: dict, ant: dict) -> str:
     return "\n".join(L)
 
 
+# ─── PROTEÇÃO DE MARCA ───────────────────────────────────────────────────────
+
+MARCAS_PADRAO = ["Techseller", "Aquattro", "Mzcell"]
+STATUS_ANUNCIO = {"active": "ativo", "paused": "pausado", "closed": "encerrado"}
+LOGISTICA = {"fulfillment": "Full", "xd_drop_off": "Agência", "drop_off": "Correios/agência",
+             "cross_docking": "Coleta", "self_service": "Flex"}
+
+
+def _norm(marca) -> str:
+    return (marca or "").replace(" ", "").upper()
+
+
+def levantar_marcas(contas: list, marcas: list) -> dict:
+    """Concorrentes (sellers de fora) nos catálogos das nossas marcas,
+    considerando catálogos onde temos anúncio ativo, pausado ou encerrado."""
+    cfg = ml_api.load_config()["contas"]
+    nossos = {str(v.get("seller_id")): k for k, v in cfg.items() if v.get("seller_id")}
+    alvo = {_norm(m) for m in marcas}
+    nicks = dict(carregar_estado().get("nicknames", {}))
+    catalogos, erros, ml_por_pid = {}, [], {}
+
+    for conta in contas:
+        if conta not in cfg:
+            erros.append(f"{conta}: conta não existe no config.json")
+            continue
+        ml = ClienteML(conta)
+        try:
+            for st in STATUS_ANUNCIO:
+                ids, offset = [], 0
+                while True:
+                    b = ml.get(f"/users/{cfg[conta]['seller_id']}/items/search",
+                               status=st, catalog_listing="true", limit=100, offset=offset)
+                    res = (b or {}).get("results", [])
+                    ids += res
+                    offset += len(res)
+                    if not res or offset >= b["paging"]["total"] or offset >= 1000:
+                        break
+                for i in range(0, len(ids), 20):
+                    lote = ml.get("/items", ids=",".join(ids[i:i + 20]),
+                                  attributes="id,title,status,price,catalog_product_id") or []
+                    for e in lote:
+                        it = e.get("body") or {}
+                        pid = it.get("catalog_product_id")
+                        if e.get("code") != 200 or not pid:
+                            continue
+                        if pid not in catalogos:
+                            p = ml.get(f"/products/{pid}") or {}
+                            marca = next((a.get("value_name") for a in p.get("attributes", [])
+                                          if a.get("id") == "BRAND"), None)
+                            catalogos[pid] = {"catalogo": pid, "nome": p.get("name") or it.get("title", ""),
+                                              "marca": marca, "nossos": {}, "concorrentes": []}
+                            ml_por_pid[pid] = ml
+                        catalogos[pid]["nossos"][it["id"]] = {
+                            "conta": conta, "status": it.get("status"), "preco": it.get("price")}
+        except ContaSemAcesso as e:
+            erros.append(str(e))
+
+    catalogos = {pid: c for pid, c in catalogos.items() if _norm(c["marca"]) in alvo}
+    for pid, c in catalogos.items():
+        ml = ml_por_pid[pid]
+        for r in (ml.get(f"/products/{pid}/items") or {}).get("results", []):
+            sid = str(r["seller_id"])
+            if sid in nossos:
+                # preço real na disputa (com promoção) do nosso anúncio ativo
+                if r["item_id"] in c["nossos"]:
+                    c["nossos"][r["item_id"]]["preco"] = r.get("price")
+                continue
+            sh = r.get("shipping") or {}
+            c["concorrentes"].append({
+                "item_id": r["item_id"], "seller_id": sid, "seller": nickname(ml, sid, nicks),
+                "preco": r.get("price"), "frete_gratis": bool(sh.get("free_shipping")),
+                "logistica": LOGISTICA.get(sh.get("logistic_type"), sh.get("logistic_type") or "—"),
+            })
+        c["ativo"] = any(n["status"] == "active" for n in c["nossos"].values())
+
+    return {"quando": datetime.now(BRT), "marcas": marcas, "catalogos": list(catalogos.values()), "erros": erros}
+
+
+def relatorio_marcas(lev: dict) -> list:
+    """Uma mensagem de cabeçalho + uma por marca (Slack mrkdwn)."""
+    cats = lev["catalogos"]
+    com_conc = [c for c in cats if c["concorrentes"]]
+    n_ofertas = sum(len(c["concorrentes"]) for c in com_conc)
+    por_marca = defaultdict(list)
+    for c in cats:
+        por_marca[_norm(c["marca"])].append(c)
+
+    cab = [f"*🛡️ Proteção de Marca — {lev['quando']:%d/%m/%Y %H:%M}*",
+           f"{len(cats)} catálogos das nossas marcas verificados (anúncios ativos, pausados e encerrados).",
+           f"*{n_ofertas} oferta(s) de terceiros em {len(com_conc)} catálogo(s).*"]
+    for m in lev["marcas"]:
+        cs = por_marca.get(_norm(m), [])
+        n = sum(len(c["concorrentes"]) for c in cs)
+        cab.append(f"• {m}: {len(cs)} catálogos — " + (f"⚠️ {n} concorrente(s)" if n else "✅ sem concorrentes"))
+    if lev["erros"]:
+        cab += ["", "*Erros:*"] + [f"• {e}" for e in lev["erros"]]
+    msgs = ["\n".join(cab)]
+
+    for m in lev["marcas"]:
+        cs = [c for c in por_marca.get(_norm(m), []) if c["concorrentes"]]
+        if not cs:
+            continue
+        cs.sort(key=lambda c: (not c["ativo"], -len(c["concorrentes"]), c["nome"]))
+        L = [f"*━━ {m.upper()} ━━*"]
+        secoes = (("🟢 Estamos ativos no catálogo", True), ("⏸️ Nosso anúncio pausado/encerrado", False))
+        for titulo, ativo in secoes:
+            grupo = [c for c in cs if c["ativo"] == ativo]
+            if not grupo:
+                continue
+            L.append(f"\n*{titulo}*")
+            for c in grupo:
+                L.append(f"\n*{c['nome'][:80]}*\nCatálogo <https://www.mercadolivre.com.br/p/{c['catalogo']}|{c['catalogo']}>")
+                nossos = sorted(c["nossos"].items(), key=lambda x: x[1]["status"] != "active")
+                L.append("Nosso: " + " · ".join(
+                    f"{n['conta']} {mlb} ({STATUS_ANUNCIO.get(n['status'], n['status'])}, {_r(n['preco'])})"
+                    for mlb, n in nossos))
+                for x in sorted(c["concorrentes"], key=lambda x: x["preco"] or 0):
+                    frete = "frete grátis" if x["frete_gratis"] else "sem frete grátis"
+                    link = f"https://www.mercadolivre.com.br/p/{c['catalogo']}?pdp_filters=item_id:{x['item_id']}"
+                    L.append(f"   ⚠️ *{x['seller']}* · {x['item_id']} · *{_r(x['preco'])}* · "
+                             f"{x['logistica']} · {frete} · <{link}|ver oferta>")
+        msgs.append("\n".join(L))
+    msgs.append("_Levantamento somente leitura — nenhuma ação foi feita no Mercado Livre._")
+    return msgs
+
+
 # ─── SLACK ───────────────────────────────────────────────────────────────────
 
 def carregar_slack() -> dict:
@@ -296,14 +424,35 @@ def carregar_slack() -> dict:
         return {}
 
 
-def enviar_slack(texto: str) -> bool:
-    url = carregar_slack().get("webhook_url")
+def enviar_slack(texto, destinatarios: list = None) -> bool:
+    """Envia uma mensagem (ou lista de mensagens, em ordem).
+    Com bot_token: DM para cada destinatário (user IDs). Sem: webhook_url."""
+    sc = carregar_slack()
+    msgs = [texto] if isinstance(texto, str) else texto
+    ok = True
+    if sc.get("bot_token"):
+        H = {"Authorization": f"Bearer {sc['bot_token']}"}
+        for dest in destinatarios or sc.get("destinatarios") or []:
+            for m in msgs:
+                r = httpx.post("https://slack.com/api/chat.postMessage", headers=H, timeout=20,
+                               json={"channel": dest, "text": m, "unfurl_links": False})
+                res = r.json()
+                if not res.get("ok"):
+                    print(f"Slack {dest}: ERRO {res.get('error')}")
+                    ok = False
+                    break
+            else:
+                print(f"Slack {dest}: {len(msgs)} mensagem(ns) enviada(s)")
+        return ok
+    url = sc.get("webhook_url")
     if not url:
-        print("slack_config.json sem webhook_url — não enviado.")
+        print("slack_config.json sem bot_token nem webhook_url — não enviado.")
         return False
-    r = httpx.post(url, json={"text": texto}, timeout=20)
-    print("Slack:", r.status_code, r.text[:100])
-    return r.status_code == 200
+    for m in msgs:
+        r = httpx.post(url, json={"text": m}, timeout=20)
+        ok = ok and r.status_code == 200
+    print("Slack webhook:", "ok" if ok else "ERRO")
+    return ok
 
 
 # ─── EXECUÇÃO ────────────────────────────────────────────────────────────────
@@ -348,9 +497,17 @@ if __name__ == "__main__":
     p.add_argument("--contas", help="ex.: meli03 ou meli01,meli03 (padrão: todas)")
     p.add_argument("--enviar", action="store_true", help="envia o relatório ao Slack")
     p.add_argument("--loop", action="store_true", help="roda nos horários do slack_config.json")
+    p.add_argument("--marcas", action="store_true",
+                   help="relatório de proteção de marca (concorrentes nos catálogos das nossas marcas)")
     a = p.parse_args()
-    if a.loop:
+    contas = a.contas.split(",") if a.contas else list(ml_api.load_config()["contas"])
+    if a.marcas:
+        lev = levantar_marcas(contas, carregar_slack().get("marcas") or MARCAS_PADRAO)
+        msgs = relatorio_marcas(lev)
+        print("\n\n".join(msgs))
+        if a.enviar:
+            raise SystemExit(0 if enviar_slack(msgs) else 1)
+    elif a.loop:
         loop()
     else:
-        contas = a.contas.split(",") if a.contas else list(ml_api.load_config()["contas"])
         print(executar(contas, a.enviar))
