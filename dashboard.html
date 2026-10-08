@@ -4,7 +4,8 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>MZCell — Rentabilidade</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<script>try{if(localStorage.getItem('mz_tema')==='claro')document.documentElement.dataset.tema='claro';}catch(e){}</script>
 <style>
 :root {
   --bg:       #0a0a0f;
@@ -356,6 +357,166 @@ input.modal-date:focus{border-color:var(--gold);}
 .anotacao-input:focus{border-color:var(--gold);}
 .btn-anotacao{margin-top:8px;background:var(--bg3);border:1px solid var(--gold);color:var(--gold);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:var(--font);transition:all .2s;}
 .btn-anotacao:hover{background:var(--gold);color:var(--bg);}
+
+/* ══ TEMA CLARO (em teste — ativado pelo botão na sidebar) ══
+   Formatação do design aprovado (Opção A) aplicada às classes existentes.
+   Só visual: nenhuma estrutura, menu ou comportamento muda. */
+html[data-tema="claro"]{
+  --bg:#f4f5f2; --bg1:#ffffff; --bg2:#ffffff; --bg3:#f8f9f6; --bg4:#eef1ec;
+  --border:#e3e6df; --border2:#d5dad1; --border-soft:#eceee9;
+  --text:#14201a; --muted:#7a8680; --muted2:#52605a;
+  --brand:#0f6b3f; --brand-soft:#e3f3ea; --danger:#a32d2d; --danger-soft:#fcebeb;
+  --warn:#9a6700; --warn-soft:#fdf4dc;
+  --gold:#9a6700; --gold2:#7d5400; /* no JS, 'gold' = atenção */
+  --green:#0f6b3f; --green2:#0f6b3f;
+  --red:#a32d2d; --red2:#8a2525;
+  --blue:#2a78d6; --purple:#6250d6; --orange:#eb6834;
+  --c-receita:#2a78d6; --c-margem:#1baf7a; --c-ads:#6250d6; --c-tacos:#eb6834; --c-unidades:#eda100;
+  --r-card:14px; --r-ctrl:10px; --r-pill:999px;
+  --font:'DM Sans', system-ui, sans-serif; --mono:'DM Mono', monospace;
+}
+html[data-tema="claro"] body::before{display:none;}
+html[data-tema="claro"] button{font-family:inherit;}
+
+/* Sidebar */
+html[data-tema="claro"] .sidebar{background:var(--bg2);border-right-color:var(--border);}
+html[data-tema="claro"] .logo-mark span{color:var(--brand);}
+html[data-tema="claro"] .logo-sub,
+html[data-tema="claro"] .nav-section,
+html[data-tema="claro"] .user-role{letter-spacing:.06em;}
+html[data-tema="claro"] .nav-item{border-radius:12px;color:var(--muted2);border:0;}
+html[data-tema="claro"] .nav-item:hover{background:var(--bg4);color:var(--text);}
+html[data-tema="claro"] .nav-item.active{background:var(--brand-soft);color:var(--brand);border:0;font-weight:600;}
+html[data-tema="claro"] .btn-logout,
+html[data-tema="claro"] .btn-tema{border-color:var(--border);border-radius:var(--r-ctrl);}
+html[data-tema="claro"] .btn-logout:hover{background:var(--danger-soft);border-color:var(--danger);color:var(--danger);}
+
+/* Cabeçalho */
+html[data-tema="claro"] .topbar{background:var(--bg);border-bottom:0;height:72px;padding:0 40px;}
+html[data-tema="claro"] .topbar-title{font-size:24px;font-weight:700;letter-spacing:-.02em;}
+html[data-tema="claro"] #sync-time{color:var(--muted)!important;font-family:var(--font)!important;font-size:12px!important;}
+html[data-tema="claro"] .content{padding:8px 40px 40px;}
+
+/* Barra de período */
+html[data-tema="claro"] .periodo-card{border-radius:var(--r-card);border-color:var(--border);padding:14px 18px;gap:12px;}
+html[data-tema="claro"] .periodo-label{text-transform:none;letter-spacing:0;font-size:13px;color:var(--muted2);}
+html[data-tema="claro"] input[type=date]{background:var(--bg3);border-color:var(--border);border-radius:var(--r-ctrl);font-size:13px;}
+html[data-tema="claro"] .presets{background:var(--bg2);border:1px solid var(--border);padding:3px;gap:2px;border-radius:var(--r-ctrl);}
+html[data-tema="claro"] .preset{background:transparent;border:0;color:var(--muted2);padding:7px 12px;border-radius:8px;font-size:13px;font-weight:500;}
+html[data-tema="claro"] .preset:hover{background:var(--bg4);color:var(--text);}
+html[data-tema="claro"] .preset.active{background:var(--brand-soft);color:var(--brand);}
+
+/* Botões */
+html[data-tema="claro"] .btn-sync,
+html[data-tema="claro"] .btn-purple,
+html[data-tema="claro"] .btn-sm{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-ctrl);color:var(--text);font-weight:500;padding:9px 14px;}
+html[data-tema="claro"] .btn-sync:hover,
+html[data-tema="claro"] .btn-purple:hover,
+html[data-tema="claro"] .btn-sm:hover{background:var(--bg4);border-color:var(--border);color:var(--text);}
+html[data-tema="claro"] .btn-gold,
+html[data-tema="claro"] .btn-save,
+html[data-tema="claro"] .login-btn,
+html[data-tema="claro"] .btn-login{background:var(--brand);color:#fff;border-radius:var(--r-ctrl);font-weight:600;}
+html[data-tema="claro"] .btn-gold:hover,
+html[data-tema="claro"] .btn-save:hover,
+html[data-tema="claro"] .login-btn:hover,
+html[data-tema="claro"] .btn-login:hover{background:#0c5a35;transform:none;box-shadow:none;}
+html[data-tema="claro"] .btn-auth{background:var(--blue);border-radius:var(--r-ctrl);}
+
+/* KPIs: barra de 4px no topo na cor do indicador */
+html[data-tema="claro"] .kpi{border-radius:var(--r-card);padding:16px 18px;
+  background:color-mix(in srgb, var(--kpi-color,#7a8680) 7%, #ffffff);
+  border:1px solid color-mix(in srgb, var(--kpi-color,#7a8680) 22%, #e3e6df);
+  border-top:4px solid var(--kpi-color,var(--border));
+  box-shadow:0 1px 2px rgba(20,32,26,.04);transition:box-shadow .2s, transform .2s;}
+html[data-tema="claro"] .kpi::before{display:none;}
+html[data-tema="claro"] .kpi:hover{border-color:color-mix(in srgb, var(--kpi-color,#7a8680) 40%, #e3e6df);border-top-color:var(--kpi-color,var(--border));
+  box-shadow:0 6px 18px color-mix(in srgb, var(--kpi-color,#14201a) 14%, transparent);transform:translateY(-1px);}
+html[data-tema="claro"] .kpi-label{text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;}
+html[data-tema="claro"] .kpi-val{font-family:var(--font);font-size:28px;font-weight:700;letter-spacing:-.02em;color:var(--kpi-color,var(--text));}
+html[data-tema="claro"] .kpi-sub{font-family:var(--font);font-size:12px;color:var(--muted);}
+
+/* Tabela */
+html[data-tema="claro"] .table-card{border-radius:var(--r-card);border-color:var(--border);}
+html[data-tema="claro"] .table-head{padding:16px 24px;border-bottom-color:var(--border-soft);}
+html[data-tema="claro"] .table-title{font-size:15px;font-weight:600;}
+html[data-tema="claro"] .tbl th{text-transform:none;letter-spacing:0;font-size:12px;color:var(--muted);font-weight:500;padding:10px 16px;border-bottom-color:var(--border-soft);}
+html[data-tema="claro"] .tbl th:first-child,
+html[data-tema="claro"] .tbl td:first-child{padding-left:24px;}
+html[data-tema="claro"] .tbl tbody tr{border-bottom-color:var(--border-soft);}
+html[data-tema="claro"] .tbl tbody tr:hover{background:#fafbf9;}
+html[data-tema="claro"] .tbl td{font-size:14px;}
+html[data-tema="claro"] .td-prod{font-weight:500;font-size:14px;}
+html[data-tema="claro"] .td-sku,
+html[data-tema="claro"] .td-mlb{font-size:11px;color:var(--muted);}
+html[data-tema="claro"] .td-arq{background:var(--bg4);border-color:var(--border);border-radius:var(--r-pill);}
+html[data-tema="claro"] .row-neg{background:#fdf7f7!important;}
+html[data-tema="claro"] .row-neg:hover{background:var(--danger-soft)!important;}
+html[data-tema="claro"] .chip-pos{color:var(--brand);}
+html[data-tema="claro"] .chip-neg{color:var(--danger);font-weight:700;}
+html[data-tema="claro"] .chip-warn{color:var(--warn);}
+html[data-tema="claro"] .tacos-track{background:var(--border-soft);}
+
+/* Chips de filtro */
+html[data-tema="claro"] .marg-chip{background:transparent;border:1px solid var(--border);color:var(--muted2);padding:5px 12px;border-radius:var(--r-pill);font-size:12px;font-weight:500;}
+html[data-tema="claro"] .marg-chip:hover{background:var(--bg4);}
+html[data-tema="claro"] .marg-chip.active,
+html[data-tema="claro"] .marg-chip.ok-chip.active,
+html[data-tema="claro"] .marg-chip.med-chip.active,
+html[data-tema="claro"] .marg-chip.low-chip.active,
+html[data-tema="claro"] .marg-chip.arq-chip.active{background:var(--text);border-color:var(--text);color:#fff;}
+html[data-tema="claro"] .marg-chip.neg-chip{color:var(--danger);}
+html[data-tema="claro"] .marg-chip.neg-chip.active{background:var(--danger);border-color:var(--danger);color:#fff;}
+
+/* Busca e campos */
+html[data-tema="claro"] .search-box input{width:240px;background:var(--bg3);border-color:var(--border);border-radius:var(--r-ctrl);font-size:13px;}
+html[data-tema="claro"] .search-box input:focus,
+html[data-tema="claro"] .field input:focus,
+html[data-tema="claro"] .login-field input:focus,
+html[data-tema="claro"] .cfield input:focus,
+html[data-tema="claro"] .custos-field input:focus,
+html[data-tema="claro"] .sim-field input:focus,
+html[data-tema="claro"] input[type=date]:focus{border-color:var(--brand);outline:2px solid var(--brand-soft);}
+
+/* Selos e estados */
+html[data-tema="claro"] .login-badge{background:var(--brand-soft);border-color:var(--brand-soft);color:var(--brand);}
+html[data-tema="claro"] .pos-badge{background:#eaf2fc;border-color:#d3e4f8;border-radius:var(--r-pill);}
+html[data-tema="claro"] .pos-badge.top{background:var(--brand-soft);border-color:var(--brand-soft);color:var(--brand);}
+html[data-tema="claro"] .pos-badge.mid{background:var(--warn-soft);border-color:var(--warn-soft);color:var(--warn);}
+html[data-tema="claro"] .pos-badge.low{background:var(--danger-soft);border-color:var(--danger-soft);color:var(--danger);}
+html[data-tema="claro"] .pos-badge.none{background:var(--bg4);border-color:var(--bg4);}
+html[data-tema="claro"] .token-pill.ok{background:var(--brand-soft);border-color:var(--brand-soft);}
+html[data-tema="claro"] .token-pill.fail{background:var(--danger-soft);border-color:var(--danger-soft);}
+html[data-tema="claro"] .login-erro{background:var(--danger-soft);border-color:var(--danger-soft);color:var(--danger);}
+html[data-tema="claro"] .decomp-row.total{background:var(--brand-soft);border-color:var(--brand-soft);}
+html[data-tema="claro"] .anotacao-del:hover{background:var(--danger-soft);}
+html[data-tema="claro"] .modal-preset.active{background:var(--brand-soft);border-color:var(--brand-soft);color:var(--brand);}
+html[data-tema="claro"] .modal-tab.active{color:var(--brand);border-bottom-color:var(--brand);}
+
+/* Cartões, modais e sombras */
+html[data-tema="claro"] .config-card,
+html[data-tema="claro"] .login-box,
+html[data-tema="claro"] .modal-catalog{border-radius:var(--r-card);border-color:var(--border);}
+html[data-tema="claro"] .modal{border-color:var(--border);box-shadow:0 20px 50px rgba(20,32,26,.16);}
+html[data-tema="claro"] .modal-catalog,
+html[data-tema="claro"] #toast{box-shadow:0 20px 50px rgba(20,32,26,.16);}
+html[data-tema="claro"] .ml-section,
+html[data-tema="claro"] .ml-metric:hover{box-shadow:none;}
+html[data-tema="claro"] .overlay{background:rgba(20,32,26,.40);}
+
+/* Destaques que usavam o dourado como cor de marca */
+html[data-tema="claro"] .login-title span{color:var(--brand);}
+html[data-tema="claro"] .loader{border-top-color:var(--brand);}
+html[data-tema="claro"] .catalog-prog-fill{background:var(--brand);}
+html[data-tema="claro"] .btn-tema:hover{border-color:var(--brand);color:var(--brand);}
+html[data-tema="claro"] .btn-sync-produto,
+html[data-tema="claro"] .btn-anotacao{border-color:var(--brand);color:var(--brand);border-radius:var(--r-ctrl);}
+html[data-tema="claro"] .btn-sync-produto:hover:not(:disabled),
+html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
+
+@media (max-width:1100px){ html[data-tema="claro"] .kpis{grid-template-columns:repeat(2,minmax(0,1fr));} }
+.btn-tema{width:100%;background:none;border:1px solid var(--border2);color:var(--muted2);padding:8px;border-radius:8px;cursor:pointer;font-size:12px;font-family:var(--font);margin-bottom:8px;transition:all .2s;}
+.btn-tema:hover{border-color:var(--gold);color:var(--gold);}
 </style>
 </head>
 <body>
@@ -449,6 +610,7 @@ input.modal-date:focus{border-color:var(--gold);}
       <button class="nav-item" onclick="switchTab('config',this)"><span class="icon">⚙</span> Configurações</button>
     </div>
     <div class="sidebar-bottom">
+      <button class="btn-tema" id="btn-tema" onclick="alternarTema()">☀ Tema claro</button>
       <button class="btn-logout" onclick="logout()">Sair da conta</button>
     </div>
   </div>
@@ -772,6 +934,19 @@ async function redefinirSenha() {
     toast('Senha redefinida! Faça login com a nova senha.');
   } catch(e) { erroEl.textContent='Erro de conexão'; erroEl.style.display='block'; }
 }
+
+function alternarTema() {
+  const claro = document.documentElement.dataset.tema !== 'claro';
+  if (claro) document.documentElement.dataset.tema = 'claro';
+  else delete document.documentElement.dataset.tema;
+  try { localStorage.setItem('mz_tema', claro ? 'claro' : 'escuro'); } catch(e) {}
+  atualizarBtnTema();
+}
+function atualizarBtnTema() {
+  const b = document.getElementById('btn-tema');
+  if (b) b.textContent = document.documentElement.dataset.tema === 'claro' ? '☾ Tema escuro' : '☀ Tema claro';
+}
+document.addEventListener('DOMContentLoaded', atualizarBtnTema);
 
 function logout() {
   user = null;
