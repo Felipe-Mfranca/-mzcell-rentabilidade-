@@ -29,3 +29,6 @@ screenshot.png
 slack_config.json
 buybox_state.json
 buybox_relatorio_*.txt
+
+# Diagnóstico Full (respostas cruas da API)
+diag_full_output.json
