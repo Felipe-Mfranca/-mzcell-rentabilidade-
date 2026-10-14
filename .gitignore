@@ -40,3 +40,8 @@ bling_config.json
 # Amazon (credenciais e saída do diagnóstico)
 amazon_config.json
 diagnostico_amazon_*.txt
+
+# Agenda de rebot (estado, config e logs locais)
+rebot_agenda_estado.json
+rebot_agenda_config.json
+rebot_agenda.log
