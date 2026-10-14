@@ -39,6 +39,15 @@ ENDPOINTS_SANDBOX = {
 }
 MARKETPLACE_BR = "A2Q3Y263D00KWC"
 
+# "Dia fechado" é o dia do vendedor, não o do servidor. O Seller Central fecha o dia à
+# meia-noite de Brasília; em UTC o "ontem" terminaria às 21h, deixando de fora o começo
+# da noite, quando saem muitos pedidos. Offset fixo porque o Brasil não tem horário de
+# verão desde 2019 (e evita depender do tzdata, que o Windows não traz).
+FUSOS = {
+    "America/Sao_Paulo": timezone(timedelta(hours=-3)),
+    "UTC": timezone.utc,
+}
+
 _tokens = {}  # conta -> (access_token, expira_em em time.monotonic())
 _lock = threading.Lock()
 
@@ -253,12 +262,20 @@ def vendas_asin(conta_id: str, asin: str, rede: str = None) -> dict:
     if rede not in ("", "AFN", "MFN"):
         raise ErroAmazon("rede deve ser vazio, AFN ou MFN", 400)
 
-    fim = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    fuso = par.get("fuso", "America/Sao_Paulo")
+    if fuso not in FUSOS:
+        raise ErroAmazon(f"parametros.fuso deve ser um de: {', '.join(FUSOS)}", 400)
+
+    # Só dias fechados: o dia de hoje, ainda em andamento, fica de fora.
+    fim = datetime.now(FUSOS[fuso]).replace(hour=0, minute=0, second=0, microsecond=0)
     inicio = fim - timedelta(days=30)
+    z = fim.strftime("%z")
+    off = f"{z[:3]}:{z[3:]}"                       # -0300 -> -03:00
     fmt = "%Y-%m-%dT%H:%M:%S"
     params = {"marketplaceIds": c.get("marketplace_id") or MARKETPLACE_BR,
-              "interval": f"{inicio.strftime(fmt)}-00:00--{fim.strftime(fmt)}-00:00",
-              "granularity": "Day", "buyerType": "All", "asin": asin}
+              "interval": f"{inicio.strftime(fmt)}{off}--{fim.strftime(fmt)}{off}",
+              "granularity": "Day", "granularityTimeZone": fuso,
+              "buyerType": "All", "asin": asin}
     if rede:
         params["fulfillmentNetwork"] = rede
 

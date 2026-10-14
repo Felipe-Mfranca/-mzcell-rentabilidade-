@@ -32,6 +32,7 @@
   "parametros": {
     "peso_7d": 0.4,
     "peso_30d": 0.6,
-    "rede": ""
+    "rede": "",
+    "fuso": "America/Sao_Paulo"
   }
 }

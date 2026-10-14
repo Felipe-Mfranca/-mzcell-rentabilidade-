@@ -250,6 +250,40 @@ class TestApi(Base):
         api.vendas_asin("amz", "B1", rede="afn")
         self.assertEqual(self.e["req"][-1][1]["fulfillmentNetwork"], "AFN")
 
+    def test_dia_fechado_e_o_dia_de_brasilia_nao_o_de_utc(self):
+        """O Seller Central fecha o dia à meia-noite de Brasília (UTC-3)."""
+        self.e["rotas"]["/sales/v1/orderMetrics"] = lambda qs, n: (200, {"payload": []})
+        api.vendas_asin("amz", "B1")
+        qs = self.e["req"][-1][1]
+        ini, fim = qs["interval"].split("--")
+        self.assertTrue(ini.endswith("T00:00:00-03:00"), ini)
+        self.assertTrue(fim.endswith("T00:00:00-03:00"), fim)
+        self.assertEqual(qs["granularityTimeZone"], "America/Sao_Paulo")
+        d_ini, d_fim = date.fromisoformat(ini[:10]), date.fromisoformat(fim[:10])
+        self.assertEqual((d_fim - d_ini).days, 30)
+
+    def test_fuso_utc_continua_disponivel_como_saida(self):
+        with open(self.cfg_path, encoding="utf-8") as f:
+            cfg = json.load(f)
+        cfg["parametros"]["fuso"] = "UTC"
+        with open(self.cfg_path, "w", encoding="utf-8") as f:
+            json.dump(cfg, f)
+        self.e["rotas"]["/sales/v1/orderMetrics"] = lambda qs, n: (200, {"payload": []})
+        api.vendas_asin("amz", "B1")
+        qs = self.e["req"][-1][1]
+        self.assertTrue(qs["interval"].split("--")[0].endswith("T00:00:00+00:00"))
+        self.assertEqual(qs["granularityTimeZone"], "UTC")
+
+    def test_fuso_desconhecido_e_rejeitado(self):
+        with open(self.cfg_path, encoding="utf-8") as f:
+            cfg = json.load(f)
+        cfg["parametros"]["fuso"] = "Marte/Olympus"
+        with open(self.cfg_path, "w", encoding="utf-8") as f:
+            json.dump(cfg, f)
+        with self.assertRaises(api.ErroAmazon) as ctx:
+            api.vendas_asin("amz", "B1")
+        self.assertEqual(ctx.exception.status, 400)
+
     def test_rede_invalida_e_rejeitada(self):
         with self.assertRaises(api.ErroAmazon) as ctx:
             api.vendas_asin("amz", "B1", rede="XYZ")

@@ -152,6 +152,10 @@ contrato de `marketplaces/base.py`, como o módulo Bling.
   não vendável ficam fora.
 - Velocidade Amazon: 7d × 40% + 30d × 60%. Os 7 dias são contados pela **data** do bucket,
   não pela posição na lista.
+- **Dia fechado = dia de Brasília (UTC-3)**, como o Seller Central: a consulta de vendas vai de
+  00:00 a 00:00 em `-03:00` com `granularityTimeZone=America/Sao_Paulo`; o dia de hoje fica de
+  fora. Em UTC o "ontem" fechava às 21h e perdia o começo da noite. Se a Amazon recusar o
+  fuso (400), `parametros.fuso = "UTC"` em `amazon_config.json` volta ao comportamento antigo.
 - Erro de paginação no inventário **aborta**; nunca devolve lista parcial.
 - Credencial nunca aparece em mensagem de erro (`api.mascarar`).
 - Hoje nenhum endpoint do backend aplica o role do usuário (master/adminplus/viewer);
