@@ -1,4 +1,4 @@
-﻿# Dados locais (não sobem para o GitHub)
+# Dados locais (não sobem para o GitHub)
 config.json
 produtos.json
 anotacoes.json
@@ -36,3 +36,9 @@ reposicao_full_*.xlsx
 
 # Bling (credenciais e tokens)
 bling_config.json
+
+
+# Agenda de rebot (estado, config e logs locais)
+rebot_agenda_estado.json
+rebot_agenda_config.json
+rebot_agenda.log
