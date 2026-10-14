@@ -50,3 +50,6 @@ rebot_agenda.log
 *.antes
 config.json.*
 conferencia_*.csv
+
+# Registro das inscricoes em campanhas (promocoes_ml.py)
+promocoes_log.jsonl
