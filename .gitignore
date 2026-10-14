@@ -49,3 +49,4 @@ rebot_agenda.log
 # Backups locais de config (contem tokens OAuth)
 *.antes
 config.json.*
+conferencia_*.csv

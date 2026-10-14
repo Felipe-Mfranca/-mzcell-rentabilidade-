@@ -131,6 +131,8 @@ contrato de `marketplaces/base.py`, como o módulo Bling.
 | `api.py` | Cliente SP-API: token LWA (só em memória), 401 → renova, 429 → recua, máscara de credenciais |
 | `calculos.py` | Matemática sem rede: estoque válido, consolidação por ASIN, velocidade |
 | `diagnostico.py` | Mapa de módulos liberados (qual role a Amazon concedeu) |
+| `relatorios.py` | SP-API Reports (assíncrono): cria, espera, baixa e lê o flat file |
+| `conferencia.py` | Confere as vendas de um ASIN contra as linhas de pedido (ver abaixo) |
 | `router.py` | `GET /amazon/contas`, `/diagnostico/{conta}`, `/estoque/{conta}`, `/vendas/{conta}?asin=` |
 | `marketplace.py` | `AmazonMarketplace` (anúncios e pedidos ainda não implementados) |
 
@@ -142,6 +144,19 @@ contrato de `marketplaces/base.py`, como o módulo Bling.
 # Testes (sem rede, sem credencial)
 .\venv\Scripts\python.exe -m unittest tests.test_amazon -v
 ```
+
+**Conferir a velocidade contra os pedidos** (prova independente do orderMetrics):
+
+```powershell
+.\venv\Scripts\python.exe -m marketplaces.amazon.conferencia amazon02 B0DZN43HGG --sc 164
+```
+
+Baixa o relatório de pedidos (`GET_FLAT_FILE_ALL_ORDERS_DATA_BY_ORDER_DATE_GENERAL`, máx. 30
+dias), soma as unidades do ASIN e mostra lado a lado: Seller Central (`--sc`), orderMetrics e as
+linhas de pedido — todas, canceladas e líquidas — além de status, SKU/logística e dia a dia.
+Grava `conferencia_<ASIN>.csv` pedido a pedido. O nome do tipo de relatório e as colunas
+(`purchase-date`, `order-status`, `asin`, `quantity`...) vêm da documentação, não de teste contra a
+API real; se a Amazon recusar, a mensagem de erro diz o motivo.
 
 **Regras do módulo:**
 - Vendas são apuradas **por ASIN, somando FBA e DBA** (o mesmo ASIN costuma ter um SKU em

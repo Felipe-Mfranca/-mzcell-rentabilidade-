@@ -5,17 +5,18 @@ Rodar na raiz do projeto:  .\\venv\\Scripts\\python.exe -m unittest tests.test_a
 Só biblioteca padrão + as dependências do requirements.txt; sem rede, sem credencial real.
 """
 
+import gzip
 import json
 import os
 import tempfile
 import threading
 import unittest
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from unittest import mock
 from urllib.parse import parse_qs, urlparse
 
-from marketplaces.amazon import api, calculos, diagnostico
+from marketplaces.amazon import api, calculos, conferencia, diagnostico, relatorios
 
 # Credenciais falsas, com o mesmo formato das reais — o servidor as devolve nos erros
 # de propósito, para provar que nada disso chega a uma mensagem.
@@ -38,8 +39,13 @@ class FakeAmazon(BaseHTTPRequestHandler):
 
     def do_POST(self):
         e = self.estado
+        bruto = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        caminho = urlparse(self.path).path
+        if caminho in e.get("posts", {}):
+            corpo = json.loads(bruto or b"{}")
+            e["req"].append((caminho, corpo, self.headers.get("x-amz-access-token")))
+            return self._responder(*e["posts"][caminho](corpo))
         e["lwa"] += 1
-        self.rfile.read(int(self.headers.get("Content-Length", 0)))
         if e.get("lwa_status", 200) != 200:
             return self._responder(e["lwa_status"], {"error": "invalid_grant",
                                                      "error_description": f"{REFRESH} {CLIENT_ID} {SECRET}"})
@@ -52,6 +58,13 @@ class FakeAmazon(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         qs = {k: v[0] for k, v in parse_qs(u.query).items()}
         e = self.estado
+        if u.path in e.get("arquivos", {}):          # download de documento (sem autenticação)
+            dados = e["arquivos"][u.path]
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(dados)))
+            self.end_headers()
+            self.wfile.write(dados)
+            return
         e["req"].append((u.path, qs, self.headers.get("x-amz-access-token")))
         rota = e["rotas"].get(u.path)
         n = sum(1 for r in e["req"] if r[0] == u.path)
@@ -310,6 +323,174 @@ class TestApi(Base):
         self.assertEqual(api.base_url("amz"), self.url)
         self.escrever_config(sandbox=True)
         self.assertEqual(api.base_url("amz"), api.ENDPOINTS_SANDBOX["na"])
+
+
+CABECALHO = "amazon-order-id\tpurchase-date\torder-status\tfulfillment-channel\tsku\tasin\tquantity\titem-status"
+
+
+def tsv(*linhas):
+    return "\n".join([CABECALHO] + ["\t".join(map(str, l)) for l in linhas]) + "\n"
+
+
+# janela de teste: 14/09 a 13/10 em Brasília = 14/09 03:00Z até 14/10 03:00Z (exclusivo)
+PEDIDOS = [
+    ("A1", "2026-09-14T02:59:00+00:00", "Shipped",   "Amazon",   "SKU1", "B1", 4, "Shipped"),    # 13/09 23:59 BRT → FORA
+    ("A2", "2026-09-14T03:00:00+00:00", "Shipped",   "Amazon",   "SKU1", "B1", 2, "Shipped"),    # 14/09 00:00 BRT → dentro
+    ("A3", "2026-10-14T02:59:59+00:00", "Shipped",   "Amazon",   "SKU1", "B1", 3, "Shipped"),    # 13/10 23:59 BRT → dentro
+    ("A4", "2026-10-14T03:00:00+00:00", "Pending",   "Amazon",   "SKU1", "B1", 7, "Unshipped"),  # 14/10 00:00 BRT → FORA
+    ("A5", "2026-09-20T15:00:00+00:00", "Cancelled", "Amazon",   "SKU1", "B1", 5, "Cancelled"),  # dentro, cancelado
+    ("A6", "2026-09-21T15:00:00+00:00", "Shipped",   "Amazon",   "OUTRO", "B2", 9, "Shipped"),   # outro ASIN
+    ("A7", "2026-09-22T15:00:00+00:00", "Shipped",   "Merchant", "SKU2", "B1", 1, "Shipped"),    # DBA do mesmo ASIN
+]
+BRT = timezone(timedelta(hours=-3))
+
+
+class TestConciliacao(unittest.TestCase):
+    def linhas(self):
+        return relatorios.ler_tsv(tsv(*PEDIDOS))
+
+    def test_borda_da_janela_em_brasilia(self):
+        r = calculos.conciliar_pedidos(self.linhas(), "B1", date(2026, 9, 14), date(2026, 10, 13), BRT)
+        # dentro: A2(2) + A3(3) + A5(5, cancelado) + A7(1); fora: A1 (23:59 do dia 13/09), A4 (00:00 do dia 14/10)
+        self.assertEqual((r["unidades_total"], r["unidades_canceladas"], r["unidades_liquidas"]), (11, 5, 6))
+        self.assertEqual(r["pedidos"], 4)
+
+    def test_o_mesmo_dado_em_utc_da_outro_total(self):
+        """É exatamente a divergência de fuso: A1 entra e A3 sai quando o dia é UTC."""
+        r = calculos.conciliar_pedidos(self.linhas(), "B1", date(2026, 9, 14), date(2026, 10, 13), timezone.utc)
+        self.assertEqual(r["unidades_total"], 11 - 3 + 4)
+
+    def test_soma_por_asin_com_todos_os_skus_e_logisticas(self):
+        r = calculos.conciliar_pedidos(self.linhas(), "b1", date(2026, 9, 14), date(2026, 10, 13), BRT)  # caixa ignorada
+        self.assertEqual(r["por_sku"], {("SKU1", "Amazon"): 10, ("SKU2", "Merchant"): 1})
+        self.assertNotIn("OUTRO", {s for s, _ in r["por_sku"]})
+
+    def test_por_dia_usa_o_dia_de_brasilia(self):
+        r = calculos.conciliar_pedidos(self.linhas(), "B1", date(2026, 9, 14), date(2026, 10, 13), BRT)
+        self.assertEqual(r["por_dia"][date(2026, 10, 13)]["total"], 3)       # A3: 23:59 BRT, ainda dia 13
+        self.assertEqual(r["por_dia"][date(2026, 9, 20)], {"total": 5, "canceladas": 5})
+
+    def test_relatorio_sem_colunas_esperadas_explica(self):
+        with self.assertRaises(ValueError) as ctx:
+            calculos.conciliar_pedidos([{"foo": "1"}], "B1", date(2026, 9, 14), date(2026, 10, 13), BRT)
+        self.assertIn("foo", str(ctx.exception))
+
+    def test_relatorio_vazio_soma_zero(self):
+        r = calculos.conciliar_pedidos([], "B1", date(2026, 9, 14), date(2026, 10, 13), BRT)
+        self.assertEqual((r["unidades_total"], r["pedidos"]), (0, 0))
+
+
+JANELA_PADRAO_REAL = conferencia.janela_padrao
+
+
+class TestConferencia(Base):
+    def setUp(self):
+        super().setUp()
+        # Fixa a janela padrão longe das datas dos testes: sem isso, nos dias em que a data real
+        # coincide com a janela escolhida aqui, o comando tentaria comparar com o orderMetrics.
+        p = mock.patch.object(conferencia, "janela_padrao", lambda fuso: (date(2000, 1, 1), date(2000, 1, 30)))
+        p.start()
+        self.addCleanup(p.stop)
+
+    def montar_relatorio(self, conteudo, status_final="DONE", gz=True):
+        e = self.e
+        e["posts"] = {relatorios.REPORTS_PATH: lambda corpo: (202, {"reportId": "R1"})}
+        e["rotas"][f"{relatorios.REPORTS_PATH}/R1"] = lambda qs, n: (
+            (200, {"processingStatus": "IN_PROGRESS"}) if n == 1 else
+            (200, {"processingStatus": status_final, "reportDocumentId": "D1"}))
+        e["rotas"][f"{relatorios.DOCUMENTS_PATH}/D1"] = lambda qs, n: (
+            200, {"reportDocumentId": "D1", "url": self.url + "/doc", **({"compressionAlgorithm": "GZIP"} if gz else {})})
+        dados = conteudo.encode("utf-8")
+        e["arquivos"] = {"/doc": gzip.compress(dados) if gz else dados}
+
+    def test_fluxo_completo_e_janela_enviada_em_utc(self):
+        self.montar_relatorio(tsv(*PEDIDOS))
+        r = conferencia.conferir("amz", "B1", date(2026, 9, 14), date(2026, 10, 13))
+        criar = next(x for x in self.e["req"] if x[0] == relatorios.REPORTS_PATH)[1]
+        self.assertEqual(criar["reportType"], conferencia.TIPO_PEDIDOS)
+        self.assertEqual(criar["dataStartTime"], "2026-09-14T03:00:00Z")    # 00:00 BRT
+        self.assertEqual(criar["dataEndTime"], "2026-10-14T03:00:00Z")      # 00:00 BRT do dia seguinte
+        self.assertEqual(criar["marketplaceIds"], ["A2Q3Y263D00KWC"])
+        self.assertEqual((r["unidades_total"], r["unidades_liquidas"]), (11, 6))
+        self.assertIsNone(r["ordermetrics"])     # janela personalizada: não comparável
+        self.assertEqual(r["noite"], 3)          # A3, comprado às 23:59 de Brasília
+
+    def test_documento_sem_gzip_e_em_cp1252(self):
+        texto = tsv(("A9", "2026-09-20T15:00:00+00:00", "Shipped", "Amazon", "SKUÃ", "B1", 2, "Shipped"))
+        self.e["posts"] = {relatorios.REPORTS_PATH: lambda c: (202, {"reportId": "R1"})}
+        self.e["rotas"][f"{relatorios.REPORTS_PATH}/R1"] = lambda qs, n: (200, {"processingStatus": "DONE", "reportDocumentId": "D1"})
+        self.e["rotas"][f"{relatorios.DOCUMENTS_PATH}/D1"] = lambda qs, n: (200, {"url": self.url + "/doc"})
+        self.e["arquivos"] = {"/doc": texto.encode("cp1252")}
+        r = conferencia.conferir("amz", "B1", date(2026, 9, 14), date(2026, 10, 13))
+        self.assertEqual(r["por_sku"], {("SKUÃ", "Amazon"): 2})
+
+    def test_janela_padrao_compara_com_ordermetrics(self):
+        fuso = api.FUSOS["America/Sao_Paulo"]
+        de, ate = JANELA_PADRAO_REAL(fuso)
+        self.assertEqual((ate - de).days, 29)                                  # 30 dias fechados
+        self.assertEqual(ate, datetime.now(fuso).date() - timedelta(days=1))   # termina ontem
+        quando = f"{ate}T15:00:00+00:00"
+        self.montar_relatorio(tsv(("A1", quando, "Shipped", "Amazon", "SKU1", "B1", 5, "Shipped")))
+        self.e["rotas"]["/sales/v1/orderMetrics"] = lambda qs, n: (200, {"payload": [
+            {"interval": f"{ate}T00:00:00-03:00--{ate + timedelta(days=1)}T00:00:00-03:00", "unitCount": 5}]})
+        with mock.patch.object(conferencia, "janela_padrao", JANELA_PADRAO_REAL):
+            r = conferencia.conferir("amz", "B1")
+        self.assertEqual((r["unidades_total"], r["ordermetrics"]), (5, 5))
+
+    def test_falha_no_ordermetrics_nao_derruba_o_resultado_do_relatorio(self):
+        ontem = JANELA_PADRAO_REAL(api.FUSOS["America/Sao_Paulo"])[1]
+        self.montar_relatorio(tsv(("A1", f"{ontem}T15:00:00+00:00", "Shipped", "Amazon", "SKU1", "B1", 5, "Shipped")))
+        self.e["rotas"]["/sales/v1/orderMetrics"] = lambda qs, n: (403, {})
+        with mock.patch.object(conferencia, "janela_padrao", JANELA_PADRAO_REAL):
+            r = conferencia.conferir("amz", "B1")
+        self.assertEqual(r["unidades_total"], 5)
+        self.assertIsNone(r["ordermetrics"])
+        self.assertIn("role", r["ordermetrics_erro"])
+        self.assertIn("Não consegui consultar o orderMetrics", conferencia.formatar(r))
+
+    def test_relatorio_fatal_explica(self):
+        self.montar_relatorio("", status_final="FATAL")
+        with self.assertRaises(api.ErroAmazon) as ctx:
+            conferencia.conferir("amz", "B1", date(2026, 9, 14), date(2026, 10, 13))
+        self.assertIn("FATAL", str(ctx.exception))
+
+    def test_403_na_criacao_diz_que_falta_role(self):
+        self.e["posts"] = {relatorios.REPORTS_PATH: lambda c: (403, {"errors": [{"code": "Unauthorized"}]})}
+        with self.assertRaises(api.ErroAmazon) as ctx:
+            conferencia.conferir("amz", "B1", date(2026, 9, 14), date(2026, 10, 13))
+        self.assertEqual(ctx.exception.status, 403)
+
+    def test_janela_acima_de_30_dias_e_recusada_antes_de_chamar_a_amazon(self):
+        with self.assertRaises(api.ErroAmazon) as ctx:
+            conferencia.conferir("amz", "B1", date(2026, 9, 1), date(2026, 10, 13))
+        self.assertEqual(ctx.exception.status, 400)
+        self.assertEqual(self.e["req"], [])
+
+    def test_saida_mostra_as_tres_leituras_e_o_veredito(self):
+        self.montar_relatorio(tsv(*PEDIDOS))
+        r = conferencia.conferir("amz", "B1", date(2026, 9, 14), date(2026, 10, 13))
+        r["ordermetrics"] = 6                       # simula o orderMetrics batendo com as líquidas
+        texto = conferencia.formatar(r, sc=11)
+        self.assertIn("Seller Central (informado em --sc)", texto)
+        self.assertIn("Seller Central (11) bate exatamente com todas as unidades", texto)
+        self.assertIn("orderMetrics (6) bate exatamente com as líquidas", texto)
+        r["ordermetrics"] = 8
+        self.assertIn("não bate com nenhuma", conferencia.formatar(r))
+
+    def test_csv_tem_pedido_a_pedido_e_nenhum_dado_do_comprador(self):
+        self.montar_relatorio(tsv(*PEDIDOS))
+        r = conferencia.conferir("amz", "B1", date(2026, 9, 14), date(2026, 10, 13))
+        antes = os.getcwd()
+        os.chdir(self.tmp.name)
+        try:
+            caminho = conferencia.salvar_csv(r)
+            with open(caminho, encoding="utf-8-sig") as f:
+                linhas = f.read().splitlines()
+        finally:
+            os.chdir(antes)
+        self.assertEqual(linhas[0], "pedido;data_hora_local;status;sku;canal;quantidade;cancelada")
+        self.assertEqual(len(linhas), 1 + 4)
+        self.assertIn("A3;13/10/2026 23:59:59;Shipped;SKU1;Amazon;3;não", linhas)
 
 
 class TestDiagnostico(Base):
