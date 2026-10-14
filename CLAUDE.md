@@ -176,6 +176,42 @@ raiz — `marketplaces/` não chega a instalações por push. O `main.py` monta 
 
 ---
 
+## PROMOÇÕES / REBOT (Mercado Livre)
+
+Regra de análise (conta só do lado do ML, sem CMV/imposto): líquido/un = preço − (tarifa% × preço − rebot);
+rebot = `meli_percentage` × **preço cheio**; ganho/un = líquido da candidata − líquido atual. Em empate de
+preço e líquido, preferir a campanha do ML à nossa (`SELLER_CAMPAIGN`, `PRICE_DISCOUNT`).
+
+| Arquivo | Papel |
+|---|---|
+| `rebot_agenda.py` | Analisa meli01/02/03 e avisa (Slack + e-mail) só as oportunidades novas. **Somente leitura.** |
+| `instalar_agenda.ps1` | Instala/remove a tarefa do Windows (padrão 08:00 e 16:00) |
+| `promocoes_ml.py` | Inscreve um anúncio numa campanha candidata. **Escreve no ML** (ver abaixo) |
+
+```powershell
+.\venv\Scripts\python.exe rebot_agenda.py --dry          # mostra, não envia nem grava estado
+.\venv\Scripts\python.exe rebot_agenda.py --semear       # marca as atuais como já avisadas
+.\instalar_agenda.ps1                                    # instala a tarefa (ou -Horarios "09:00","18:00" / -Remover)
+# Entrada em campanha: simula por padrão; só envia com --confirmar
+.\venv\Scripts\python.exe promocoes_ml.py meli03 MLB7580237540 LGH-MLB1000
+.\venv\Scripts\python.exe promocoes_ml.py meli03 MLB7580237540 LGH-MLB1000 --confirmar
+.\venv\Scripts\python.exe -m unittest tests.test_promocoes -v
+```
+
+**Regras:**
+- Nenhuma entrada em campanha sem pedido explícito do usuário, anúncio por anúncio.
+- `promocoes_ml.py` só inscreve em candidata existente (LIGHTNING, SMART, DEAL); não sai de campanha,
+  não muda preço, não cria campanha. Cada envio vai para `promocoes_log.jsonl` (gitignored, sem tokens).
+- LIGHTNING foi validado em produção (201). Os corpos de SMART (`offer_id` = `ref_id`) e DEAL seguem a
+  documentação e ainda não foram confirmados contra a API real por este código.
+- Candidata `pending` já está inscrita (começa depois); a agenda não a recomenda de novo.
+- Config local (gitignored): `slack_config.json` (`bot_token` + `destinatarios`, ou `webhook_url`),
+  `email_config.json` (SMTP do app) e `rebot_agenda_config.json` (`email_destinatarios`).
+- A tarefa agendada vive só na máquina onde foi instalada e exige o PC ligado; recriar com
+  `instalar_agenda.ps1` em outra máquina.
+
+---
+
 ## COMO INICIAR O SERVIDOR (DESENVOLVIMENTO)
 
 ```powershell

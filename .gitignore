@@ -49,3 +49,6 @@ rebot_agenda.log
 # Backups locais de config (contem tokens OAuth)
 *.antes
 config.json.*
+
+# Registro das inscricoes em campanhas (promocoes_ml.py)
+promocoes_log.jsonl
