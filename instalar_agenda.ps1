@@ -36,7 +36,12 @@ foreach ($h in $Horarios) {
     if ($h -notmatch '^([01]\d|2[0-3]):[0-5]\d$') { throw "Horario invalido: '$h' (use HH:mm, ex.: 08:00)" }
 }
 
-$acao = New-ScheduledTaskAction -Execute $py -Argument "rebot_agenda.py" -WorkingDirectory $raiz
+# pythonw.exe nao abre janela de console. Com python.exe a tarefa roda numa janela na sua
+# sessao e, se ela for fechada, o Windows mata o processo (codigo 0xC000013A) sem log algum.
+# Sem janela, o resultado vai para rebot_agenda.log (inclusive erros fatais).
+$pyw = Join-Path $raiz "venv\Scripts\pythonw.exe"
+if (Test-Path $pyw) { $exe = $pyw } else { $exe = $py }
+$acao = New-ScheduledTaskAction -Execute $exe -Argument "rebot_agenda.py" -WorkingDirectory $raiz
 $gatilhos = @($Horarios | ForEach-Object { New-ScheduledTaskTrigger -Daily -At $_ })
 $config = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 30)
@@ -48,3 +53,4 @@ $t = Get-ScheduledTask -TaskName $Nome
 Write-Host "Tarefa '$Nome' instalada. Horarios: $($Horarios -join ', ')"
 Write-Host "Proxima execucao: $((Get-ScheduledTaskInfo -TaskName $Nome).NextRunTime)"
 Write-Host "Teste manual:  .\venv\Scripts\python.exe rebot_agenda.py --dry"
+Write-Host "Resultado das execucoes agendadas: rebot_agenda.log"

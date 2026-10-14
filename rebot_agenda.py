@@ -249,4 +249,9 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception:
+        # agendado com pythonw não há console: sem isto, um erro fatal não deixaria rastro
+        log("ERRO FATAL:\n" + traceback.format_exc())
+        sys.exit(2)
