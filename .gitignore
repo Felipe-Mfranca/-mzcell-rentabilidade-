@@ -40,3 +40,4 @@ bling_config.json
 # Amazon (credenciais e saída do diagnóstico)
 amazon_config.json
 diagnostico_amazon_*.txt
+conferencia_*.csv

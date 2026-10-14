@@ -180,7 +180,7 @@ def access_token(conta_id: str, forcar: bool = False) -> str:
 
 # ─── Requisição ──────────────────────────────────────────────────────────────
 
-def request(conta_id: str, metodo: str, caminho: str, **params):
+def _enviar(conta_id: str, metodo: str, caminho: str, params: dict = None, corpo=None):
     """
     Requisição autenticada. Renova o token uma vez em 401 e recua em 429.
     Devolve (status, corpo) — o status é dado, não exceção: o diagnóstico depende dele.
@@ -189,7 +189,7 @@ def request(conta_id: str, metodo: str, caminho: str, **params):
     renovou, espera = False, 2
     for _ in range(5):
         try:
-            r = httpx.request(metodo, url, params=params or None, timeout=30, headers={
+            r = httpx.request(metodo, url, params=params or None, json=corpo, timeout=30, headers={
                 "x-amz-access-token": access_token(conta_id),
                 "Content-Type": "application/json"})
         except httpx.HTTPError as e:
@@ -209,11 +209,19 @@ def request(conta_id: str, metodo: str, caminho: str, **params):
         return r.status_code, r.text[:300]
 
 
+def request(conta_id: str, metodo: str, caminho: str, **params):
+    return _enviar(conta_id, metodo, caminho, params=params)
+
+
 def get(conta_id: str, caminho: str, **params):
-    return request(conta_id, "GET", caminho, **params)
+    return _enviar(conta_id, "GET", caminho, params=params)
 
 
-def _falha(status: int, corpo) -> ErroAmazon:
+def post(conta_id: str, caminho: str, corpo: dict):
+    return _enviar(conta_id, "POST", caminho, corpo=corpo)
+
+
+def falha(status: int, corpo) -> ErroAmazon:
     """Traduz uma resposta não-200 em erro com a explicação que o usuário precisa."""
     detalhe = mascarar(corpo if isinstance(corpo, str) else json.dumps(corpo, ensure_ascii=False))[:300]
     if status == 403:
@@ -239,7 +247,7 @@ def estoque_fba(conta_id: str) -> list:
             params["nextToken"] = pagina
         status, corpo = get(conta_id, "/fba/inventory/v1/summaries", **params)
         if status != 200:
-            raise _falha(status, corpo)
+            raise falha(status, corpo)
         payload = corpo.get("payload", {})
         for s in payload.get("inventorySummaries", []):
             if s.get("asin") not in descontinuados:
@@ -281,7 +289,7 @@ def vendas_asin(conta_id: str, asin: str, rede: str = None) -> dict:
 
     status, corpo = get(conta_id, "/sales/v1/orderMetrics", **params)
     if status != 200:
-        raise _falha(status, corpo)
+        raise falha(status, corpo)
     buckets = corpo if isinstance(corpo, list) else corpo.get("payload", corpo.get("data", []))
 
     return {"asin": asin, "conta": conta_id, "rede": rede or "todas",
