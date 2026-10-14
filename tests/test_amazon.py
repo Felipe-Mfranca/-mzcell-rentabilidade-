@@ -212,6 +212,27 @@ class TestApi(Base):
             self.assertNotIn(segredo, msg)
         self.assertIn("OCULTO", msg)
 
+    def test_motivo_do_lwa_aparece_mesmo_com_error_index_gigante(self):
+        """O LWA manda um error_index de centenas de caracteres antes do motivo."""
+        e = self.e
+        e["lwa_status"] = 400
+        original = FakeAmazon.do_POST
+
+        def post(handler):
+            e["lwa"] += 1
+            handler.rfile.read(int(handler.headers.get("Content-Length", 0)))
+            handler._responder(400, {"error_index": "T7eV" + "q" * 400,
+                                     "error": "invalid_grant",
+                                     "error_description": "The request has an invalid grant parameter"})
+        with mock.patch.object(FakeAmazon, "do_POST", post):
+            with self.assertRaises(api.ErroAmazon) as ctx:
+                api.access_token("amz")
+        msg = str(ctx.exception)
+        self.assertIn("invalid_grant", msg)
+        self.assertIn("invalid grant parameter", msg)
+        self.assertNotIn("qqqq", msg)
+        self.assertLess(len(msg), 250)
+
     def test_erro_da_api_que_ecoa_credencial_tambem_e_mascarado(self):
         self.e["rotas"]["/fba/inventory/v1/summaries"] = \
             lambda qs, n: (400, {"echo": f"{REFRESH} {CLIENT_ID} {SECRET}"})

@@ -118,6 +118,22 @@ def base_url(conta_id: str) -> str:
     return tabela.get((c.get("region") or "na").lower(), tabela["na"])
 
 
+def _motivo_lwa(r) -> str:
+    """
+    Extrai o que importa da recusa do LWA. O corpo traz um `error_index` enorme que,
+    num corte por tamanho, empurra para fora o `error` e o `error_description`, que são
+    justamente o motivo (invalid_client, invalid_grant...).
+    """
+    try:
+        j = r.json()
+        partes = [str(j[k]) for k in ("error", "error_description") if j.get(k)]
+        if partes:
+            return mascarar(" — ".join(partes))
+    except ValueError:
+        pass
+    return mascarar(r.text[:300])
+
+
 # ─── Token LWA ───────────────────────────────────────────────────────────────
 
 def access_token(conta_id: str, forcar: bool = False) -> str:
@@ -139,7 +155,7 @@ def access_token(conta_id: str, forcar: bool = False) -> str:
     except httpx.HTTPError as e:
         raise ErroAmazon(f"Não alcancei a Amazon (rede/proxy/firewall): {mascarar(e)}", 502)
     if r.status_code != 200:
-        raise ErroAmazon(f"LWA recusou a credencial ({r.status_code}): {mascarar(r.text[:300])}", 401)
+        raise ErroAmazon(f"LWA recusou a credencial ({r.status_code}): {_motivo_lwa(r)}", 401)
 
     data = r.json()
     token = data["access_token"]
