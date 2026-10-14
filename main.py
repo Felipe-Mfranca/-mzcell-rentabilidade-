@@ -33,9 +33,11 @@ DASHBOARD_PATH  = os.path.join(BASE_DIR, "dashboard.html")
 
 # ─── APP ─────────────────────────────────────────────────────────────────────
 app = FastAPI(title="MZCell Rentabilidade API", version="1.0.0")
+# Só origens locais: com "*", qualquer site aberto no navegador conseguiria ler/chamar
+# o backend em 127.0.0.1 (inclusive /amazon/* e as rotas de custos).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=r"^http://(127\.0\.0\.1|localhost)(:\d+)?$",
     allow_methods=["*"],
     allow_headers=["*"],
 )

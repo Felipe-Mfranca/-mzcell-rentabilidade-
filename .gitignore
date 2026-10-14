@@ -45,3 +45,7 @@ diagnostico_amazon_*.txt
 rebot_agenda_estado.json
 rebot_agenda_config.json
 rebot_agenda.log
+
+# Backups locais de config (contem tokens OAuth)
+*.antes
+config.json.*
