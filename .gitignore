@@ -33,3 +33,6 @@ buybox_relatorio_*.txt
 # Diagnóstico Full (respostas cruas da API)
 diag_full_output.json
 reposicao_full_*.xlsx
+
+# Bling (credenciais e tokens)
+bling_config.json
