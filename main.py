@@ -40,6 +40,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Módulos de marketplace (marketplaces/<nome>/router.py). Se o módulo não estiver
+# presente — ex.: instalação que ainda não recebeu a pasta marketplaces/ — o resto
+# do backend sobe normalmente.
+try:
+    from marketplaces.amazon.router import router as amazon_router
+    app.include_router(amazon_router)
+except ImportError as e:
+    print(f"[startup] Módulo Amazon indisponível: {e}")
+
 
 _syncs_em_andamento: set = set()
 

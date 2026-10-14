@@ -1,0 +1,37 @@
+{
+  "_leia_me": "Copie para amazon_config.json (gitignored) e preencha. Credenciais: refresh_token, client_id e client_secret do app SP-API. Nunca commite o amazon_config.json.",
+  "contas": {
+    "amazon01": {
+      "nome": "Amazon 01 (Techseller)",
+      "refresh_token": "COLE_AQUI",
+      "client_id": "COLE_AQUI",
+      "client_secret": "COLE_AQUI",
+      "marketplace_id": "A2Q3Y263D00KWC",
+      "region": "na",
+      "sandbox": false,
+      "asins_descontinuados": []
+    },
+    "amazon02": {
+      "nome": "Amazon 02",
+      "refresh_token": "COLE_AQUI",
+      "client_id": "COLE_AQUI",
+      "client_secret": "COLE_AQUI",
+      "marketplace_id": "A2Q3Y263D00KWC",
+      "region": "na",
+      "sandbox": false,
+      "asins_descontinuados": [
+        "B0CFPJ74K5",
+        "B0F3XZSZH2",
+        "B0CTLNWM3L",
+        "B0CYCPL9Y9",
+        "B08MT3FLSG",
+        "B0F6W525ZK"
+      ]
+    }
+  },
+  "parametros": {
+    "peso_7d": 0.4,
+    "peso_30d": 0.6,
+    "rede": ""
+  }
+}

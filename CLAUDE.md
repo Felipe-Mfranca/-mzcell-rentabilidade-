@@ -121,6 +121,48 @@ Na próxima abertura do app instalado, o auto-update detecta a nova versão e ba
 
 ---
 
+## MÓDULO AMAZON (marketplaces/amazon/)
+
+Integração com a SP-API da Amazon (Amazon 01 e Amazon 02), somente leitura. Segue o
+contrato de `marketplaces/base.py`, como o módulo Bling.
+
+| Arquivo | Papel |
+|---|---|
+| `api.py` | Cliente SP-API: token LWA (só em memória), 401 → renova, 429 → recua, máscara de credenciais |
+| `calculos.py` | Matemática sem rede: estoque válido, consolidação por ASIN, velocidade |
+| `diagnostico.py` | Mapa de módulos liberados (qual role a Amazon concedeu) |
+| `router.py` | `GET /amazon/contas`, `/diagnostico/{conta}`, `/estoque/{conta}`, `/vendas/{conta}?asin=` |
+| `marketplace.py` | `AmazonMarketplace` (anúncios e pedidos ainda não implementados) |
+
+**Credenciais:** `amazon_config.json` (gitignored; modelo em `amazon_config.exemplo.json`).
+
+```powershell
+# Descobrir quais módulos a Amazon liberou (rodar antes de construir qualquer módulo novo)
+.\venv\Scripts\python.exe -m marketplaces.amazon.diagnostico amazon02 --salvar
+# Testes (sem rede, sem credencial)
+.\venv\Scripts\python.exe -m unittest tests.test_amazon -v
+```
+
+**Regras do módulo:**
+- Vendas são apuradas **por ASIN, somando FBA e DBA** (o mesmo ASIN costuma ter um SKU em
+  cada logística). Para restringir: `parametros.rede` = `AFN` (só FBA) ou `MFN` (só DBA).
+- O inventário FBA é **consolidado por ASIN** antes de qualquer cálculo; sem isso, cada SKU
+  receberia a venda cheia do ASIN e dobraria a meta de estoque.
+- Estoque válido = disponível + em trânsito (working + shipped + receiving). Reservado e
+  não vendável ficam fora.
+- Velocidade Amazon: 7d × 40% + 30d × 60%. Os 7 dias são contados pela **data** do bucket,
+  não pela posição na lista.
+- Erro de paginação no inventário **aborta**; nunca devolve lista parcial.
+- Credencial nunca aparece em mensagem de erro (`api.mascarar`).
+- Hoje nenhum endpoint do backend aplica o role do usuário (master/adminplus/viewer);
+  isso vale também para `/amazon/*`.
+
+**Auto-update:** `ARQUIVOS_ONLINE` (em `index.js`, dentro do `app.asar`) lista só arquivos da
+raiz — `marketplaces/` não chega a instalações por push. O `main.py` monta o router dentro de
+`try/except ImportError` justamente para o backend subir mesmo sem a pasta.
+
+---
+
 ## REPOSITÓRIO
 
 - **URL:** https://github.com/Felipe-Mfranca/-mzcell-rentabilidade-
