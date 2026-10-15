@@ -388,6 +388,52 @@ def rebot_unitario(promo: Optional[dict]) -> float:
     return round(pct / 100 * base, 2) if pct > 0 and base > 0 else 0.0
 
 
+NOSSAS = {"SELLER_CAMPAIGN", "PRICE_DISCOUNT", "PROPRIA", "SEM_PROMOCAO"}
+
+
+def campanha_efetiva(promos: list, sale_price: Optional[dict]) -> Optional[dict]:
+    """Campanha que está aplicada AGORA, pelo id que o /sale_price informa (exato)."""
+    meta = (sale_price or {}).get("metadata") or {}
+    pid, cid = meta.get("promotion_id"), meta.get("campaign_id")
+    if not (pid or cid):
+        return None
+    return next((p for p in promos if p.get("status") == "started"
+                 and (p.get("ref_id") == pid or p.get("id") == cid)), None)
+
+
+def melhor_oportunidade(promos: list, atual_preco: float, cheio: float, pct: float,
+                        ativa: Optional[dict]) -> Optional[dict]:
+    """Candidata que rende mais líquido/un que a situação atual (mesma regra do rebot_agenda).
+    líquido = preço − (tarifa% × preço − rebot); rebot = meli% × preço cheio da campanha.
+    Empate de preço e líquido: só vale se trocar uma campanha nossa por uma do ML."""
+    a_tipo = (ativa or {}).get("type") or "SEM_PROMOCAO"
+    a_rebot = rebot_unitario(ativa)
+    a_liq = atual_preco - (pct * atual_preco - a_rebot)
+    melhor = None
+    for p in promos:
+        if p.get("status") != "candidate" or not p.get("price"):
+            continue
+        preco = p["price"]
+        rebot = (p.get("meli_percentage") or 0) / 100 * (p.get("original_price") or cheio)
+        liq = preco - (pct * preco - rebot)
+        ganho, dp = round(liq - a_liq, 2), round(preco - atual_preco, 2)
+        empate = abs(ganho) < 0.01 and abs(dp) < 0.01
+        if empate:
+            if not (a_tipo in NOSSAS and p.get("type") not in NOSSAS):
+                continue
+        elif ganho <= 0:
+            continue
+        o = {"tipo": p.get("type"), "nome": p.get("name") or p.get("type"),
+             "preco": preco, "rebot": round(rebot, 2), "ganho_un": ganho,
+             "delta_preco": dp, "empate": empate,
+             "fim": (p.get("finish_date") or "")[:10], "estoque": p.get("stock"),
+             "atual_nome": (ativa or {}).get("name") or ("sem promoção" if a_tipo == "SEM_PROMOCAO" else a_tipo),
+             "atual_preco": atual_preco, "atual_rebot": a_rebot}
+        if melhor is None or ganho > melhor["ganho_un"]:
+            melhor = o
+    return melhor
+
+
 def _resumo_promo(p: dict) -> dict:
     return {
         "id":        p.get("id"),
@@ -483,10 +529,15 @@ async def custos_anuncio(conta: str, mlb: str, preco: Optional[float] = None) ->
         venda = await _ultima_venda(client, conta, mlb, pct)
         preco_ref = preco or (venda or {}).get("preco") or item.get("price") or 0
         promos = await _get_json(client, conta, f"/seller-promotions/items/{mlb}?app_version=v2")
+        sp = await _get_json(client, conta, f"/items/{mlb}/sale_price?context=channel_marketplace")
 
     frete = await frete_para_preco(conta, mlb, preco_ref)
     promos = promos if isinstance(promos, list) else []
-    ativa = escolher_campanha(promos, preco_ref)
+    atual_preco = (sp or {}).get("amount") or item.get("price") or preco_ref
+    cheio = (sp or {}).get("regular_amount") or item.get("price") or preco_ref
+    ativa_hoje = campanha_efetiva(promos, sp)
+    ativa = ativa_hoje or escolher_campanha(promos, preco_ref)
+    oportunidade = melhor_oportunidade(promos, atual_preco, cheio, pct, ativa_hoje)
     return {
         "success": True,
         "mlb": mlb,
@@ -499,4 +550,5 @@ async def custos_anuncio(conta: str, mlb: str, preco: Optional[float] = None) ->
         "campanha_ativa": _resumo_promo(ativa) if ativa else None,
         "campanhas": [_resumo_promo(p) for p in promos if p.get("status") in ("started", "pending", "candidate")],
         "rebot_un": rebot_unitario(ativa),
+        "oportunidade": oportunidade,
     }

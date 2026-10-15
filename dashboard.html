@@ -1957,6 +1957,22 @@ function aplicarCustosReais(mlb, conta) {
   calcSim(mlb, conta, true);
 }
 
+// Mensagem de rebot disponível: candidata que rende mais líquido/un que a situação atual
+function msgOportunidadeRebot(o) {
+  if(!o) return '';
+  const dt=x=>x?x.split('-').reverse().slice(0,2).join('/'):'';
+  const partes=[];
+  partes.push(o.empate
+    ? `mesmo preço e líquido de hoje — preferir a campanha do ML à nossa`
+    : `líquido <b style="color:var(--green)">+${brl2(o.ganho_un)}/un</b>`);
+  partes.push(`${brl2(o.atual_preco)} → ${brl2(o.preco)} · rebot ${brl2(o.atual_rebot)} → ${brl2(o.rebot)}`);
+  if(o.delta_preco>0) partes.push(`<span style="color:var(--gold);">⚠ preço sobe ${brl2(o.delta_preco)} — checar buybox</span>`);
+  if(o.tipo==='LIGHTNING' && o.estoque) partes.push(`exige estoque ${o.estoque.min}–${o.estoque.max} un`);
+  if(o.fim) partes.push(`até ${dt(o.fim)}`);
+  return `<div style="border:1px solid var(--green);border-radius:8px;padding:8px 12px;margin-bottom:8px;color:var(--text);">
+    💡 <b>Rebot disponível:</b> «${o.nome}» <small>(${o.tipo})</small> em vez de «${o.atual_nome}»<br>${partes.join(' · ')}</div>`;
+}
+
 async function carregarCustosML(mlb, conta) {
   const box=document.getElementById('sim-real'); if(!box) return;
   const p=db[conta]?.produtos?.find(x=>x.mlb===mlb);
@@ -1973,6 +1989,7 @@ async function carregarCustosML(mlb, conta) {
     const salvo = !!p?.custos?.simulador;
     box.innerHTML = `Custos reais do ML — base: ${origem}${rebotReal}<br>${camp} · Rebot ativo hoje: <b>${brl2(d.rebot_un)}</b> · Frete: <b>${d.frete!=null?brl2(d.frete):'n/d'}</b>${d.peso_g?` <small>(${d.peso_g} g)</small>`:''}
       <br><a href="#" onclick="aplicarCustosReais('${mlb}','${conta}');return false;" style="color:var(--gold);">${salvo?'Cenário salvo carregado — usar valores reais':'Restaurar valores reais'}</a>`;
+    box.insertAdjacentHTML('afterbegin', msgOportunidadeRebot(d.oportunidade));
     if(!salvo) aplicarCustosReais(mlb, conta);
   } catch(e) {
     if(document.getElementById('sim-real')===box)
