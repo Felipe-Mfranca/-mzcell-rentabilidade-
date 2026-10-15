@@ -12,7 +12,7 @@ Nenhuma rota devolve credencial. Hoje o backend não aplica o role do usuário
 
 from fastapi import APIRouter, HTTPException
 
-from marketplaces.amazon import api, diagnostico
+from marketplaces.amazon import api, diagnostico, rentabilidade
 
 router = APIRouter(prefix="/amazon", tags=["amazon"])
 
@@ -52,5 +52,16 @@ def estoque(conta: str):
 def vendas(conta: str, asin: str, rede: str = None):
     try:
         return api.vendas_asin(conta, asin, rede)
+    except api.ErroAmazon as e:
+        raise _http(e)
+
+
+@router.get("/rentabilidade/{conta}")
+def rentabilidade_conta(conta: str, dias: int = 30):
+    """Margem por SKU e DRE da conta (Finances). dias: 1 a 180."""
+    if not 1 <= dias <= 180:
+        raise HTTPException(status_code=400, detail="dias deve estar entre 1 e 180")
+    try:
+        return rentabilidade.apurar(conta, dias)
     except api.ErroAmazon as e:
         raise _http(e)

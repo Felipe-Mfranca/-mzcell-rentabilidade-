@@ -1,0 +1,6 @@
+{
+  "_leia_me": "Copie para amazon_custos.json (gitignored). CMV e imposto sao POR SKU. imposto_pct em fracao (0.10 = 10%).",
+  "amazon02": {
+    "EXEMPLO-SKU-FBA": {"cmv_unit": 20.00, "imposto_pct": 0.10}
+  }
+}

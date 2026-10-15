@@ -135,6 +135,8 @@ contrato de `marketplaces/base.py`, como o módulo Bling.
 | `conferencia.py` | Confere as vendas de um ASIN contra as linhas de pedido (ver abaixo) |
 | `router.py` | `GET /amazon/contas`, `/diagnostico/{conta}`, `/estoque/{conta}`, `/vendas/{conta}?asin=` |
 | `marketplace.py` | `AmazonMarketplace` (anúncios e pedidos ainda não implementados) |
+| `financeiro.py` | Finances v0: busca paginada (erro aborta) e agregação por SKU; custos da conta (Ads, armazenagem...) à parte |
+| `rentabilidade.py` | Margem por SKU e DRE da conta. `GET /amazon/rentabilidade/{conta}?dias=30` |
 
 **Credenciais:** `amazon_config.json` (gitignored; modelo em `amazon_config.exemplo.json`).
 
@@ -157,6 +159,14 @@ linhas de pedido — todas, canceladas e líquidas — além de status, SKU/log�
 Grava `conferencia_<ASIN>.csv` pedido a pedido. O nome do tipo de relatório e as colunas
 (`purchase-date`, `order-status`, `asin`, `quantity`...) vêm da documentação, não de teste contra a
 API real; se a Amazon recusar, a mensagem de erro diz o motivo.
+
+**Rentabilidade:** `python -m marketplaces.amazon.rentabilidade amazon02 --dias 30`. CMV e imposto
+são **por SKU** em `amazon_custos.json` (gitignored; modelo `amazon_custos.exemplo.json`). Custos da
+conta (Ads, armazenagem, assinatura, remoção) **não são rateados**: aparecem abaixo da margem de
+contribuição, na DRE. A margem sai do Finances (data de lançamento), não dos pedidos. Imposto =
+imposto_pct × receita líquida (receita − reembolsos − promoções); CMV = cmv_unit × (enviadas − devolvidas).
+Ads: o Finances só traz a fatura total (`ProductAdsPaymentEventList`); por SKU exige a Advertising API
+(hoje 401, credencial própria).
 
 **Regras do módulo:**
 - Vendas são apuradas **por ASIN, somando FBA e DBA** (o mesmo ASIN costuma ter um SKU em
