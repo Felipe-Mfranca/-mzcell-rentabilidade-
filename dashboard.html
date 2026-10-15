@@ -1961,6 +1961,7 @@ function aplicarCustosReais(mlb, conta) {
 function msgOportunidadeRebot(o) {
   if(!o) return '';
   const dt=x=>x?x.split('-').reverse().slice(0,2).join('/'):'';
+  const soPreco = o.delta_preco>0 && (o.rebot-o.atual_rebot)<=0.005;   // ganho vem só do preço mais alto
   const partes=[];
   partes.push(o.empate
     ? `mesmo preço e líquido de hoje — preferir a campanha do ML à nossa`
@@ -1969,6 +1970,8 @@ function msgOportunidadeRebot(o) {
   if(o.delta_preco>0) partes.push(`<span style="color:var(--gold);">⚠ preço sobe ${brl2(o.delta_preco)} — checar buybox</span>`);
   if(o.tipo==='LIGHTNING' && o.estoque) partes.push(`exige estoque ${o.estoque.min}–${o.estoque.max} un`);
   if(o.fim) partes.push(`até ${dt(o.fim)}`);
+  if(soPreco) return `<div style="border:1px solid var(--muted2);border-radius:8px;padding:8px 12px;margin-bottom:8px;color:var(--text);">
+    📈 <b>Sugestão de aumento de preço (não é rebot):</b> «${o.nome}» <small>(${o.tipo})</small><br>${brl2(o.atual_preco)} → ${brl2(o.preco)} · o ganho de ${brl2(o.ganho_un)}/un vem só do preço mais alto${o.atual_rebot>0?` e o rebot de ${brl2(o.atual_rebot)} deixa de existir`:''} · pode custar vendas/buybox${o.fim?` · até ${dt(o.fim)}`:''}</div>`;
   return `<div style="border:1px solid var(--green);border-radius:8px;padding:8px 12px;margin-bottom:8px;color:var(--text);">
     💡 <b>Rebot disponível:</b> «${o.nome}» <small>(${o.tipo})</small> em vez de «${o.atual_nome}»<br>${partes.join(' · ')}</div>`;
 }

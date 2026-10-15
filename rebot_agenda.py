@@ -18,6 +18,7 @@ email_config.json (SMTP do app) e rebot_agenda_config.json ({"email_destinatario
 import argparse, json, os, smtplib, sys, time, traceback, warnings
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 warnings.filterwarnings("ignore")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -28,6 +29,7 @@ if hasattr(sys.stdout, "reconfigure"):
 import ml_api
 from reposicao_full import ML
 import buybox_monitor
+import rebot_visual
 
 CONTAS_PADRAO = ["meli01", "meli02", "meli03"]
 # promoções criadas por nós (vendedor); o resto é campanha do ML
@@ -169,29 +171,31 @@ def linha(o: dict) -> str:
 
 
 def montar(novas: list, erros: dict, abertas: int, quando: str) -> tuple:
+    """(assunto, texto, html). O texto vai ao Slack; o e-mail leva texto + HTML."""
     if not novas and not erros:
         resto = f" ({abertas} já avisada(s) continuam abertas)" if abertas else ""
         t = f"Rebot {quando}: sem oportunidades novas nas contas verificadas{resto}."
-        return "MZCell - Rebot: sem novidades", t
-    partes = [f"*Rebot {quando}* — {len(novas)} oportunidade(s) nova(s)"]
-    for conta in CONTAS_PADRAO:
-        do = sorted([o for o in novas if o["conta"] == conta], key=lambda o: -o["impacto_mes"])
-        if do:
-            partes.append(f"\n*{conta}*")
-            partes += [linha(o) for o in do]
-    for conta, e in erros.items():
-        partes.append(f"\n⚠ {conta}: erro na verificação ({e}) — conta NÃO analisada nesta rodada.")
-    if abertas:
-        partes.append(f"\n{abertas} oportunidade(s) já avisada(s) antes seguem abertas.")
-    partes.append("\nSomente recomendação: nada foi alterado no Mercado Livre.")
-    return f"MZCell - Rebot: {len(novas)} oportunidade(s) nova(s)" + (" (com erro)" if erros else ""), "\n".join(partes)
+        return "MZCell - Rebot: sem novidades", t, None
+    n_rebot = sum(1 for o in novas if not rebot_visual.so_preco(o))
+    n_preco = len(novas) - n_rebot
+    assunto = (f"MZCell - Rebot: {n_rebot} oportunidade(s)" + (f" + {n_preco} de preço" if n_preco else "")
+               + (" (com erro)" if erros else ""))
+    return (assunto,
+            rebot_visual.texto(novas, erros, abertas, quando, CONTAS_PADRAO),
+            rebot_visual.html(novas, erros, abertas, quando, CONTAS_PADRAO))
 
 
-def enviar_email(assunto: str, texto: str) -> bool:
+def enviar_email(assunto: str, texto: str, html: str = None) -> bool:
     try:
         cfg = json.load(open(os.path.join(BASE_DIR, "email_config.json"), encoding="utf-8"))
         dest = _json(CONFIG, {}).get("email_destinatarios") or [cfg["email_remetente"]]
-        msg = MIMEText(texto.replace("*", ""), "plain", "utf-8")
+        plano = texto.replace("*", "").replace("`", "").replace("_", "")
+        if html:
+            msg = MIMEMultipart("alternative")
+            msg.attach(MIMEText(plano, "plain", "utf-8"))
+            msg.attach(MIMEText(html, "html", "utf-8"))
+        else:
+            msg = MIMEText(plano, "plain", "utf-8")
         msg["From"], msg["To"], msg["Subject"] = cfg["email_remetente"], ", ".join(dest), assunto
         with smtplib.SMTP(cfg["smtp_host"], cfg["smtp_port"], timeout=30) as s:
             s.starttls(); s.login(cfg["email_remetente"], cfg["senha_app"]); s.send_message(msg)
@@ -222,7 +226,7 @@ def main():
     novas = [o for o in todas if o["chave"] not in avisadas]
     abertas = len(todas) - len(novas)
     quando = datetime.now().strftime("%d/%m %H:%M")
-    assunto, texto = montar(novas, erros, abertas, quando)
+    assunto, texto, html = montar(novas, erros, abertas, quando)
     print("\n" + texto)
     if a.dry:
         return 1 if erros else 0
@@ -237,7 +241,7 @@ def main():
         return 0
 
     ok_slack = buybox_monitor.enviar_slack(texto)
-    ok_mail = enviar_email(assunto, texto)
+    ok_mail = enviar_email(assunto, texto, html)
     if ok_slack or ok_mail:
         # só marca como avisada se algum canal entregou; senão tenta de novo na próxima rodada
         estado["avisadas"] = sorted(avisadas & {o["chave"] for o in todas} | {o["chave"] for o in novas})
