@@ -1827,25 +1827,27 @@ function renderModalContent(mlb, conta) {
     </div>
 
     <div class="section-title">Simulador de Cenário</div>
+    <div id="sim-real" style="font-size:12px;color:var(--muted2);margin-bottom:10px;line-height:1.5;">Buscando custos reais no ML…</div>
     <div class="sim-grid">${(()=>{const sim=c.simulador||{};return`
-      <div class="sim-field"><label>Preço unit (R$)</label><input type="number" id="s-preco" value="${(sim.preco??precoUnit).toFixed(2)}" step="0.01" oninput="calcSim('${mlb}','${conta}')"/></div>
-      <div class="sim-field"><label>CMV unit (R$)</label><input type="number" id="s-cmv" value="${sim.cmv_unit??(c.cmv_unit||0)}" step="0.01" oninput="calcSim('${mlb}','${conta}')"/></div>
-      <div class="sim-field"><label>Frete unit (R$)</label><input type="number" id="s-frete" value="${((sim.frete_unit??(c.frete_unit||0))).toFixed(2)}" step="0.01" placeholder="0.00" oninput="calcSim('${mlb}','${conta}')"/></div>
-      <div class="sim-field"><label>Rebot (R$/un)</label><input type="number" id="s-rebot" value="${((sim.rebot_unit??(per.rebot_unit||c.rebot_unit||0))).toFixed(2)}" step="0.01" placeholder="0.00" oninput="calcSim('${mlb}','${conta}')"/></div>
-      <div class="sim-field"><label>Comissão ML (%)</label><input type="number" id="s-com" value="${(((sim.comissao_pct??(c.comissao_pct||0.11))*100)).toFixed(2)}" step="0.01" placeholder="Ex: 11" oninput="calcSim('${mlb}','${conta}')"/></div>
-      <div class="sim-field"><label>Imposto (%)</label><input type="number" id="s-imp" value="${(((sim.imposto_pct??(c.imposto_pct||0.10))*100)).toFixed(2)}" step="0.01" placeholder="Ex: 10" oninput="calcSim('${mlb}','${conta}')"/></div>
-      <div class="sim-field"><label>TACOS (%)</label><input type="number" id="s-tacos" value="${((sim.tacos??(per.tacos>0?per.tacos:0))*100).toFixed(2)}" step="0.01" placeholder="Ex: 5" oninput="calcSim('${mlb}','${conta}')"/></div>
-      <div class="sim-field"><label>Rebot início</label><input type="date" id="s-rebot-ini" value="${sim.rebot_inicio??(per.rebot_inicio||'')}" oninput="calcSim('${mlb}','${conta}')"/></div>
-      <div class="sim-field"><label>Rebot fim</label><input type="date" id="s-rebot-fim" value="${sim.rebot_fim??(per.rebot_fim||'')}" oninput="calcSim('${mlb}','${conta}')"/></div>
+      <div class="sim-field"><label>Preço unit (R$)</label><input type="number" id="s-preco" value="${(sim.preco??precoUnit).toFixed(2)}" step="0.01" oninput="simEdit('${mlb}','${conta}',this)"/></div>
+      <div class="sim-field"><label>CMV unit (R$)</label><input type="number" id="s-cmv" value="${sim.cmv_unit??(c.cmv_unit||0)}" step="0.01" oninput="simEdit('${mlb}','${conta}',this)"/></div>
+      <div class="sim-field"><label>Frete unit (R$)</label><input type="number" id="s-frete" value="${((sim.frete_unit??(c.frete_unit||0))).toFixed(2)}" step="0.01" placeholder="0.00" oninput="simEdit('${mlb}','${conta}',this)"/></div>
+      <div class="sim-field"><label>Rebot (R$/un)</label><input type="number" id="s-rebot" value="${((sim.rebot_unit??(per.rebot_unit||c.rebot_unit||0))).toFixed(2)}" step="0.01" placeholder="0.00" oninput="simEdit('${mlb}','${conta}',this)"/></div>
+      <div class="sim-field"><label>Comissão ML (%)</label><input type="number" id="s-com" value="${(((sim.comissao_pct??(c.comissao_pct||0.11))*100)).toFixed(2)}" step="0.01" placeholder="Ex: 11" oninput="simEdit('${mlb}','${conta}',this)"/></div>
+      <div class="sim-field"><label>Imposto (%)</label><input type="number" id="s-imp" value="${(((sim.imposto_pct??(c.imposto_pct||0.10))*100)).toFixed(2)}" step="0.01" placeholder="Ex: 10" oninput="simEdit('${mlb}','${conta}',this)"/></div>
+      <div class="sim-field"><label>TACOS (%)</label><input type="number" id="s-tacos" value="${((sim.tacos??(per.tacos>0?per.tacos:0))*100).toFixed(2)}" step="0.01" placeholder="Ex: 5" oninput="simEdit('${mlb}','${conta}',this)"/></div>
+      <div class="sim-field"><label>Rebot início</label><input type="date" id="s-rebot-ini" value="${sim.rebot_inicio??(per.rebot_inicio||'')}" oninput="simEdit('${mlb}','${conta}',this)"/></div>
+      <div class="sim-field"><label>Rebot fim</label><input type="date" id="s-rebot-fim" value="${sim.rebot_fim??(per.rebot_fim||'')}" oninput="simEdit('${mlb}','${conta}',this)"/></div>
     `})()}</div>
     <div id="sim-out"></div>
 
   `;
-  calcSim(mlb, conta);
+  calcSim(mlb, conta, false);
+  carregarCustosML(mlb, conta);
 
 }
 
-function calcSim(mlb, conta) {
+function calcSim(mlb, conta, persistir=true) {
   const p=db[conta]?.produtos?.find(x=>x.mlb===mlb); if(!p) return;
   const per = _modalPer || p.periodo;
   const preco    = parseFloat(document.getElementById('s-preco')?.value)||0;
@@ -1862,7 +1864,9 @@ function calcSim(mlb, conta) {
 
   // Rebot — aplica se hoje (ou qualquer dia do período) está dentro da vigência
   let rebotSim=0;
-  if(rebotUnit>0 && rebotIni && rebotFim && pDe && pAte) {
+  if(rebotUnit>0 && !rebotIni && !rebotFim) {
+    rebotSim=rebotUnit;   // sem vigência informada (ex.: SMART): vale como ativo
+  } else if(rebotUnit>0 && rebotIni && rebotFim && pDe && pAte) {
     try {
       const rIni=new Date(rebotIni), rFim=new Date(rebotFim);
       const pIni=new Date(pDe),      pFim=new Date(pAte);
@@ -1895,6 +1899,7 @@ function calcSim(mlb, conta) {
     ${(per.margem_unit||0)!==0?`<div class="sim-out-row"><span>Δ vs atual (1 un)</span><span class="mono ${diff>=0?'vb-up':'vb-dn'}">${diff>=0?'+':''}${brl2(diff)}</span></div>`:''}
   </div></div>`;
 
+  if(!persistir) return;   // só grava quando o usuário altera algo
   // Persiste estado do simulador no produtos.json
   const simPayload = {
     mlb,
@@ -1909,6 +1914,70 @@ function calcSim(mlb, conta) {
       .then(d=>{ if(d.success && p.custos) p.custos.simulador = simPayload.simulador; })
       .catch(()=>{});
   }, 800);
+}
+
+// ── CUSTOS REAIS DO ML NO SIMULADOR ──────────────────────────────────────────
+const _custosML = {};
+
+function simEdit(mlb, conta, el) {
+  if(el.id==='s-frete') el.dataset.manual='1';
+  if(el.id==='s-preco') {
+    clearTimeout(window._freteTimer);
+    window._freteTimer = setTimeout(()=>freteAuto(mlb, conta), 400);
+  }
+  calcSim(mlb, conta, true);
+}
+
+// Frete muda por faixa de preço (tabela Custos dos Envios do ML): reconsulta ao mudar o preço
+async function freteAuto(mlb, conta) {
+  const fEl=document.getElementById('s-frete'), pEl=document.getElementById('s-preco');
+  if(!fEl || !pEl || fEl.dataset.manual==='1' || !_custosML[mlb]) return;
+  const preco=parseFloat(pEl.value)||0; if(preco<=0) return;
+  try {
+    const r=await fetch(`${API}/produtos/${conta}/${mlb}/frete?preco=${preco}`);
+    if(!r.ok) return;
+    const d=await r.json();
+    if(parseFloat(document.getElementById('s-preco')?.value)!==preco) return;  // preço mudou de novo
+    fEl.value=d.frete.toFixed(2);
+    calcSim(mlb, conta, true);
+  } catch(e){}
+}
+
+function aplicarCustosReais(mlb, conta) {
+  const d=_custosML[mlb]; if(!d) return;
+  const set=(id,v)=>{const e=document.getElementById(id); if(e && v!=null) e.value=v;};
+  set('s-preco', d.preco.toFixed(2));
+  set('s-com', (d.comissao_pct*100).toFixed(2));
+  if(d.frete!=null) set('s-frete', d.frete.toFixed(2));
+  set('s-rebot', d.rebot_un.toFixed(2));
+  const c=d.campanha_ativa;
+  set('s-rebot-ini', d.rebot_un>0 ? (c?.inicio||'') : '');
+  set('s-rebot-fim', d.rebot_un>0 ? (c?.fim||'') : '');
+  const f=document.getElementById('s-frete'); if(f) delete f.dataset.manual;
+  calcSim(mlb, conta, true);
+}
+
+async function carregarCustosML(mlb, conta) {
+  const box=document.getElementById('sim-real'); if(!box) return;
+  const p=db[conta]?.produtos?.find(x=>x.mlb===mlb);
+  try {
+    const r=await fetch(`${API}/produtos/${conta}/${mlb}/custos-ml`);
+    if(!r.ok) throw new Error(r.status);
+    const d=await r.json();
+    _custosML[mlb]=d;
+    if(document.getElementById('sim-real')!==box) return;   // modal trocou de produto
+    const v=d.ultima_venda, c=d.campanha_ativa;
+    const origem = v ? `última venda de ${v.data} (${v.logistica==='fulfillment'?'Full':v.logistica})` : 'dados do anúncio (sem venda recente)';
+    const camp = c ? `Campanha ativa: <b>${c.nome||c.tipo}</b> <small>(${c.tipo}${c.meli_pct?`, ML paga ${c.meli_pct}%`:', sem rebot'})</small>` : 'Sem campanha ativa';
+    const rebotReal = v && v.rebot_real_un>0 ? ` · rebot dessa venda: ${brl2(v.rebot_real_un)}` : '';
+    const salvo = !!p?.custos?.simulador;
+    box.innerHTML = `Custos reais do ML — base: ${origem}${rebotReal}<br>${camp} · Rebot ativo hoje: <b>${brl2(d.rebot_un)}</b> · Frete: <b>${d.frete!=null?brl2(d.frete):'n/d'}</b>${d.peso_g?` <small>(${d.peso_g} g)</small>`:''}
+      <br><a href="#" onclick="aplicarCustosReais('${mlb}','${conta}');return false;" style="color:var(--gold);">${salvo?'Cenário salvo carregado — usar valores reais':'Restaurar valores reais'}</a>`;
+    if(!salvo) aplicarCustosReais(mlb, conta);
+  } catch(e) {
+    if(document.getElementById('sim-real')===box)
+      box.textContent='Custos reais do ML indisponíveis — usando os valores cadastrados.';
+  }
 }
 
 // ── ABAS DO MODAL ─────────────────────────────────────────────────────────────
