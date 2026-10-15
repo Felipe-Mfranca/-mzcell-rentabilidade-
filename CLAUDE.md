@@ -137,6 +137,7 @@ contrato de `marketplaces/base.py`, como o módulo Bling.
 | `marketplace.py` | `AmazonMarketplace` (anúncios e pedidos ainda não implementados) |
 | `financeiro.py` | Finances v0: busca paginada (erro aborta) e agregação por SKU; custos da conta (Ads, armazenagem...) à parte |
 | `rentabilidade.py` | Margem por SKU e DRE da conta. `GET /amazon/rentabilidade/{conta}?dias=30` |
+| `reposicao.py` | Reposição FBA por ASIN. `GET /amazon/reposicao/{conta}?meta_dias=20` (demora: 1 chamada de vendas por ASIN) |
 
 **Credenciais:** `amazon_config.json` (gitignored; modelo em `amazon_config.exemplo.json`).
 
@@ -167,6 +168,14 @@ contribuição, na DRE. A margem sai do Finances (data de lançamento), não dos
 imposto_pct × receita líquida (receita − reembolsos − promoções); CMV = cmv_unit × (enviadas − devolvidas).
 Ads: o Finances só traz a fatura total (`ProductAdsPaymentEventList`); por SKU exige a Advertising API
 (hoje 401, credencial própria).
+
+**Reposição FBA:** `python -m marketplaces.amazon.reposicao amazon02 [--meta 20] [--sem-amazon]`.
+Sugestão = max(0, meta_dias × velocidade − estoque válido), arredondada para cima; estoque válido inclui
+o que já está a caminho (working + shipped + receiving). `meta_dias` padrão 20 (igual ao Full do ML),
+configurável em `amazon_config.json` → `parametros.meta_dias`. **A Amazon não entrega recomendação de
+reposição neste marketplace** (`recommended-order-quantity` e `days-of-supply` vêm vazios no relatório
+`GET_FBA_INVENTORY_PLANNING_DATA`, validado em 15/10/2026); o relatório só serve para conferir as unidades
+enviadas em 7/30 dias. ASINs em `asins_descontinuados` ficam de fora.
 
 **Regras do módulo:**
 - Vendas são apuradas **por ASIN, somando FBA e DBA** (o mesmo ASIN costuma ter um SKU em

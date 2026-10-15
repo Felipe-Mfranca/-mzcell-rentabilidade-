@@ -12,7 +12,7 @@ Nenhuma rota devolve credencial. Hoje o backend não aplica o role do usuário
 
 from fastapi import APIRouter, HTTPException
 
-from marketplaces.amazon import api, diagnostico, rentabilidade
+from marketplaces.amazon import api, diagnostico, rentabilidade, reposicao
 
 router = APIRouter(prefix="/amazon", tags=["amazon"])
 
@@ -63,5 +63,16 @@ def rentabilidade_conta(conta: str, dias: int = 30):
         raise HTTPException(status_code=400, detail="dias deve estar entre 1 e 180")
     try:
         return rentabilidade.apurar(conta, dias)
+    except api.ErroAmazon as e:
+        raise _http(e)
+
+
+@router.get("/reposicao/{conta}")
+def reposicao_conta(conta: str, meta_dias: float = None, comparar_amazon: bool = True):
+    """Sugestão de reposição FBA por ASIN. Demora (1 chamada de vendas por ASIN + relatório)."""
+    if meta_dias is not None and not 1 <= meta_dias <= 120:
+        raise HTTPException(status_code=400, detail="meta_dias deve estar entre 1 e 120")
+    try:
+        return reposicao.apurar(conta, meta_dias, comparar_amazon)
     except api.ErroAmazon as e:
         raise _http(e)

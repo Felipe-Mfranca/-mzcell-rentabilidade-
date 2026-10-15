@@ -23,10 +23,14 @@ DOCUMENTS_PATH = "/reports/2021-06-30/documents"
 STATUS_FALHA = {"CANCELLED", "FATAL"}
 
 
-def criar(conta_id: str, tipo: str, inicio_utc: str, fim_utc: str, opcoes: dict = None) -> str:
+def criar(conta_id: str, tipo: str, inicio_utc: str = None, fim_utc: str = None, opcoes: dict = None) -> str:
+    """Datas são opcionais: relatórios de instantâneo (estoque, planejamento) não aceitam período."""
     corpo = {"reportType": tipo,
-             "marketplaceIds": [api.conta_cfg(conta_id).get("marketplace_id") or api.MARKETPLACE_BR],
-             "dataStartTime": inicio_utc, "dataEndTime": fim_utc}
+             "marketplaceIds": [api.conta_cfg(conta_id).get("marketplace_id") or api.MARKETPLACE_BR]}
+    if inicio_utc:
+        corpo["dataStartTime"] = inicio_utc
+    if fim_utc:
+        corpo["dataEndTime"] = fim_utc
     if opcoes:
         corpo["reportOptions"] = opcoes
     status, resp = api.post(conta_id, REPORTS_PATH, corpo)
