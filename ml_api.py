@@ -423,6 +423,8 @@ def melhor_oportunidade(promos: list, atual_preco: float, cheio: float, pct: flo
                 continue
         elif ganho <= 0:
             continue
+        if dp > 0 and rebot - a_rebot <= 0.005:
+            continue   # ganho vem só do preço mais alto: rebot é desconto pago pelo ML, isso não é rebot
         o = {"tipo": p.get("type"), "nome": p.get("name") or p.get("type"),
              "preco": preco, "rebot": round(rebot, 2), "ganho_un": ganho,
              "delta_preco": dp, "empate": empate,

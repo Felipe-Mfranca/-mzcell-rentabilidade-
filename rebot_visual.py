@@ -16,7 +16,6 @@ IMPACTO_MIN_MES = 5.0
 NIVEIS = {
     "OK":    {"emoji": "🟢", "rotulo": "RECOMENDADO",      "cor": "#166534", "fundo": "#dcfce7"},
     "ATENC": {"emoji": "🟡", "rotulo": "AVALIAR",          "cor": "#854d0e", "fundo": "#fef9c3"},
-    "PRECO": {"emoji": "📈", "rotulo": "AUMENTO DE PREÇO (SEM REBOT)", "cor": "#1d4ed8", "fundo": "#dbeafe"},
     "BAIXA": {"emoji": "⚪", "rotulo": "BAIXA PRIORIDADE", "cor": "#4b5563", "fundo": "#f3f4f6"},
 }
 
@@ -34,18 +33,9 @@ def _data(iso: str) -> str:
     return "/".join(iso.split("-")[::-1][:2]) if iso else ""
 
 
-def so_preco(o: dict) -> bool:
-    """O ganho vem do preço mais alto, não de rebot: a campanha candidata não paga mais rebot
-    que a situação atual (ex.: rebot 0 → 0, ou rebot que some) e o preço sobe."""
-    return o["delta_preco"] > 0 and (o["rebot"] - o["atual_rebot"]) <= 0.005
-
-
 def classificar(o: dict) -> tuple:
     """Devolve (nivel, [motivos])."""
     motivos = []
-    if so_preco(o):
-        extra = "" if o["rebot"] > 0 or o["atual_rebot"] <= 0 else f" (e o rebot de {brl(o['atual_rebot'])} deixa de existir)"
-        return "PRECO", [f"ganho vem só do preço {brl(o['atual_preco'])} → {brl(o['preco'])}{extra}: não é rebot e pode custar vendas/buybox"]
     if o["delta_preco"] > 0 and o["atual_preco"]:
         motivos.append(f"preço sobe {brl(o['delta_preco'])} ({o['delta_preco'] / o['atual_preco'] * 100:.1f}%) — checar buybox")
     if o["tipo"] == "LIGHTNING" and o.get("estoque"):
@@ -60,12 +50,12 @@ def classificar(o: dict) -> tuple:
 
 
 def _ordenadas(novas: list) -> list:
-    return sorted(novas, key=lambda o: (so_preco(o), -o["impacto_mes"]))   # rebot primeiro, aumento de preço no fim
+    return sorted(novas, key=lambda o: -o["impacto_mes"])
 
 
 def recomendacao(novas: list) -> list:
     """Linhas de recomendação final: o que priorizar, em ordem de impacto."""
-    por = {"OK": [], "ATENC": [], "PRECO": [], "BAIXA": []}
+    por = {"OK": [], "ATENC": [], "BAIXA": []}
     for o in _ordenadas(novas):
         por[classificar(o)[0]].append(o)
     linhas = []
@@ -80,11 +70,6 @@ def recomendacao(novas: list) -> list:
             f"{o['mlb']} · {o['nome']} · {brl(o['ganho_un'])}/un"
             + (f" (≈ {brl(o['impacto_mes'])}/mês)" if o["un_30d"] else "")
             + " — " + "; ".join(classificar(o)[1]) for o in top]))
-    if por["PRECO"]:
-        top = [o for o in por["PRECO"] if o["un_30d"]][:3]
-        itens = [f"{o['mlb']} · {brl(o['atual_preco'])} → {brl(o['preco'])} ({o['delta_preco'] / o['atual_preco'] * 100:+.1f}%) · {o['un_30d']} un/30d" for o in top]
-        itens.append(f"{len(por['PRECO'])} sugestão(ões) no total — é aumento de preço, não rebot; só vale se você já queria subir o preço")
-        linhas.append(("PRECO", "SÓ AUMENTO DE PREÇO (NÃO É REBOT)", itens))
     if por["BAIXA"]:
         linhas.append(("BAIXA", "PODE IGNORAR", [f"{len(por['BAIXA'])} aviso(s) de baixo impacto (ganho mínimo, empate ou sem vendas)"]))
     if not linhas:
@@ -95,12 +80,8 @@ def recomendacao(novas: list) -> list:
 # ─── TEXTO (Slack / fallback do e-mail) ──────────────────────────────────────
 
 def texto(novas: list, erros: dict, abertas: int, quando: str, contas: list) -> str:
-    total = sum(o["impacto_mes"] for o in novas if not o["empate"] and o["un_30d"] and not so_preco(o))
-    n_preco = sum(1 for o in novas if so_preco(o))
-    p = [f"🔔 *REBOT · {quando}*", f"*{len(novas) - n_preco} OPORTUNIDADE(S) DE REBOT* · potencial ≈ *{brl(total)}/mês*"]
-    if n_preco:
-        p.append(f"📈 + {n_preco} sugestão(ões) de *AUMENTO DE PREÇO* (sem rebot), listadas no fim de cada conta")
-    p.append("")
+    total = sum(o["impacto_mes"] for o in novas if not o["empate"] and o["un_30d"])
+    p = [f"🔔 *REBOT · {quando}*", f"*{len(novas)} OPORTUNIDADE(S) NOVA(S)* · potencial ≈ *{brl(total)}/mês*", ""]
     for conta in contas:
         do = _ordenadas([o for o in novas if o["conta"] == conta])
         if not do:
@@ -116,7 +97,7 @@ def texto(novas: list, erros: dict, abertas: int, quando: str, contas: list) -> 
             if o["empate"]:
                 p.append("   ⚖️ *EMPATE* de preço e líquido")
             else:
-                imp = f" ≈ *{brl(o['impacto_mes'])}/mês*" if o["un_30d"] and n != "PRECO" else ""
+                imp = f" ≈ *{brl(o['impacto_mes'])}/mês*" if o["un_30d"] else ""
                 p.append(f"   📈 *{ganho_fmt(o['ganho_un'])}/un*{imp} · {o['un_30d']} un/30d")
             for m in mot:
                 p.append(f"   ⚠️ {m}")
@@ -149,9 +130,9 @@ def _card(o: dict) -> str:
     if o["empate"]:
         ganho = '<span style="font-size:18px;font-weight:800;color:#4b5563;">⚖️ EMPATE</span>'
     else:
-        ganho = f'<span style="font-size:22px;font-weight:800;color:{nv["cor"] if n != "BAIXA" else "#4b5563"};">{ganho_fmt(o["ganho_un"])}</span><span style="font-size:12px;color:#6b7280;"> /un</span>' + ('<div style="font-size:11px;color:#1d4ed8;">só pelo preço mais alto</div>' if n == "PRECO" else "")
+        ganho = f'<span style="font-size:22px;font-weight:800;color:{nv["cor"] if n != "BAIXA" else "#4b5563"};">{ganho_fmt(o["ganho_un"])}</span><span style="font-size:12px;color:#6b7280;"> /un</span>'
     impacto = (f'<div style="font-size:12px;color:#374151;margin-top:2px;">≈ <b>{brl(o["impacto_mes"])}/mês</b> · {o["un_30d"]} un/30d</div>'
-               if o["un_30d"] and not o["empate"] and n != "PRECO" else
+               if o["un_30d"] and not o["empate"] else
                f'<div style="font-size:12px;color:#6b7280;margin-top:2px;">{o["un_30d"]} un/30d</div>')
     avisos = "".join(f'<div style="font-size:12px;color:#854d0e;margin-top:6px;">⚠️ {escape(m)}</div>' for m in mot)
     fim = f'<span style="font-size:12px;color:#6b7280;"> · ⏳ até {_data(o["fim"])}</span>' if o["fim"] else ""
@@ -177,8 +158,7 @@ def _card(o: dict) -> str:
 
 
 def html(novas: list, erros: dict, abertas: int, quando: str, contas: list) -> str:
-    total = sum(o["impacto_mes"] for o in novas if not o["empate"] and o["un_30d"] and not so_preco(o))
-    n_preco = sum(1 for o in novas if so_preco(o))
+    total = sum(o["impacto_mes"] for o in novas if not o["empate"] and o["un_30d"])
     contagem = {k: 0 for k in NIVEIS}
     for o in novas:
         contagem[classificar(o)[0]] += 1
@@ -218,13 +198,12 @@ def html(novas: list, erros: dict, abertas: int, quando: str, contas: list) -> s
   </td></tr>
   <tr><td style="background:#ffffff;border:1px solid #e5e7eb;border-top:0;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-      {kpi(len(novas) - n_preco, "oportunidades de rebot", "#111827")}
+      {kpi(len(novas), "oportunidades", "#111827")}
       {kpi(brl(total).replace("R$ ", "R$&nbsp;"), "potencial / mês", "#166534")}
       {kpi(contagem["OK"], "🟢 recomendadas", "#166534")}
       {kpi(contagem["ATENC"], "🟡 a avaliar", "#854d0e")}
     </tr></table>
   </td></tr>
-  {('<tr><td style="background:#dbeafe;color:#1d4ed8;font-size:12px;padding:8px 16px;">📈 + ' + str(n_preco) + ' sugestão(ões) de <b>aumento de preço</b> (sem rebot) — separadas abaixo, fora do potencial.</td></tr>') if n_preco else ''}
   <tr><td style="background:#f3f4f6;padding:4px 0 0 0;">
    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">{"".join(corpo)}</table>
   </td></tr>

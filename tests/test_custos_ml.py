@@ -54,6 +54,22 @@ class MelhorOportunidade(unittest.TestCase):
         # se a atual já é do ML, empate não é oportunidade
         self.assertIsNone(ml_api.melhor_oportunidade([ml], 34.99, 40, 0.13, {"type": "SMART"}))
 
+    def test_aumento_de_preco_sem_rebot_a_mais_nao_e_oportunidade(self):
+        # MLB7652934580: R$727,24 -> R$766,00 e rebot 0 -> 0: ganho só do preço
+        lig = {"status": "candidate", "type": "LIGHTNING", "price": 766.0, "meli_percentage": None,
+               "original_price": 766.0}
+        self.assertIsNone(ml_api.melhor_oportunidade([lig], 727.24, 766.0, 0.115, self.ATIVA_NOSSA))
+        # rebot que existia e some, com preço maior: também não
+        ativa = {"type": "SMART", "meli_percentage": 6, "original_price": 700}
+        self.assertIsNone(ml_api.melhor_oportunidade([lig], 698.84, 766.0, 0.115, ativa))
+
+    def test_preco_maior_mas_rebot_maior_ainda_e_oportunidade(self):
+        smart = {"status": "candidate", "type": "SMART", "price": 105.0, "meli_percentage": 8,
+                 "original_price": 100}
+        o = ml_api.melhor_oportunidade([smart], 100.0, 100.0, 0.13, self.ATIVA_NOSSA)
+        self.assertIsNotNone(o)
+        self.assertGreater(o["delta_preco"], 0)
+
     def test_ignora_ja_inscrita(self):
         pend = {"status": "pending", "type": "SMART", "price": 10, "meli_percentage": 5, "original_price": 100}
         self.assertIsNone(ml_api.melhor_oportunidade([pend], 79.8, 89.9, 0.13, None))

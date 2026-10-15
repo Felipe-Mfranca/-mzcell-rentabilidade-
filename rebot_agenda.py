@@ -137,6 +137,8 @@ def analisar_conta(conta: str) -> list:
                     continue
             elif ganho <= 0:
                 continue
+            if dp > 0 and rebot - a_rebot <= 0.005:
+                continue  # ganho só do preço mais alto: rebot é desconto pago pelo ML, isso não é rebot
             c = {"conta": conta, "mlb": mlb, "titulo": it["title"], "un_30d": vendas.get(mlb, 0),
                  "atual_nome": a_nome, "atual_preco": atual_preco, "atual_rebot": round(a_rebot, 2),
                  "tipo": p.get("type"), "promo_id": p.get("id") or p.get("type"),
@@ -176,10 +178,7 @@ def montar(novas: list, erros: dict, abertas: int, quando: str) -> tuple:
         resto = f" ({abertas} já avisada(s) continuam abertas)" if abertas else ""
         t = f"Rebot {quando}: sem oportunidades novas nas contas verificadas{resto}."
         return "MZCell - Rebot: sem novidades", t, None
-    n_rebot = sum(1 for o in novas if not rebot_visual.so_preco(o))
-    n_preco = len(novas) - n_rebot
-    assunto = (f"MZCell - Rebot: {n_rebot} oportunidade(s)" + (f" + {n_preco} de preço" if n_preco else "")
-               + (" (com erro)" if erros else ""))
+    assunto = f"MZCell - Rebot: {len(novas)} oportunidade(s)" + (" (com erro)" if erros else "")
     return (assunto,
             rebot_visual.texto(novas, erros, abertas, quando, CONTAS_PADRAO),
             rebot_visual.html(novas, erros, abertas, quando, CONTAS_PADRAO))
