@@ -355,3 +355,148 @@ async def get_catalog_listing(conta: str, mlb: str) -> dict:
         "catalog_listing": data.get("catalog_listing", False),
         "variacoes_count": len(data.get("variations", [])),
     }
+
+
+# ─── CUSTOS REAIS PARA O SIMULADOR ───────────────────────────────────────────
+# Fontes (validadas em 15/10/2026, só leitura):
+#   comissão %   -> /sites/MLB/listing_prices
+#   frete        -> /users/{seller}/shipping_options/free?item_price=  (= tabela de Custos
+#                   dos Envios do ML, ajuda/40538; já considera peso e reputação)
+#   campanhas    -> /seller-promotions/items/{mlb}  (nome, tipo, meli_percentage)
+#   última venda -> /orders/search + /shipments/{id}[/costs]
+# No Full/Coleta/Agências não há taxa fixa à parte: o que varia por peso/preço é o frete.
+# Flex (self_service) fica de fora da "última venda" para não contaminar o frete.
+
+LOGISTICA_FORA = {"self_service"}
+
+
+def escolher_campanha(promos: list, preco_ref: float) -> Optional[dict]:
+    """Entre as campanhas em andamento, a que melhor explica o preço praticado
+    (menor distância entre o preço da campanha e o preço de referência)."""
+    ativas = [p for p in promos if p.get("status") == "started" and (p.get("price") or 0) > 0]
+    if not ativas:
+        return None
+    return min(ativas, key=lambda p: abs((p.get("price") or 0) - preco_ref))
+
+
+def rebot_unitario(promo: Optional[dict]) -> float:
+    """Rebot/un = meli_percentage × preço cheio (original_price) da campanha."""
+    if not promo:
+        return 0.0
+    pct = promo.get("meli_percentage") or 0
+    base = promo.get("original_price") or 0
+    return round(pct / 100 * base, 2) if pct > 0 and base > 0 else 0.0
+
+
+def _resumo_promo(p: dict) -> dict:
+    return {
+        "id":        p.get("id"),
+        "tipo":      p.get("type"),
+        "subtipo":   p.get("sub_type"),
+        "nome":      p.get("name") or "",
+        "status":    p.get("status"),
+        "preco":     p.get("price"),
+        "preco_cheio": p.get("original_price"),
+        "meli_pct":  p.get("meli_percentage"),
+        "inicio":    (p.get("start_date") or "")[:10],
+        "fim":       (p.get("finish_date") or "")[:10],
+        "rebot_un":  rebot_unitario(p),
+    }
+
+
+async def _get_json(client, conta: str, path: str):
+    try:
+        r = await client.get(f"{ML_BASE_URL}{path}", headers=_headers(conta))
+        if r.status_code == 200:
+            return r.json()
+    except Exception:
+        pass
+    return None
+
+
+async def frete_para_preco(conta: str, mlb: str, preco: float) -> dict:
+    """Frete do vendedor para o anúncio a um dado preço (muda por faixa: 18,99/48,99/78,99...)."""
+    seller_id = get_seller_id(conta)
+    async with httpx.AsyncClient(timeout=30, verify=False) as client:
+        d = await _get_json(client, conta,
+            f"/users/{seller_id}/shipping_options/free?item_id={mlb}&item_price={preco}")
+    cov = ((d or {}).get("coverage") or {}).get("all_country") or {}
+    if "list_cost" not in cov:
+        return {"success": False, "error": "frete indisponível"}
+    return {"success": True, "frete": cov["list_cost"], "peso_g": cov.get("billable_weight"),
+            "preco": preco}
+
+
+async def _ultima_venda(client, conta: str, mlb: str, comissao_pct: float) -> Optional[dict]:
+    """Última venda paga que NÃO seja Flex. Preço, comissão líquida e frete por unidade."""
+    seller_id = get_seller_id(conta)
+    ate = datetime.now().strftime("%Y-%m-%d")
+    de  = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
+    d = await _get_json(client, conta,
+        f"/orders/search?seller={seller_id}&item={mlb}&order.status=paid"
+        f"&order.date_created.from={de}T00:00:00.000-04:00"
+        f"&order.date_created.to={ate}T23:59:59.000-04:00&limit=20&sort=date_desc")
+    for od in (d or {}).get("results", []):
+        sid = (od.get("shipping") or {}).get("id")
+        item = next((oi for oi in od.get("order_items", []) if oi["item"]["id"] == mlb), None)
+        if not sid or not item:
+            continue
+        sh = await _get_json(client, conta, f"/shipments/{sid}")
+        logistica = (sh or {}).get("logistic_type")
+        if not sh or logistica in LOGISTICA_FORA:
+            continue
+        custos = await _get_json(client, conta, f"/shipments/{sid}/costs")
+        frete_envio = ((custos or {}).get("senders") or [{}])[0].get("cost")
+        qtd   = item.get("quantity") or 1
+        preco = item.get("unit_price") or 0
+        sale_fee = item.get("sale_fee") or 0
+        cheia = round(comissao_pct * preco, 2)
+        return {
+            "data":       od.get("date_created", "")[:10],
+            "order_id":   od.get("id"),
+            "preco":      preco,
+            "quantidade": qtd,
+            "logistica":  logistica,
+            "sale_fee_un": sale_fee,
+            "tarifa_cheia_un": cheia,
+            "rebot_real_un": round(max(0.0, cheia - sale_fee), 2),
+            "frete_un":   round(frete_envio / qtd, 2) if frete_envio is not None else None,
+        }
+    return None
+
+
+async def custos_anuncio(conta: str, mlb: str, preco: Optional[float] = None) -> dict:
+    """Custos reais para pré-preencher o simulador: última venda (Full/Coleta/Agências),
+    com o anúncio como alternativa, e as campanhas em andamento."""
+    async with httpx.AsyncClient(timeout=30, verify=False) as client:
+        item = await _get_json(client, conta, f"/items/{mlb}")
+        if not item:
+            return {"success": False, "error": "anúncio não encontrado"}
+        lp = await _get_json(client, conta,
+            f"/sites/MLB/listing_prices?price={item.get('price')}"
+            f"&listing_type_id={item.get('listing_type_id')}&category_id={item.get('category_id')}")
+        row = (lp[0] if isinstance(lp, list) and lp else lp) or {}
+        pct = ((row.get("sale_fee_details") or {}).get("percentage_fee") or 0) / 100
+        if pct <= 0:
+            return {"success": False, "error": "comissão indisponível"}
+
+        venda = await _ultima_venda(client, conta, mlb, pct)
+        preco_ref = preco or (venda or {}).get("preco") or item.get("price") or 0
+        promos = await _get_json(client, conta, f"/seller-promotions/items/{mlb}?app_version=v2")
+
+    frete = await frete_para_preco(conta, mlb, preco_ref)
+    promos = promos if isinstance(promos, list) else []
+    ativa = escolher_campanha(promos, preco_ref)
+    return {
+        "success": True,
+        "mlb": mlb,
+        "fonte": "ultima_venda" if venda else "anuncio",
+        "preco": preco_ref,
+        "comissao_pct": pct,
+        "frete": frete.get("frete") if frete["success"] else None,
+        "peso_g": frete.get("peso_g"),
+        "ultima_venda": venda,
+        "campanha_ativa": _resumo_promo(ativa) if ativa else None,
+        "campanhas": [_resumo_promo(p) for p in promos if p.get("status") in ("started", "pending", "candidate")],
+        "rebot_un": rebot_unitario(ativa),
+    }
