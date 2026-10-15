@@ -46,13 +46,26 @@ class ML:
         self.cli = httpx.Client(timeout=30, verify=False)
         self.renovou = False
 
+    def _renovar(self):
+        """Renova o token no 401. O ML limita o grant refresh_token (429): espera e tenta de novo.
+        Se não conseguir, levanta com o motivo (o aviso antes engolia o erro e só mostrava 'HTTP 401')."""
+        self.renovou = True
+        r = {}
+        for espera in (0, 30, 60, 120):
+            time.sleep(espera)
+            r = asyncio.run(ml_api.refresh_token(self.conta))
+            if r.get("success"):
+                return
+            if "429" not in str(r.get("error", "")) and "too_many" not in str(r.get("error", "")):
+                break
+        raise RuntimeError(f"token expirado e a renovação falhou: {str(r.get('error'))[:200]}")
+
     def get(self, path: str, **params):
         espera, n429 = 2, 0
         while True:
             r = self.cli.get(B + path, params=params, headers=ml_api._headers(self.conta))
             if r.status_code == 401 and not self.renovou:
-                self.renovou = True
-                asyncio.run(ml_api.refresh_token(self.conta))
+                self._renovar()
                 continue
             if (r.status_code == 429 or r.status_code >= 500) and n429 < 6:
                 n429 += 1
