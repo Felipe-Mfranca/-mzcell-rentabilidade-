@@ -292,6 +292,24 @@ async def produtos_db(conta: str):
     return {"conta": conta, "total": len(conta_produtos), "produtos": conta_produtos}
 
 
+@app.get("/produtos/{conta}/{mlb}/custos-ml")
+async def custos_ml(conta: str, mlb: str, preco: Optional[float] = None):
+    """Custos reais do ML (comissão, frete, campanha, rebot, última venda) para o simulador."""
+    res = await ml_api.custos_anuncio(conta, mlb, preco)
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "erro"))
+    return res
+
+
+@app.get("/produtos/{conta}/{mlb}/frete")
+async def frete_ml(conta: str, mlb: str, preco: float):
+    """Frete do vendedor para o anúncio a um preço simulado."""
+    res = await ml_api.frete_para_preco(conta, mlb, preco)
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "erro"))
+    return res
+
+
 class CustosPayload(BaseModel):
     mlb: str
     cmv_unit: float = 0.0
