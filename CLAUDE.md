@@ -234,10 +234,10 @@ preço e líquido, preferir a campanha do ML à nossa (`SELLER_CAMPAIGN`, `PRICE
 
 **Clonar campanha do vendedor (`clonar_campanha.py`, escreve no ML):** simula por padrão; só cria/inscreve com `--confirmar`.
 ```powershell
-.env\Scripts\python.exe clonar_campanha.py meli02 --listar                          # campanhas, fim e inscritos
-.env\Scripts\python.exe clonar_campanha.py meli02 C-MLB5481571 --proximo            # simula: dia seguinte ao fim, 30 dias
-.env\Scripts\python.exe clonar_campanha.py meli02 C-MLB5481571 --proximo --confirmar
-.env\Scripts\python.exe clonar_campanha.py meli01 C-MLB5480802 --destino C-MLB6053733 --inicio 2026-10-20 --fim 2026-11-19 --confirmar   # preenche campanha já criada
+.\venv\Scripts\python.exe clonar_campanha.py meli02 --listar                          # campanhas, fim e inscritos
+.\venv\Scripts\python.exe clonar_campanha.py meli02 C-MLB5481571 --proximo            # simula: dia seguinte ao fim, 30 dias
+.\venv\Scripts\python.exe clonar_campanha.py meli02 C-MLB5481571 --proximo --confirmar
+.\venv\Scripts\python.exe clonar_campanha.py meli01 C-MLB5480802 --destino C-MLB6053733 --inicio 2026-10-20 --fim 2026-11-19 --confirmar   # preenche campanha já criada
 ```
 Clona só itens `started` da origem (não os `pending`), pelo mesmo preço; pula anúncio inativo/sem estoque. O ML processa a
 inscrição de forma assíncrona (`candidate` → `pending` leva minutos): conferir depois, **não reenviar em massa**; só erros 500/409.
