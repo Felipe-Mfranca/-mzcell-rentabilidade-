@@ -201,6 +201,28 @@ raiz — `marketplaces/` não chega a instalações por push. O `main.py` monta 
 
 ---
 
+## MÓDULO SHOPEE (marketplaces/shopee/) — fase 1: conector e autorização
+
+Shopee Open Platform v2, **somente leitura**. Plano completo e fases 2–4 (sincronização de pedidos/escrow,
+tela e margem, Ads/devoluções/estoque) em `C:\Users\zicri\.claude\plans\wild-wibbling-pinwheel.md`.
+
+| Arquivo | Papel |
+|---|---|
+| `lojas.py` | Lê `.env` (ambiente e credenciais do app) e `shopee_lojas.json` (loja → `shop_id`) |
+| `api.py` | Assinatura HMAC, tokens por ambiente e loja, renovação, rate limit, janelas de 15 dias, estado da autorização |
+| `router.py` | `GET /shopee/lojas`, `/autorizacao/{loja}/url`, `POST /autorizacao/{loja}/codigo`, `/teste/{loja}`, `/alertas` |
+
+**Credenciais:** só no backend. `.env` (modelo no zip do POC), `.shopee_tokens.json`, `shopee_lojas.json`,
+`shopee.db` e `shopee_custos.json` estão no `.gitignore`; **nunca ler, imprimir ou commitar** `.env` e
+`.shopee_tokens.json`. Nenhuma rota devolve partner key, token ou `code`; erros passam por `api.mascarar`.
+Ambiente padrão `sandbox`; `prod` só com `SHOPEE_ENV=prod` a pedido do usuário.
+
+**Regras:** margem e CMV usam a base de custo do Grupo, **nunca a do Bling**. Refresh token vale ~30 dias
+(`/shopee/alertas`: amarelo ≤ 7 dias, vermelho ≤ 3 dias ou vencida). Sem webhook: sincronização por consulta
+periódica. Testes: `python -m unittest tests.test_shopee -v` (sem rede).
+
+---
+
 ## REPOSITÓRIO
 
 - **URL:** https://github.com/Felipe-Mfranca/-mzcell-rentabilidade-

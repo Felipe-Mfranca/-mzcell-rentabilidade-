@@ -54,3 +54,12 @@ conferencia_*.csv
 
 # Registro das inscricoes em campanhas (promocoes_ml.py)
 promocoes_log.jsonl
+
+# Shopee (credenciais, tokens, lojas, banco e custos locais)
+.env
+.env.*
+!.env.example
+.shopee_tokens.json
+shopee_lojas.json
+shopee_custos.json
+shopee.db
