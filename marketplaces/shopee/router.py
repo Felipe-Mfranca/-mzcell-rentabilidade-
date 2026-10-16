@@ -7,7 +7,10 @@ token ou code: o `code` entra só no POST de autorização e a resposta diz apen
 Hoje o backend não aplica o role do usuário a nenhum endpoint; vale também para estas rotas.
 """
 
+import html
+
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from marketplaces.shopee import api, lojas
@@ -56,6 +59,18 @@ def receber_codigo(loja: str, corpo: CodigoAutorizacao):
         return {"loja": loja, "autorizada": True, **api.estado_autorizacao(corpo.shop_id)}
     except ErroShopee as e:
         raise _http(e)
+
+
+@router.get("/retorno", response_class=HTMLResponse)
+def retorno_autorizacao(code: str, shop_id: int):
+    """Destino do redirect da Shopee (SHOPEE_REDIRECT_URL = http://127.0.0.1:8001/shopee/retorno)."""
+    try:
+        if shop_id not in {v["shop_id"] for v in lojas.lojas().values()}:
+            raise ErroShopee("esse shop_id não é de nenhuma loja cadastrada em shopee_lojas.json", 400)
+        api.trocar_codigo(code, shop_id)
+    except ErroShopee as e:
+        return HTMLResponse(f"<h3>Autorização não concluída</h3><p>{html.escape(str(e))}</p>", status_code=e.status)
+    return HTMLResponse("<h3>Loja autorizada.</h3><p>Pode fechar esta janela e voltar ao MZ Rentabilidade.</p>")
 
 
 @router.get("/teste/{loja}")

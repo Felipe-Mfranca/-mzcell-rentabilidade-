@@ -172,5 +172,31 @@ class TestLojas(unittest.TestCase):
             self.assertEqual((e["SHOPEE_ENV"], e["X"]), ("prod", "a b"))
 
 
+class TestIntegracaoComOApp(Base):
+    def test_contrato_marketplace(self):
+        from marketplaces.base import Marketplace
+        from marketplaces.shopee.marketplace import ShopeeMarketplace
+        m = ShopeeMarketplace()
+        self.assertIsInstance(m, Marketplace)
+        self.assertEqual(m.nome, "shopee")
+        with self.assertRaises(NotImplementedError):
+            m.listar_pedidos("x", "2026-01-01", "2026-01-02")
+
+    def test_retorno_troca_codigo_so_de_loja_cadastrada(self):
+        from fastapi.testclient import TestClient
+        import main
+        c = TestClient(main.app)
+        arq = os.path.join(self.dir.name, "lojas.json")
+        with open(arq, "w", encoding="utf-8") as f:
+            json.dump({"mizi": {"nome": "Mizi", "shop_id": 22}}, f)
+        resp = {"access_token": "A", "refresh_token": "R", "expire_in": 14400}
+        with mock.patch.object(lojas, "LOJAS_PATH", arq), mock.patch.object(lojas, "ler_env", return_value=ENV),              mock.patch("httpx.post", return_value=Resp(resp)):
+            self.assertEqual(c.get("/shopee/retorno?code=abc&shop_id=999").status_code, 400)
+            r = c.get("/shopee/retorno?code=abc&shop_id=22")
+            self.assertEqual(r.status_code, 200)
+            self.assertIn("autorizada", r.text)
+            self.assertTrue(api.estado_autorizacao(22, ENV)["autorizada"])
+
+
 if __name__ == "__main__":
     unittest.main()
