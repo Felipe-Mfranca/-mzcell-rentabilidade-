@@ -9,7 +9,13 @@ O que faz:
 Produtos 'candidate' na origem (não inscritos) não são clonados. Não sai de campanha, não muda preço
 de anúncio fora da campanha, não mexe em campanhas do ML.
 
+Modelo (datas automáticas): --proximo começa no dia seguinte ao fim da origem e dura 30 dias;
+--listar mostra as campanhas do vendedor da conta com início, fim e quantos itens estão inscritos.
+
 Uso:
+  python clonar_campanha.py meli02 --listar
+  python clonar_campanha.py meli02 C-MLB5481571 --proximo                                        # simula
+  python clonar_campanha.py meli02 C-MLB5481571 --proximo --confirmar
   python clonar_campanha.py meli02 C-MLB5481571 --inicio 2026-10-28 --fim 2026-11-26            # simula
   python clonar_campanha.py meli02 C-MLB5481571 --inicio 2026-10-28 --fim 2026-11-26 --confirmar
   python clonar_campanha.py meli01 C-MLB5480802 --destino C-MLB6053733 --inicio 2026-10-20 --fim 2026-11-19
@@ -40,6 +46,42 @@ class ErroClone(Exception):
 
 def nome_padrao(inicio: date, fim: date) -> str:
     return f"{inicio.day} {MESES[inicio.month - 1]} a {fim.day} {MESES[fim.month - 1]}"
+
+
+def fim_da_campanha(det: dict) -> date:
+    """Último dia da campanha em Brasília (finish_date vem em UTC: …T02:59:59Z = 23:59 do dia anterior)."""
+    if not det.get("finish_date"):
+        return date.min
+    fim = date.fromisoformat(det["finish_date"][:10])
+    if det["finish_date"].endswith("Z") and "T02:59" in det["finish_date"]:
+        fim = date.fromordinal(fim.toordinal() - 1)
+    return fim
+
+
+def proximo_periodo(fim_origem: date, dias: int = MAX_DIAS) -> tuple:
+    """Período que começa no dia seguinte ao fim da origem e dura `dias` (máx. 30)."""
+    inicio = date.fromordinal(fim_origem.toordinal() + 1)
+    return inicio, date.fromordinal(inicio.toordinal() + min(dias, MAX_DIAS) - 1)
+
+
+def listar(ml: ML, conta: str) -> list:
+    """Campanhas do vendedor da conta (SELLER_CAMPAIGN), da que termina antes para a que termina depois."""
+    st, b = ml.get(f"/seller-promotions/users/{ml_api.get_seller_id(conta)}", app_version="v2")
+    if st != 200:
+        raise ErroClone(f"não consegui listar as promoções de {conta} (HTTP {st})")
+    res = b.get("results") if isinstance(b, dict) else b
+    camp = [p for p in res or [] if p.get("type") == "SELLER_CAMPAIGN"]
+    saida = []
+    for p in camp:
+        st, det = ml.get(f"/seller-promotions/promotions/{p['id']}", promotion_type="SELLER_CAMPAIGN", app_version="v2")
+        if st != 200:
+            continue
+        itens = itens_da_campanha(ml, p["id"])
+        saida.append({"id": p["id"], "nome": det.get("name"), "status": det.get("status"),
+                      "inicio": det.get("start_date", "")[:10], "fim": fim_da_campanha(det),
+                      "inscritos": sum(1 for i in itens if i.get("status") in ("started", "pending")),
+                      "candidatos": sum(1 for i in itens if i.get("status") == "candidate")})
+    return sorted(saida, key=lambda x: x["fim"])
 
 
 def validar_datas(inicio: date, fim: date, fim_origem: date, limitar: bool = True) -> int:
@@ -82,10 +124,7 @@ def planejar(ml: ML, origem: str, inicio: date, fim: date, destino: str = None) 
     st, det = ml.get(f"/seller-promotions/promotions/{origem}", promotion_type="SELLER_CAMPAIGN", app_version="v2")
     if st != 200 or det.get("type") != "SELLER_CAMPAIGN":
         raise ErroClone(f"{origem} não é uma campanha do vendedor legível (HTTP {st})")
-    fim_origem = date.fromisoformat(det["finish_date"][:10]) if det.get("finish_date") else date.min
-    # finish_date vem em UTC (…T02:59:59Z = 23:59 do dia anterior em Brasília)
-    if det.get("finish_date", "").endswith("Z") and "T02:59" in det["finish_date"]:
-        fim_origem = date.fromordinal(fim_origem.toordinal() - 1)
+    fim_origem = fim_da_campanha(det)
     dias = validar_datas(inicio, fim, fim_origem, limitar=not destino)   # destino existente: o ML já a aceitou
     todos = itens_da_campanha(ml, origem)
     ativos = [i for i in todos if i.get("status") == "started"]
@@ -184,15 +223,33 @@ def executar(conta: str, plano: dict, origem: str, inicio: date, fim: date, nome
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Clona uma campanha do vendedor para o próximo período")
-    ap.add_argument("conta"); ap.add_argument("origem")
-    ap.add_argument("--inicio", required=True, help="AAAA-MM-DD"); ap.add_argument("--fim", required=True, help="AAAA-MM-DD")
+    ap.add_argument("conta"); ap.add_argument("origem", nargs="?")
+    ap.add_argument("--listar", action="store_true", help="lista as campanhas do vendedor da conta e sai")
+    ap.add_argument("--proximo", action="store_true", help="datas automáticas: dia seguinte ao fim da origem, 30 dias")
+    ap.add_argument("--inicio", help="AAAA-MM-DD"); ap.add_argument("--fim", help="AAAA-MM-DD")
     ap.add_argument("--nome"); ap.add_argument("--destino", help="campanha já criada (não cria outra)")
     ap.add_argument("--confirmar", action="store_true", help="cria e inscreve no ML (sem isso, só simula)")
     a = ap.parse_args()
     try:
-        inicio, fim = date.fromisoformat(a.inicio), date.fromisoformat(a.fim)
+        ml = ML(a.conta)
+        if a.listar:
+            for c in listar(ml, a.conta):
+                print(f"{c['id']:<14} {c['status']:<9} {c['inicio']} a {c['fim']}  inscritos {c['inscritos']:>3}  "
+                      f"candidatos {c['candidatos']:>3}  {c['nome']}")
+            return 0
+        if not a.origem:
+            raise ErroClone("informe a campanha de origem (ou use --listar)")
+        if a.proximo:
+            st, det = ml.get(f"/seller-promotions/promotions/{a.origem}", promotion_type="SELLER_CAMPAIGN", app_version="v2")
+            if st != 200:
+                raise ErroClone(f"não consegui ler {a.origem} (HTTP {st})")
+            inicio, fim = proximo_periodo(fim_da_campanha(det))
+        elif a.inicio and a.fim:
+            inicio, fim = date.fromisoformat(a.inicio), date.fromisoformat(a.fim)
+        else:
+            raise ErroClone("informe --proximo ou --inicio e --fim")
         nome = a.nome or nome_padrao(inicio, fim)
-        plano = planejar(ML(a.conta), a.origem, inicio, fim, a.destino)
+        plano = planejar(ml, a.origem, inicio, fim, a.destino)
     except (ErroClone, ValueError) as e:
         print(f"RECUSADO: {e}")
         return 1
