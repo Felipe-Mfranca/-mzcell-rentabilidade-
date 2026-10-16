@@ -912,3 +912,14 @@ if __name__ == "__main__":
     host = config.get("servidor", {}).get("host", "127.0.0.1")
     port = config.get("servidor", {}).get("port", 8001)
     uvicorn.run("main:app", host=host, port=port, reload=False)
+
+
+@app.get("/sac/{conta}/contestacoes")
+async def sac_contestacoes(conta: str, limite: int = 30, abertas: bool = True):
+    """Contestações de devolução (etapa recontact) com o desfecho de cada uma. Somente leitura."""
+    if not 1 <= limite <= 50:
+        raise HTTPException(status_code=400, detail="limite deve estar entre 1 e 50")
+    res = await ml_api.sac_contestacoes(conta, limite, abertas)
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "erro"))
+    return res

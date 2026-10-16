@@ -554,3 +554,195 @@ async def custos_anuncio(conta: str, mlb: str, preco: Optional[float] = None) ->
         "rebot_un": rebot_unitario(ativa),
         "oportunidade": oportunidade,
     }
+
+
+# ─── SAC: contestações de devolução (somente leitura) ────────────────────────
+# Desfecho de uma contestação (etapa 'recontact'), validado em 16/10/2026 com 9 casos reais:
+#   A) reversão no pedido  : 2º item em collection.refunds com status_detail 'bpp_covered'
+#   B) reembolso direto    : crédito money_transfer "Entrada de dinheiro correspondente a sua reclamação"
+#                            no mesmo minuto da decisão (nº da operação do Mercado Pago)
+#   C) recusado            : 1 estorno só e texto "não poderemos ressarci-lo / valor mantido com o comprador"
+# O crédito B não traz o ID da reclamação: o vínculo é por valor + hora (confiança "provável").
+import asyncio
+import html as _html
+import re
+
+_RECUSA = ("não poderemos ressarci", "nao poderemos ressarci", "mantido na conta do seu comprador",
+           "dinheiro na conta do seu comprador", "pagamento disponível na conta do comprador",
+           "deixamos o pagamento disponível", "impactará no cálculo", "impactara no calculo",
+           "reafirma o problema")
+_REVERSAO = ("reembolsamos o valor", "você vai receber o reembolso", "voce vai receber o reembolso")
+_CRED_REC = ("reclama", "garantida", "proteção do mercado envios full", "protecao do mercado envios full")
+
+
+def sac_texto(msg: Optional[str]) -> str:
+    """HTML do mediador -> texto simples. Mensagem codificada (base64) vira ''."""
+    if not msg or re.fullmatch(r"[A-Za-z0-9+/=\s]{200,}", msg):
+        return ""
+    return re.sub(r"\s+", " ", _html.unescape(re.sub(r"<[^>]+>", " ", msg))).strip()
+
+
+def sac_prazo_texto(msgs: list) -> Optional[str]:
+    """Prazo escrito pelo mediador ('...até o dia 15/07'); a API não tem due_date."""
+    for m in sorted(msgs, key=lambda x: x.get("date_created", ""), reverse=True):
+        if m.get("sender_role") != "mediator":
+            continue
+        achou = re.search(r"at[ée] o dia (\d{1,2}/\d{1,2})", sac_texto(m.get("message")), re.I)
+        if achou:
+            return achou.group(1)
+    return None
+
+
+def sac_custo_etiqueta(msgs: list) -> Optional[float]:
+    """Valor da etiqueta de devolução que o mediador diz ficar com o vendedor."""
+    for m in sorted(msgs, key=lambda x: x.get("date_created", "")):
+        if m.get("sender_role") != "mediator":
+            continue
+        achou = re.search(r"etiqueta de devolu[çc][ãa]o (?:é |de )?(?:de )?R\$\s?([\d.]+,\d{2})",
+                          sac_texto(m.get("message")))
+        if achou:
+            return float(achou.group(1).replace(".", "").replace(",", "."))
+    return None
+
+
+def _minutos(a: Optional[str], b: Optional[str]) -> float:
+    """Diferença em minutos entre dois ISO com fuso (ex.: 2026-10-06T13:57:53.000-04:00)."""
+    try:
+        da = datetime.fromisoformat(a.replace("Z", "+00:00"))
+        db = datetime.fromisoformat(b.replace("Z", "+00:00"))
+        return (da - db).total_seconds() / 60
+    except Exception:
+        return 1e9
+
+
+def sac_operacao_texto(msgs: list) -> Optional[dict]:
+    """Reembolso direto: o mediador escreve o valor e o número da operação do Mercado Pago na mensagem."""
+    for m in sorted(msgs, key=lambda x: x.get("date_created", ""), reverse=True):
+        if m.get("sender_role") != "mediator":
+            continue
+        t = sac_texto(m.get("message"))
+        op = re.search(r"n[úu]mero de opera[çc][ãa]o\W{0,4}(\d{9,})", t, re.I)
+        if op:
+            val = re.search(r"reembolso de R\$\s?([\d.]+,\d{2})", t)
+            return {"operacao": int(op.group(1)), "quando": m.get("date_created"),
+                    "valor": float(val.group(1).replace(".", "").replace(",", ".")) if val else None}
+    return None
+
+
+def sac_desfecho(collection: Optional[dict], msgs: list, creditos: Optional[list] = None,
+                 valores: Optional[list] = None) -> dict:
+    """Classifica uma contestação. `creditos` = [{id,data,valor,motivo}] da conta; `valores` = valores
+    que um reembolso direto poderia ter (venda, etiqueta)."""
+    refunds = (collection or {}).get("refunds") or []
+    cobertos = [r for r in refunds if (r.get("metadata") or {}).get("status_detail") == "bpp_covered"]
+    if cobertos:
+        return {"desfecho": "REVERTIDO_NO_PEDIDO", "confianca": "confirmado",
+                "quando": cobertos[-1].get("date_created"), "valor": cobertos[-1].get("amount"),
+                "operacao": None, "evidencia": "estorno bpp_covered no pagamento (saldo da venda ajustado)"}
+    mediador = [m for m in sorted(msgs, key=lambda x: x.get("date_created", "")) if m.get("sender_role") == "mediator"]
+    textos = [(m.get("date_created", ""), sac_texto(m.get("message")).lower()) for m in mediador]
+    legiveis = [(q, t) for q, t in textos if t]
+    texto_op = sac_operacao_texto(msgs)
+    if texto_op:
+        return {"desfecho": "REVERTIDO_REEMBOLSO", "confianca": "confirmado", "quando": texto_op["quando"],
+                "valor": texto_op["valor"], "operacao": texto_op["operacao"],
+                "evidencia": "o mediador informou o número da operação do Mercado Pago"}
+    if creditos and legiveis:
+        alvo = legiveis[-1][0]
+        for c in creditos:
+            if abs(_minutos(c.get("data"), alvo)) <= 30 and \
+               any(abs((c.get("valor") or 0) - v) < 0.01 for v in (valores or [])):
+                return {"desfecho": "REVERTIDO_REEMBOLSO", "confianca": "provável", "quando": c.get("data"),
+                        "valor": c.get("valor"), "operacao": c.get("id"),
+                        "evidencia": "crédito do Mercado Pago no mesmo horário da decisão (vínculo por valor e hora)"}
+    for quando, t in reversed(legiveis):
+        if any(k in t for k in _RECUSA):
+            return {"desfecho": "RECUSADO", "confianca": "confirmado", "quando": quando, "valor": None,
+                    "operacao": None, "evidencia": "o mediador manteve o valor com o comprador"}
+        if any(k in t for k in _REVERSAO):
+            return {"desfecho": "REVERTIDO_NAO_CONFIRMADO", "confianca": "só texto", "quando": quando,
+                    "valor": None, "operacao": None,
+                    "evidencia": "o mediador diz que reembolsa, mas não achei estorno nem crédito"}
+    return {"desfecho": "SEM_DESFECHO", "confianca": "-", "quando": textos[-1][0] if textos else None,
+            "valor": None, "operacao": None, "evidencia": "sem decisão legível do mediador"}
+
+
+async def _sac_creditos(client, conta: str, desde: str, max_paginas: int = 40) -> list:
+    """Créditos de reclamação da conta, do mais recente para trás até `desde` (YYYY-MM-DD).
+    Só vale para reembolso sem nº de operação no texto; a maioria dos lançamentos é ruído (bonificação Flex)."""
+    saida, off = [], 0
+    for _ in range(max_paginas):
+        d = await _get_json(client, conta,
+            f"/collections/search?operation_type=money_transfer&limit=50&offset={off}&sort=date_created"
+            f"&criteria=desc&range=date_created&begin_date={desde}T00:00:00.000-04:00"
+            f"&end_date={(datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')}T23:59:59.000-04:00")
+        res = (d or {}).get("results") or []
+        for r in res:
+            c = r.get("collection") or {}
+            motivo = str(c.get("reason") or "")
+            if any(k in motivo.lower() for k in _CRED_REC):
+                saida.append({"id": c.get("id"), "data": c.get("date_created"),
+                              "valor": c.get("transaction_amount"), "motivo": motivo})
+        off += len(res)
+        if not res or off >= ((d or {}).get("paging") or {}).get("total", 0):
+            break
+    return saida
+
+
+async def sac_contestacoes(conta: str, limite: int = 30, abertas: bool = True) -> dict:
+    """Contestações (etapa recontact) mais recentes, com desfecho. Só leitura: não marca nada como lido."""
+    sem = asyncio.Semaphore(4)
+    async with httpx.AsyncClient(timeout=30, verify=False) as client:
+        lista = []
+        for st in (["opened", "closed"] if abertas else ["closed"]):
+            d = await _get_json(client, conta,
+                f"/post-purchase/v1/claims/search?stage=recontact&status={st}"
+                f"&limit={min(limite, 50)}&sort=date_created:desc")
+            lista += (d or {}).get("data") or []
+        lista = sorted(lista, key=lambda x: x.get("date_created", ""), reverse=True)[:limite]
+        if not lista:
+            return {"success": True, "conta": conta, "itens": [], "resumo": {}}
+        desde = max(min(c["date_created"][:10] for c in lista),
+                    (datetime.now() - timedelta(days=75)).strftime("%Y-%m-%d"))
+        creditos = await _sac_creditos(client, conta, desde)
+
+        async def um(c):
+            async with sem:
+                cid, oid = c["id"], c["resource_id"]
+                o, msgs, ret, rc = await asyncio.gather(
+                    _get_json(client, conta, f"/orders/{oid}"),
+                    _get_json(client, conta, f"/post-purchase/v1/claims/{cid}/messages"),
+                    _get_json(client, conta, f"/post-purchase/v2/claims/{cid}/returns"),
+                    _get_json(client, conta, f"/post-purchase/v1/claims/{cid}/charges/return-cost"))
+                o = o or {}
+                msgs = msgs if isinstance(msgs, list) else []
+                pay = (o.get("payments") or [{}])[0]
+                col = await _get_json(client, conta, f"/collections/{pay['id']}") if pay.get("id") else None
+                it = (o.get("order_items") or [{}])[0]
+                venda = o.get("total_amount") or 0
+                etiqueta = sac_custo_etiqueta(msgs)
+                custo_ep = (rc or {}).get("amount")
+                valores = [v for v in (venda, etiqueta, custo_ep, pay.get("transaction_amount")) if v]
+                res = sac_desfecho(col, msgs, creditos, valores)
+                if res["desfecho"] == "SEM_DESFECHO" and any(m.get("sender_role") == "respondent" for m in msgs):
+                    res = {**res, "desfecho": "EM_ANALISE", "evidencia": "você contestou e o ML ainda não decidiu"}
+                ultima = max((m.get("date_created", "") for m in msgs), default=c.get("last_updated", ""))
+                return {
+                    "claim_id": cid, "conta": conta, "pedido": oid, "mlb": (it.get("item") or {}).get("id"),
+                    "titulo": (it.get("item") or {}).get("title"), "motivo_id": c.get("reason_id"),
+                    "etapa": c.get("stage"), "status": c.get("status"),
+                    "aberta_em": c.get("date_created"), "atualizada_em": c.get("last_updated"),
+                    "valor_venda": venda, "custo_devolucao_api": custo_ep, "custo_etiqueta_texto": etiqueta,
+                    "devolucao": (ret or {}).get("status"), "dinheiro": (ret or {}).get("status_money"),
+                    "prazo_texto": sac_prazo_texto(msgs),
+                    "anexos_vendedor": sum(len(m.get("attachments") or []) for m in msgs
+                                           if m.get("sender_role") == "respondent"),
+                    "msgs": len(msgs),
+                    "msgs_ilegiveis": sum(1 for m in msgs if m.get("message") and not sac_texto(m["message"])),
+                    "dias_parado": max(0, int(-_minutos(ultima, datetime.now().astimezone().isoformat()) // 1440)),
+                    **res}
+        itens = await asyncio.gather(*[um(c) for c in lista])
+    resumo = {}
+    for i in itens:
+        resumo[i["desfecho"]] = resumo.get(i["desfecho"], 0) + 1
+    return {"success": True, "conta": conta, "itens": list(itens), "resumo": resumo}
