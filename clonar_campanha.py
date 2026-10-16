@@ -42,11 +42,11 @@ def nome_padrao(inicio: date, fim: date) -> str:
     return f"{inicio.day} {MESES[inicio.month - 1]} a {fim.day} {MESES[fim.month - 1]}"
 
 
-def validar_datas(inicio: date, fim: date, fim_origem: date) -> int:
+def validar_datas(inicio: date, fim: date, fim_origem: date, limitar: bool = True) -> int:
     dias = (fim - inicio).days + 1
     if fim < inicio:
         raise ErroClone("a data final é anterior à inicial")
-    if dias > MAX_DIAS:
+    if limitar and dias > MAX_DIAS:
         raise ErroClone(f"período de {dias} dias passa de {MAX_DIAS}")
     if inicio <= fim_origem:
         raise ErroClone(f"o início ({inicio}) precisa ser depois do fim da origem ({fim_origem})")
@@ -78,7 +78,7 @@ def tambem_em(promos: list, origem: str) -> str:
     return ", ".join(sorted(set(outras)))
 
 
-def planejar(ml: ML, origem: str, inicio: date, fim: date) -> dict:
+def planejar(ml: ML, origem: str, inicio: date, fim: date, destino: str = None) -> dict:
     st, det = ml.get(f"/seller-promotions/promotions/{origem}", promotion_type="SELLER_CAMPAIGN", app_version="v2")
     if st != 200 or det.get("type") != "SELLER_CAMPAIGN":
         raise ErroClone(f"{origem} não é uma campanha do vendedor legível (HTTP {st})")
@@ -86,16 +86,23 @@ def planejar(ml: ML, origem: str, inicio: date, fim: date) -> dict:
     # finish_date vem em UTC (…T02:59:59Z = 23:59 do dia anterior em Brasília)
     if det.get("finish_date", "").endswith("Z") and "T02:59" in det["finish_date"]:
         fim_origem = date.fromordinal(fim_origem.toordinal() - 1)
-    dias = validar_datas(inicio, fim, fim_origem)
+    dias = validar_datas(inicio, fim, fim_origem, limitar=not destino)   # destino existente: o ML já a aceitou
     todos = itens_da_campanha(ml, origem)
     ativos = [i for i in todos if i.get("status") == "started"]
+    situacao_destino = {}
+    if destino:   # campanha já criada: não reenvia o que está inscrito e só manda o que é candidato nela
+        situacao_destino = {i["id"]: i.get("status") for i in itens_da_campanha(ml, destino)}
     linhas = []
     for i in ativos:
         mlb = i["id"]
         st, it = ml.get(f"/items/{mlb}", attributes="id,title,status,available_quantity")
         st2, promos = ml.get(f"/seller-promotions/items/{mlb}", app_version="v2")
         motivo, obs = None, ""
-        if st != 200 or it.get("status") != "active":
+        if destino and situacao_destino.get(mlb) in ("pending", "started"):
+            motivo = "já inscrito na destino"
+        elif destino and situacao_destino.get(mlb) != "candidate":
+            motivo = f"não é candidato na destino ({situacao_destino.get(mlb) or 'ausente'})"
+        elif st != 200 or it.get("status") != "active":
             motivo = f"anúncio {it.get('status') if st == 200 else 'ilegível'}"
         elif not (it.get("available_quantity") or 0):
             motivo = "sem estoque"
@@ -185,7 +192,7 @@ def main() -> int:
     try:
         inicio, fim = date.fromisoformat(a.inicio), date.fromisoformat(a.fim)
         nome = a.nome or nome_padrao(inicio, fim)
-        plano = planejar(ML(a.conta), a.origem, inicio, fim)
+        plano = planejar(ML(a.conta), a.origem, inicio, fim, a.destino)
     except (ErroClone, ValueError) as e:
         print(f"RECUSADO: {e}")
         return 1
