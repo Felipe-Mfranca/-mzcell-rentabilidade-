@@ -557,6 +557,45 @@ async def custos_anuncio(conta: str, mlb: str, preco: Optional[float] = None) ->
     }
 
 
+# ─── SKU do anúncio ──────────────────────────────────────────────────────────
+# O SKU do vendedor costuma estar no atributo SELLER_SKU; seller_custom_field vem vazio na maioria dos anúncios.
+# Chave para cruzar com o Bling. Anúncio com variações pode ter um SKU por variação.
+
+def _attr_sku(attrs) -> str:
+    for a in attrs or []:
+        if a.get("id") == "SELLER_SKU" and a.get("value_name"):
+            return str(a["value_name"]).strip()
+    return ""
+
+
+def sku_do_anuncio(item: dict) -> str:
+    """SKU do anúncio: seller_custom_field, senão atributo SELLER_SKU, senão o das variações (distintos juntos por ' / ')."""
+    sku = (item.get("seller_custom_field") or "").strip() or _attr_sku(item.get("attributes"))
+    if sku:
+        return sku
+    vistos = []
+    for v in item.get("variations") or []:
+        sv = (v.get("seller_custom_field") or "").strip() or _attr_sku(v.get("attributes"))
+        if sv and sv not in vistos:
+            vistos.append(sv)
+    return " / ".join(vistos)
+
+
+async def skus_anuncios(conta: str, mlbs: list) -> dict:
+    """{mlb: sku} de uma lista de anúncios (multiget de 20 em 20). Só leitura."""
+    saida = {}
+    async with httpx.AsyncClient(timeout=30, verify=False) as client:
+        for i in range(0, len(mlbs), 20):
+            lote = mlbs[i:i + 20]
+            d = await _get_json(client, conta,
+                f"/items?ids={','.join(lote)}&attributes=id,seller_custom_field,attributes,variations")
+            for e in d or []:
+                if e.get("code") == 200:
+                    b = e["body"]
+                    saida[b["id"]] = sku_do_anuncio(b)
+    return saida
+
+
 # ─── SAC: contestações de devolução (somente leitura) ────────────────────────
 # Desfecho de uma contestação (etapa 'recontact'), validado em 16/10/2026 com 9 casos reais:
 #   A) reversão no pedido  : 2º item em collection.refunds com status_detail 'bpp_covered'

@@ -1727,11 +1727,22 @@ function renderModalContent(mlb, conta) {
   const pos = getPosicao(mlb);
   const posTxt = pos.posicao ? `p${pos.pagina||1} #${pos.posicao}` : 'Sem registro';
 
+  // CTR em %, CPC em R$: prefere o valor do backend (_ads_) e cai para o cálculo local
+  const ctrDe = o => (o.ctr||0) > 0 ? o.ctr : (o.impressoes > 0 ? o.cliques / o.impressoes * 100 : 0);
+  const cpcDe = o => (o.cpc_medio||0) > 0 ? o.cpc_medio : (o.cliques > 0 ? (o.ads_total||0) / o.cliques : 0);
+  const comAds = o => o.vendas_com_ads || ((o.vendas_publi||0) + (o.vendas_indiretas||0));
+  const pctTxt = v => Number(v||0).toFixed(2).replace('.', ',') + '%';
   const colAds = `<div class="mx-col"><div class="mx-col-t">Dados de ADS</div>
     ${rowv('ACOS', pct1(per.acos), cmp(per.acos, prev.acos, pct1, true))}
     ${rowv('TACOS', pct1(per.tacos), cmp(per.tacos, prev.tacos, pct1, true))}
     ${rowv('Venda ADS', brl2(per.receita_publi), cmp(per.receita_publi, prev.receita_publi, brl2))}
     ${rowv('Investimento', brl2(per.ads_total), cmp(per.ads_total, prev.ads_total, brl2, false, true))}
+    ${rowv('Impressões', r(per.impressoes), cmp(per.impressoes, prev.impressoes, v=>r(v)))}
+    ${rowv('Cliques', r(per.cliques), cmp(per.cliques, prev.cliques, v=>r(v)))}
+    ${rowv('CTR', pctTxt(ctrDe(per)), cmp(ctrDe(per), ctrDe(prev), pctTxt))}
+    ${rowv('CPC', brl2(cpcDe(per)), cmp(cpcDe(per), cpcDe(prev), brl2, true))}
+    ${rowv('Vendas por ADS (un.)', r(comAds(per)), cmp(comAds(per), comAds(prev), v=>r(v)))}
+    ${rowv('Vendas sem ADS (un.)', r(per.vendas_sem_publi), cmp(per.vendas_sem_publi, prev.vendas_sem_publi, v=>r(v)))}
   </div>`;
   const colVendas = `<div class="mx-col"><div class="mx-col-t">Dados de vendas</div>
     ${rowv('Unidades', r(per.unidades), cmp(per.unidades, prev.unidades, v=>r(v)))}

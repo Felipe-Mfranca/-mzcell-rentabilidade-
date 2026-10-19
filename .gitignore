@@ -66,3 +66,6 @@ shopee.db
 
 # Posição dos anúncios na busca (local)
 posicoes.json
+
+# Backups locais do produtos.json
+produtos.json.antes*

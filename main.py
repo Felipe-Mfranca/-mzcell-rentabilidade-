@@ -355,6 +355,25 @@ async def salvar_custos(payload: CustosPayload):
     return {"success": True}
 
 
+@app.post("/produtos/{conta}/preencher-skus")
+async def preencher_skus(conta: str):
+    """Preenche o SKU dos anúncios da conta que estão sem SKU no produtos.json (não sobrescreve os que já têm)."""
+    produtos = load_json(PRODUTOS_PATH)
+    vazios = [m for m, p in produtos.items() if p.get("conta") == conta and not p.get("sku")]
+    if not vazios:
+        return {"success": True, "conta": conta, "sem_sku_antes": 0, "preenchidos": 0, "ainda_sem_sku": []}
+    achados = await ml_api.skus_anuncios(conta, vazios)
+    n = 0
+    for m, sku in achados.items():
+        if sku and m in produtos and not produtos[m].get("sku"):
+            produtos[m]["sku"] = sku
+            n += 1
+    save_json(PRODUTOS_PATH, produtos)
+    log_atividade(f"SKUs preenchidos ({conta}): {n}")
+    return {"success": True, "conta": conta, "sem_sku_antes": len(vazios), "preenchidos": n,
+            "ainda_sem_sku": [m for m in vazios if not achados.get(m)]}
+
+
 @app.post("/produtos/{mlb}/arquivar")
 async def arquivar_produto(mlb: str, payload: dict):
     produtos = load_json(PRODUTOS_PATH)

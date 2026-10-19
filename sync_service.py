@@ -48,7 +48,7 @@ async def _sync_mlb(conta: str, mlb: str, detalhe: dict,
     """Sync de um único produto — busca orders, visitas e ADS e salva em produtos_db.
     Retorna True se atualizado com sucesso."""
     titulo   = detalhe.get("title", mlb)
-    sku      = detalhe.get("seller_custom_field", "") or ""
+    sku      = ml_api.sku_do_anuncio(detalhe)
     variacao = ""
     for attr in detalhe.get("attributes", []):
         if attr.get("id") == "COLOR":
