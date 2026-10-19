@@ -1769,7 +1769,6 @@ function renderModalContent(mlb, conta) {
       ${fld('CMV (R$)','s-cmv',(sim.cmv_unit??(c.cmv_unit||0)).toFixed(2),'0.01')}
       ${fld('Imposto (%)','s-imp',((sim.imposto_pct??(c.imposto_pct||0.10))*100).toFixed(2),'0.01')}
       ${fld('Comissão (%)','s-com',((sim.comissao_pct??(c.comissao_pct||0.11))*100).toFixed(2),'0.01')}
-      ${fld('Taxas (R$)','s-taxas',(sim.taxas??0).toFixed(2),'0.01','0,00')}
       ${fld('Frete (R$)','s-frete',(sim.frete_unit??(c.frete_unit||0)).toFixed(2),'0.01','0,00')}
       ${fld('TACOS (%)','s-tacos',((sim.tacos??(per.tacos>0?per.tacos:0))*100).toFixed(2),'0.01')}
       ${fld('Rebot (R$/un)','s-rebot',(sim.rebot_unit??(per.rebot_unit||c.rebot_unit||0)).toFixed(2),'0.01','0,00')}
@@ -1808,7 +1807,6 @@ function usarMediasDoPeriodo(mlb, conta) {
   set('s-cmv', ((per.cmv_total||0) / un).toFixed(2));
   set('s-imp', ((per.imposto_total||0) / rec * 100).toFixed(2));
   set('s-com', ((per.comissao_total||0) / rec * 100).toFixed(2));
-  set('s-taxas', '0.00');   // a comissão real do pedido já inclui a tarifa fixa
   set('s-frete', ((per.frete_total||0) / un).toFixed(2));
   set('s-tacos', ((per.tacos||0) * 100).toFixed(2));
   const f = document.getElementById('s-frete'); if (f) f.dataset.manual = '1';
@@ -1823,7 +1821,6 @@ function calcSim(mlb, conta, persistir=true) {
   const cmv      = num('s-cmv');
   const com      = num('s-com', 11)/100;
   const imp      = num('s-imp', 10)/100;
-  const taxas    = num('s-taxas');
   const frete    = num('s-frete');
   const tacos    = num('s-tacos')/100;
   const rebotUnit= num('s-rebot');
@@ -1844,8 +1841,9 @@ function calcSim(mlb, conta, persistir=true) {
     } catch(e){}
   }
 
-  // resultado = preço − CMV − imposto − comissão − taxas − frete − ADS (TACOS) + rebot ; margem = resultado ÷ preço
-  const margSim = preco - cmv - preco*imp - preco*com - taxas - frete - preco*tacos + rebotSim;
+  // resultado = preço − CMV − imposto − comissão − frete − ADS (TACOS) + rebot ; margem = resultado ÷ preço
+  // As taxas do ML são a comissão (%) e o frete (que já inclui a tarifa fixa): não há campo separado.
+  const margSim = preco - cmv - preco*imp - preco*com - frete - preco*tacos + rebotSim;
   const mpSim   = preco>0 ? margSim/preco : 0;
   const diff    = margSim - (per.margem_unit||0);
 
@@ -1858,7 +1856,7 @@ function calcSim(mlb, conta, persistir=true) {
   if(!persistir) return;   // só grava quando o usuário altera algo
   const simPayload = {
     mlb,
-    simulador: {preco, cmv_unit:cmv, frete_unit:frete, comissao_pct:com, taxas,
+    simulador: {preco, cmv_unit:cmv, frete_unit:frete, comissao_pct:com,
                 imposto_pct:imp, tacos, rebot_unit:rebotUnit,
                 rebot_inicio:rebotIni, rebot_fim:rebotFim}
   };
@@ -1903,7 +1901,6 @@ function aplicarCustosReais(mlb, conta) {
   const set=(id,v)=>{const e=document.getElementById(id); if(e && v!=null) e.value=v;};
   set('s-preco', d.preco.toFixed(2));
   set('s-com', (d.comissao_pct*100).toFixed(2));
-  if(d.taxa_fixa!=null) set('s-taxas', Number(d.taxa_fixa).toFixed(2));
   if(d.frete!=null) set('s-frete', d.frete.toFixed(2));
   set('s-rebot', d.rebot_un.toFixed(2));
   const c=d.campanha_ativa;

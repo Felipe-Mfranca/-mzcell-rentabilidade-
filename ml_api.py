@@ -546,7 +546,6 @@ async def custos_anuncio(conta: str, mlb: str, preco: Optional[float] = None) ->
         "fonte": "ultima_venda" if venda else "anuncio",
         "preco": preco_ref,
         "comissao_pct": pct,
-        "taxa_fixa": ((row.get("sale_fee_details") or {}).get("fixed_fee") or 0),
         "frete": frete.get("frete") if frete["success"] else None,
         "peso_g": frete.get("peso_g"),
         "ultima_venda": venda,
