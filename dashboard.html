@@ -370,6 +370,48 @@ input.modal-date:focus{border-color:var(--gold);}
 .btn-anotacao{margin-top:8px;background:var(--bg3);border:1px solid var(--gold);color:var(--gold);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:var(--font);transition:all .2s;}
 .btn-anotacao:hover{background:var(--gold);color:var(--bg);}
 
+
+/* ══ Modal de detalhes do anúncio (layout horizontal) ══ */
+.modal.modal-wide{width:1120px;max-width:96vw;padding:14px 22px 16px;overflow-x:hidden;}
+.modal-wide .modal-header{margin-bottom:8px;}
+.modal-wide .modal-close{margin-left:8px;}
+.modal-wide .modal-prod{font-size:16px;margin-bottom:2px;}
+.mx-strip-cap{font-size:11px;color:var(--muted2);margin-bottom:4px;}
+.mx-strip{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;}
+.mx-kpi{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:6px 12px;}
+.mx-kpi-l{font-size:11px;color:var(--muted2);}
+.mx-kpi-v{font-size:15px;font-weight:700;font-family:var(--mono);margin-top:2px;}
+.modal-wide .modal-period-bar{padding:8px 0;margin-bottom:10px;}
+.mx-cap-per{margin-left:auto;font-size:11px;color:var(--muted2);}
+.mx-cols{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) minmax(0,1fr);gap:12px;}
+.mx-col{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:10px 14px;min-width:0;}
+.mx-col-t{font-size:13px;font-weight:700;margin-bottom:8px;}
+.mx-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.mx-row:last-child{border-bottom:0;}
+.mx-lbl{color:var(--muted2);}
+.mx-val{font-weight:700;font-family:var(--mono);white-space:nowrap;}
+.mx-sim .sim-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:5px 10px;}
+.mx-sim .sim-field label{font-size:10px;color:var(--muted2);margin-bottom:2px;display:block;}
+.mx-sim .sim-field input{height:26px;font-size:11px;padding:2px 8px;width:100%;box-sizing:border-box;}
+.mx-sim-out{margin-top:10px;border-top:1px solid var(--border2);padding-top:8px;}
+.mx-sim-out .mx-row{padding:4px 0;font-size:12px;}
+.mx-sim-info{font-size:10px;color:var(--muted2);line-height:1.4;margin-bottom:8px;}
+.mx-sim-act{font-size:11px;margin-top:6px;}
+.mx-sim-act a{color:var(--gold);cursor:pointer;text-decoration:none;}
+.mx-pos{display:flex;gap:5px;align-items:center;margin-top:6px;}
+.mx-pos input{height:26px;font-size:11px;padding:2px 6px;background:var(--bg2);border:1px solid var(--border2);color:var(--text);border-radius:6px;font-family:var(--mono);}
+.mx-foot{margin-top:10px;}
+.mx-foot label{font-size:12px;font-weight:700;display:block;margin-bottom:4px;}
+.mx-foot textarea{width:100%;box-sizing:border-box;height:52px;resize:none;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:8px 10px;font:12px/1.4 var(--font);}
+.mx-foot textarea:focus{border-color:var(--gold);outline:none;}
+.mx-foot-act{display:flex;align-items:center;gap:12px;margin-top:6px;font-size:11px;color:var(--muted2);}
+.mx-foot-act a{color:var(--gold);cursor:pointer;}
+.mx-hist{margin-top:8px;max-height:110px;overflow-y:auto;font-size:11px;}
+.mx-hist div{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid var(--border);}
+.kpi-badge-neu{color:var(--muted2);}
+.mx-col .kpi-badge-var::after{left:auto;right:0;transform:none;}
+@media (max-width:1000px){.mx-strip{grid-template-columns:repeat(3,1fr);}.mx-cols{grid-template-columns:1fr;}}
+
 /* ══ TEMA CLARO (em teste — ativado pelo botão na sidebar) ══
    Formatação do design aprovado (Opção A) aplicada às classes existentes.
    Só visual: nenhuma estrutura, menu ou comportamento muda. */
@@ -708,42 +750,40 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
 
 <!-- MODAL PRODUTO -->
 <div class="overlay" id="modal-prod">
-  <div class="modal">
+  <div class="modal modal-wide">
     <button class="modal-close" onclick="closeModal()">✕</button>
     <div class="modal-header">
       <div class="modal-header-info">
         <div class="modal-prod" id="m-title"></div>
         <div class="modal-meta">
-          <span class="modal-mlb" id="m-mlb"></span>
-          <span style="color:var(--border2)">·</span>
           <span class="modal-sku" id="m-sku"></span>
+          <span style="color:var(--border2)">·</span>
+          <span class="modal-mlb" id="m-mlb"></span>
         </div>
       </div>
-    </div>
-    <div class="modal-period-bar">
-      <button class="modal-preset" onclick="setModalPreset(7,this)">7d</button>
-      <button class="modal-preset" onclick="setModalPreset(15,this)">15d</button>
-      <button class="modal-preset active" id="mpb-30" onclick="setModalPreset(30,this)">30d</button>
-      <button class="modal-preset" id="mpb-c" onclick="setModalPreset(0,this)">Personalizado</button>
-      <input type="date" id="modal-de" class="modal-date" oninput="ativarModalPersonalizado()"/>
-      <span class="modal-date-sep">→</span>
-      <input type="date" id="modal-ate" class="modal-date" oninput="ativarModalPersonalizado()"/>
-      <button class="btn-sync-produto" onclick="aplicarModalPersonalizado()" style="height:30px;padding:0 12px;font-size:11px">Buscar</button>
-      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+      <div class="modal-header-actions">
         <button class="btn-sync-produto" id="btn-arq-produto" style="border-color:var(--border2);color:var(--muted2)">Arquivar</button>
         <button class="btn-sync-produto" id="btn-sync-produto"><span id="sync-icon">↻</span> Sincronizar MLB</button>
       </div>
     </div>
-    <div class="modal-tabs">
-      <button class="modal-tab active" onclick="switchModalTab('dados',this)">📊 Dados</button>
-      <button class="modal-tab" onclick="switchModalTab('anotacoes',this)">✏️ Anotações</button>
+    <div class="mx-strip-wrap">
+      <div class="mx-strip-cap">Média por unidade, últimos 30 dias (fixa)</div>
+      <div class="mx-strip" id="mx-strip"></div>
     </div>
-    <div id="modal-tab-dados" class="modal-tab-content active">
-      <div id="modal-body"></div>
+    <div class="modal-period-bar">
+      <button class="modal-preset active" id="mpb-7" onclick="setModalPreset(7,this)">7D</button>
+      <button class="modal-preset" id="mpb-15" onclick="setModalPreset(15,this)">15D</button>
+      <button class="modal-preset" id="mpb-30" onclick="setModalPreset(30,this)">30D</button>
+      <button class="modal-preset" id="mpb-c" onclick="setModalPreset(0,this)">Personalizado</button>
+      <span id="modal-datas" style="display:none;align-items:center;gap:6px">
+        <input type="date" id="modal-de" class="modal-date" oninput="ativarModalPersonalizado()"/>
+        <span class="modal-date-sep">até</span>
+        <input type="date" id="modal-ate" class="modal-date" oninput="ativarModalPersonalizado()"/>
+        <button class="btn-sync-produto" onclick="aplicarModalPersonalizado()" style="height:30px;padding:0 12px;font-size:11px">Buscar</button>
+      </span>
+      <span class="mx-cap-per">O período vale para as três colunas abaixo</span>
     </div>
-    <div id="modal-tab-anotacoes" class="modal-tab-content">
-      <div id="anotacoes-container"></div>
-    </div>
+    <div id="modal-body"></div>
   </div>
 </div>
 
@@ -761,6 +801,7 @@ const safeN   = v => (v == null || isNaN(v) || !isFinite(v)) ? 0 : v;
 // ── UTILS ──────────────────────────────────────────────────────────────────
 const r = (v,d=0) => Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const brl = v => 'R$ ' + r(v,0);
+const pct1 = v => (Number(v||0)*100).toFixed(1).replace('.',',') + '%';
 const brl2 = v => 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const pct = (v,d=2) => (Number(v||0)*100).toFixed(d)+'%';
 const mono = v => `<span class="mono">${v}</span>`;
@@ -1248,6 +1289,7 @@ async function buscarPeriodo(conta) {
     if(resRaw.ok){const d=await resRaw.json();rawDB[conta]=d.produtos||{};}
     renderKPIs(conta, data.kpis, prevDB[conta]?.kpis);
     renderTable(conta, data.produtos);
+    carregarPosicoes(conta);
   } catch(e){
     document.getElementById(`tbl-${conta}`).innerHTML='<div class="empty"><div class="empty-icon">⚡</div><div class="empty-text">Erro ao carregar dados</div></div>';
     renderKPIs(conta,null,null);
@@ -1383,10 +1425,36 @@ function renderKPIs(conta, k, kp) {
 // ── TABLE ─────────────────────────────────────────────────────────────────
 let sortCol='receita', sortDir=-1;
 
+const _posCache = {};
 function getPosicao(mlb) {
+  if (_posCache[mlb]) return _posCache[mlb];
   try { return JSON.parse(localStorage.getItem(`pos_${mlb}`)||'{}'); } catch{ return {}; }
 }
-
+function atualizarBadgesPosicao() {
+  document.querySelectorAll('tr[onclick^="openModal("]').forEach(tr => {
+    const m = /openModal\('([^']+)'/.exec(tr.getAttribute('onclick')); const td = tr.lastElementChild;
+    if (m && td) td.innerHTML = renderPosBadge(m[1]);
+  });
+}
+async function carregarPosicoes(conta) {
+  if (window['_pos_'+conta]) return; window['_pos_'+conta] = true;
+  {
+    try {
+      const d = await (await fetch(`${API}/posicoes/${conta}`)).json();
+      Object.assign(_posCache, d.posicoes || {});
+      // migração única: posições antigas só no navegador sobem para o servidor
+      for (const p of (db[conta]?.produtos || [])) {
+        if (_posCache[p.mlb]) continue;
+        let loc = {}; try { loc = JSON.parse(localStorage.getItem(`pos_${p.mlb}`)||'{}'); } catch {}
+        if (loc.posicao) {
+          const r = await fetch(`${API}/posicoes/${conta}/${p.mlb}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(loc)});
+          if (r.ok) _posCache[p.mlb] = (await r.json()).posicao;
+        }
+      }
+    } catch(e) {}
+  }
+  atualizarBadgesPosicao();
+}
 function renderPosBadge(mlb) {
   const p = getPosicao(mlb);
   if(!p.posicao) return `<span class="pos-badge none">— sem dados</span>`;
@@ -1538,6 +1606,8 @@ function agregarPeriodoLocal(prod, de, ate) {
 function setModalPreset(dias, btn) {
   document.querySelectorAll('.modal-preset').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  const datas = document.getElementById('modal-datas');
+  if (datas) datas.style.display = dias === 0 ? 'inline-flex' : 'none';
   if (dias === 0) return; // personalizado — mantém datas para o usuário editar
   // Período fechado: ate = ontem em BRT (não inclui o dia atual)
   const agoraBRT = new Date(new Date().toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
@@ -1579,21 +1649,15 @@ function _setModalPresetActive(de, ate) {
 
 function openModal(mlb, conta) {
   _modalMlb = mlb; _modalConta = conta;
-  // Reset abas — sempre começa em Dados
-  document.querySelectorAll('.modal-tab').forEach((b,i) => b.classList.toggle('active', i===0));
-  document.querySelectorAll('.modal-tab-content').forEach((c,i) => c.classList.toggle('active', i===0));
-  // Limpa container de anotações para evitar mostrar dados do MLB anterior
-  const ac = document.getElementById('anotacoes-container');
-  if (ac) ac.innerHTML = '';
   const data = db[conta]; if (!data) return;
   const p = data.produtos.find(x => x.mlb === mlb); if (!p) return;
 
   document.getElementById('m-title').textContent = p.titulo || mlb;
   document.getElementById('m-mlb').textContent = mlb;
-  document.getElementById('m-sku').textContent = p.sku || '';
+  document.getElementById('m-sku').textContent = p.sku || 'Sem SKU';
 
-  // Sempre abre com 30d
-  setModalPreset(30, document.getElementById('mpb-30'));
+  // Sempre abre com 7D (o sync do período atualiza o modal em seguida)
+  setModalPreset(7, document.getElementById('mpb-7'));
 
   // Botão sync lê datas do modal no momento do clique
   const btnSync = document.getElementById('btn-sync-produto');
@@ -1612,7 +1676,7 @@ function renderModalContent(mlb, conta) {
   const ate = document.getElementById('modal-ate')?.value || '';
   const dbProd = db[conta]?.produtos?.find(x => x.mlb === mlb);
   if (!dbProd) return;
-  const c = dbProd.custos, pos = getPosicao(mlb);
+  const c = dbProd.custos || {};
 
   // Sincroniza estado do botão arquivar
   const btnArqMC = document.getElementById('btn-arq-produto');
@@ -1623,296 +1687,135 @@ function renderModalContent(mlb, conta) {
     btnArqMC.style.color = isArq ? 'var(--muted2)' : 'var(--gold)';
   }
 
-  // per vem sempre de dbProd.periodo — atualizado pelo sync antes desta chamada
-  const per = dbProd.periodo;
+  const per  = dbProd.periodo || {};
   const prev = dbProd.anterior || {};
   _modalPer = per;
 
-  // Datas fixas do bloco ADS 30D (sempre últimos 30 dias, independente do período selecionado)
-  const hoje30 = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Sao_Paulo"}));
-  const ontem30 = new Date(hoje30-86400000);
-  const ate30 = ontem30.toISOString().split('T')[0];
-  const de30  = new Date(ontem30-29*86400000).toISOString().split('T')[0];
+  // ── Faixa fixa: média por unidade dos últimos 30 dias fechados (não depende do seletor) ──
+  const agoraBRT = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Sao_Paulo"}));
+  const ontem = new Date(agoraBRT - 86400000);
+  const ate30 = ontem.toISOString().split('T')[0];
+  const de30  = new Date(ontem - 29*86400000).toISOString().split('T')[0];
+  const a30   = agregarPeriodoLocal(rawDB[conta]?.[mlb], de30, ate30) || {};
+  const un30  = a30.unidades || 0;
+  const u = v => un30 > 0 ? brl2(v / un30) : '—';
+  document.getElementById('mx-strip').innerHTML = [
+    ['CMV', u(a30.cmv_total)], ['Imposto', u(a30.imposto_total)], ['Comissão', u(a30.comissao_total)],
+    ['Frete', u(a30.frete_total)], ['TACOS', a30.receita > 0 ? pct1(a30.ads_total / a30.receita) : '—'],
+    ['Receita por unidade', u(a30.receita)]
+  ].map(([l, v]) => `<div class="mx-kpi"><div class="mx-kpi-l">${l}</div><div class="mx-kpi-v">${v}</div></div>`).join('');
 
-  // Se período é 30d, salva como referência fixa
-  const diasModal30 = Math.round((new Date(ate)-new Date(de))/86400000)+1;
-  if(diasModal30 === 30) {
-    dbProd._per30d = per;
-  }
-  const per30 = dbProd._per30d || per;
-  // Se per30 não tem dados ADS reais, usa per (evita exibir zeros enquanto _per30d não foi gravado)
-  const per30ads = (per30.ads_total > 0) ? per30 : per;
+  // ── Comparação com o período anterior (setas, percentual e dado anterior no tooltip) ──
+  const diasPer = de && ate ? Math.round((new Date(ate)-new Date(de))/86400000)+1 : 0;
+  const prevAte = de ? new Date(new Date(de)-86400000).toISOString().split('T')[0] : '';
+  const prevDe  = prevAte && diasPer ? new Date(new Date(prevAte)-(diasPer-1)*86400000).toISOString().split('T')[0] : '';
+  const dmy = x => x ? x.split('-').reverse().join('/') : '';
+  const cmp = (atual, anterior, fmt, inverso=false, neutro=false) => {
+    const tip = `Período anterior (${dmy(prevDe)} a ${dmy(prevAte)}): ${fmt(anterior||0)}`;
+    if (!anterior || anterior === 0 || atual == null) return '';
+    const diff = atual - anterior;
+    if (Math.abs(diff) < 0.0001) return '';
+    const subiu = diff > 0, bom = inverso ? !subiu : subiu;
+    const cls = neutro ? 'kpi-badge-neu' : (bom ? 'kpi-badge-up' : 'kpi-badge-dn');
+    return `<span class="kpi-badge-var ${cls}" data-tip="${tip}">${subiu?'▲':'▼'}${Math.abs(diff/anterior*100).toFixed(1).replace('.',',')}%</span>`;
+  };
+  const rowv = (lbl, valTxt, badgeHtml) =>
+    `<div class="mx-row"><span class="mx-lbl">${lbl}</span><span class="mx-val">${valTxt}${badgeHtml||''}</span></div>`;
 
-  // Período anterior para tooltips dos badges
-  const modalDe  = document.getElementById('modal-de')?.value || '';
-  const modalAte = document.getElementById('modal-ate')?.value || '';
-  const diasModal = modalDe && modalAte ? Math.round((new Date(modalAte)-new Date(modalDe))/86400000)+1 : 0;
-  const prevAte  = modalDe ? new Date(new Date(modalDe)-86400000).toISOString().split('T')[0] : '';
-  const prevDe   = prevAte && diasModal ? new Date(new Date(prevAte)-(diasModal-1)*86400000).toISOString().split('T')[0] : '';
-  const tooltipPrev = prevDe && prevAte ? `Comparado com: ${prevDe} a ${prevAte}` : '';
+  const conv = per.conversao > 0 ? per.conversao : (per.visitas > 0 ? per.qtd_vendas / per.visitas : 0);
+  const convP = prev.conversao > 0 ? prev.conversao : (prev.visitas > 0 ? prev.qtd_vendas / prev.visitas : 0);
+  const pos = getPosicao(mlb);
+  const posTxt = pos.posicao ? `p${pos.pagina||1} #${pos.posicao}` : 'Sem registro';
 
-  // Helpers
-  const pR=v=>per.receita>0?((v/per.receita)*100).toFixed(1)+'%':'—';
-  const clr=v=>v<0?'var(--red)':v===0?'var(--muted2)':'var(--green)';
-  const precoUnit=per.unidades>0?per.receita/per.unidades:0;
-
-  // Evolução semanal
-  const weeks=calcWeeks(rawDB[conta]?.[mlb], de, ate);
-  const weekRows=weeks.length?weeks.map(w=>`<tr>
-    <td>${w.label}</td>
-    <td>${brl(w.receita)}</td>
-    <td>${brl(w.ads)}</td>
-    <td style="color:${w.tacos>0.10?'var(--red)':w.tacos>0.06?'var(--gold)':'var(--green)'}">${(w.tacos*100).toFixed(2)}%</td>
-    <td style="color:${clr(w.margem)}">${brl(w.margem)}</td>
-    <td>${w.unidades}</td></tr>`).join('')
-    :'<tr><td colspan="6" style="text-align:center;color:var(--muted2);padding:16px">Sincronize para ver evolução semanal</td></tr>';
-
-  // ── helpers de cor ─────────────────────────────────────────────────────────
-  const tacosClr = t => t>0.10?'var(--red)':t>0.06?'var(--gold)':'var(--green)';
-  // CPC: prefere cpc_medio do backend (_ads_), fallback para cálculo local
-  const cpcCalc  = (per.cpc_medio||0) > 0 ? per.cpc_medio : (per.cliques>0 ? per.ads_total/per.cliques : 0);
-  // CTR: prefere ctr do backend (_ads_) em decimal, converte para %; fallback local
-  const ctrCalc  = (per.ctr||0) > 0 ? per.ctr : (per.impressoes>0 ? per.cliques/per.impressoes*100 : 0);
-  const vendDireta = per.vendas_publi||0;
-  const vendIndir  = per.vendas_indiretas||0;
-  const vendComAds = per.vendas_com_ads||(vendDireta+vendIndir);
-  const vendSemAds = per.vendas_sem_publi||0;
-  // Conversão: usa campo já calculado no backend; fallback para cálculo local
-  const convTxt  = per.conversao>0 ? (per.conversao*100).toFixed(2)+'%'
-                 : per.visitas>0   ? ((per.qtd_vendas/per.visitas)*100).toFixed(2)+'%' : '—';
-  const compUnicos = per.compradores_unicos||0;
-  const recPaga    = per.receita_paga||0;
-  // receita_publi_direta: backend não expõe separado — usa receita_publi como proxy
-  const recPubliDireta = per.receita_publi_direta||per.receita_publi||0;
-
-  document.getElementById('modal-body').innerHTML = `
-
-    <!-- ═══════════════════════════════════════════════════════════════
-         SEÇÃO 1 — DESEMPENHO DO ANÚNCIO
-         Equivale a: ML > Anúncios > Métricas > rendimiento-item
-    ═══════════════════════════════════════════════════════════════ -->
-    <div class="section-title">Posicionamento no Mercado Livre</div>
-    <div class="pos-section">
-      <div style="font-size:12px;color:var(--muted2);margin-bottom:12px">Registre a posição do anúncio na busca. Ex: posição 3 na página 1 = primeiros resultados.</div>
-      <div class="pos-input-row">
-        <span style="color:var(--muted2);font-size:12px;white-space:nowrap">Página</span>
-        <input type="number" id="pos-pag" value="${pos.pagina||1}" min="1" max="99" style="width:70px"/>
-        <span style="color:var(--muted2);font-size:12px;white-space:nowrap">Posição</span>
-        <input type="number" id="pos-num" value="${pos.posicao||''}" min="1" max="99" placeholder="Ex: 3"/>
-        <input type="text" id="pos-kw" value="${pos.keyword||''}" placeholder="Palavra-chave buscada" style="flex:2"/>
-        <button class="btn-sm" onclick="salvarPosicao('${mlb}','${conta}')">Salvar</button>
-      </div>
-      ${pos.historico?.length?`<div class="pos-history">${pos.historico.slice(-6).map(h=>`<div class="pos-entry"><span class="pos-date">${h.data}</span><span class="pos-badge ${h.pagina===1&&h.posicao<=5?'top':h.pagina===1?'mid':'low'}">p${h.pagina} #${h.posicao}</span><span style="color:var(--muted2)">${h.keyword||''}</span></div>`).join('')}</div>`:''}
+  const colAds = `<div class="mx-col"><div class="mx-col-t">Dados de ADS</div>
+    ${rowv('ACOS', pct1(per.acos), cmp(per.acos, prev.acos, pct1, true))}
+    ${rowv('TACOS', pct1(per.tacos), cmp(per.tacos, prev.tacos, pct1, true))}
+    ${rowv('Venda ADS', brl2(per.receita_publi), cmp(per.receita_publi, prev.receita_publi, brl2))}
+    ${rowv('Investimento', brl2(per.ads_total), cmp(per.ads_total, prev.ads_total, brl2, false, true))}
+  </div>`;
+  const colVendas = `<div class="mx-col"><div class="mx-col-t">Dados de vendas</div>
+    ${rowv('Unidades', r(per.unidades), cmp(per.unidades, prev.unidades, v=>r(v)))}
+    ${rowv('Visitas únicas', r(per.visitas), cmp(per.visitas, prev.visitas, v=>r(v)))}
+    ${rowv('Vendas (R$)', brl2(per.receita), cmp(per.receita, prev.receita, brl2))}
+    ${rowv('Conversão', pct1(conv), cmp(conv, convP, pct1))}
+    ${rowv('Posição do anúncio', `<span id="pos-txt">${posTxt}</span>`, '')}
+    <div class="mx-pos">
+      <input type="number" id="pos-pag" value="${pos.pagina||1}" min="1" max="99" style="width:42px" title="Página"/>
+      <input type="number" id="pos-num" value="${pos.posicao||''}" min="1" max="99" style="width:52px" placeholder="Posição" title="Posição"/>
+      <input type="text" id="pos-kw" value="${(pos.keyword||'').replace(/"/g,'&quot;')}" placeholder="Palavra-chave" style="flex:1;min-width:0"/>
+      <button class="btn-sm" onclick="salvarPosicao('${mlb}','${conta}')">Salvar</button>
     </div>
+  </div>`;
 
-    <div class="ml-section">
-      <div class="ml-section-header">
-        <span class="ml-section-title">Desempenho do Anúncio</span>
-        <span class="ml-section-badge">${de} → ${ate}</span>
-      </div>
-      <div class="ml-metrics-grid">
-        <div class="ml-metrics-row cols-3">
-          <div class="ml-metric">
-            <div class="ml-metric-lbl">Visitas Únicas</div>
-            <div class="ml-metric-val">${r(per.visitas)}${badge(per.visitas,prev.visitas,false,tooltipPrev)}</div>
-            <div class="ml-metric-sub">/items/{id}/visits → total_visits</div>
-          </div>
-          <div class="ml-metric">
-            <div class="ml-metric-lbl">Unidades Vendidas</div>
-            <div class="ml-metric-val">${r(per.unidades)}${badge(per.unidades,prev.unidades,false,tooltipPrev)}</div>
-            <div class="ml-metric-sub">${r(per.unidades_dia?.toFixed(1)||0)} un/dia · ${per.dias_periodo}d</div>
-          </div>
-          <div class="ml-metric">
-            <div class="ml-metric-lbl">Conversão</div>
-            <div class="ml-metric-val" style="color:var(--gold)">${convTxt}${badge(per.conversao,prev.conversao,false,tooltipPrev)}</div>
-            <div class="ml-metric-sub">pedidos / visitas</div>
-          </div>
-        </div>
-        <div class="ml-metrics-row cols-4">
-          <div class="ml-metric">
-            <div class="ml-metric-lbl">Vendas Brutas</div>
-            <div class="ml-metric-val" style="color:var(--blue)">${brl2(per.receita)}${badge(per.receita,prev.receita,false,tooltipPrev)}</div>
-            <div class="ml-metric-sub">todos os pedidos iniciados</div>
-          </div>
-          <div class="ml-metric">
-            <div class="ml-metric-lbl">Vendas Concluídas</div>
-            <div class="ml-metric-val" style="color:var(--green)">${brl2(per.receita_paga)}${badge(per.receita_paga,prev.receita_paga,false,tooltipPrev)}</div>
-            <div class="ml-metric-sub">pago / entregue / enviado</div>
-          </div>
-          <div class="ml-metric">
-            <div class="ml-metric-lbl">Qtd Vendas Brutas</div>
-            <div class="ml-metric-val">${r(per.qtd_vendas)}${badge(per.qtd_vendas,prev.qtd_vendas,false,tooltipPrev)}</div>
-            <div class="ml-metric-sub">pedidos não cancelados</div>
-          </div>
-          <div class="ml-metric">
-            <div class="ml-metric-lbl">Preço Médio/Unidade</div>
-            <div class="ml-metric-val">${brl2(per.unidades>0?per.receita/per.unidades:0)}</div>
-            <div class="ml-metric-sub">receita / unidades</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════════════════
-         SEÇÃO 2A — ADS DASHBOARD 30D FIXO
-    ═══════════════════════════════════════════════════════════════ -->
-    <div class="ml-section">
-      <div class="ml-section-header">
-        <span class="ml-section-title">ADS DASHBOARD — 30 DIAS FIXO</span>
-        <span class="ml-section-badge">${de30} → ${ate30}</span>
-      </div>
-      <div class="ml-ads-kpi-row">
-        <div class="ml-ads-kpi"><div class="ml-ads-kpi-lbl">TACOS</div><div class="ml-ads-kpi-val" style="color:${tacosClr(per30ads.tacos)}">${per30ads.tacos>0?(per30ads.tacos*100).toFixed(2)+'%':'—'}</div><div class="ml-ads-kpi-sub">custo / receita bruta</div></div>
-        <div class="ml-ads-kpi"><div class="ml-ads-kpi-lbl">ACOS</div><div class="ml-ads-kpi-val">${per30ads.acos>0?(per30ads.acos*100).toFixed(2)+'%':'—'}</div><div class="ml-ads-kpi-sub">custo / receita ADS</div></div>
-        <div class="ml-ads-kpi"><div class="ml-ads-kpi-lbl">ROAS</div><div class="ml-ads-kpi-val" style="color:var(--green)">${per30ads.roas>0?per30ads.roas.toFixed(2)+'×':'—'}</div><div class="ml-ads-kpi-sub">receita ADS / custo</div></div>
-        <div class="ml-ads-kpi"><div class="ml-ads-kpi-lbl">INVESTIMENTO ADS</div><div class="ml-ads-kpi-val" style="color:var(--purple)">${brl2(per30ads.ads_total)}</div><div class="ml-ads-kpi-sub">R$ ${safeDiv(per30ads.ads_total,30).toFixed(2)}/dia</div></div>
-        <div class="ml-ads-kpi"><div class="ml-ads-kpi-lbl">RECEITA ADS</div><div class="ml-ads-kpi-val">${brl2(per30ads.receita_publi)}</div><div class="ml-ads-kpi-sub">amount_total da campanha</div></div>
-        <div class="ml-ads-kpi"><div class="ml-ads-kpi-lbl">ROAS OBJETIVO</div><div class="ml-ads-kpi-val" style="color:var(--gold)">${per30ads.roas_target>0?per30ads.roas_target.toFixed(2)+'×':'—'}</div><div class="ml-ads-kpi-sub">meta da campanha ADS</div></div>
-      </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════════════════
-         SEÇÃO 2 — ADS DASHBOARD
-         Equivale a: ML > Publicidade > Product Ads > Campanhas
-    ═══════════════════════════════════════════════════════════════ -->
-    <div class="ml-section">
-      <div class="ml-section-header">
-        <span class="ml-section-title">ADS DASHBOARD — PRODUCT ADS · ${de} → ${ate}</span>
-      </div>
-      <div class="ml-metrics-grid">
-        ${(dbProd.catalog_listing && (dbProd.variacoes_count || 0) >= 3) ? `
-        <div style="margin-bottom:12px;padding:10px 14px;background:rgba(246,201,14,0.06);border:1px solid rgba(246,201,14,0.25);border-radius:8px;display:flex;align-items:flex-start;gap:10px;">
-          <span style="font-size:14px;flex-shrink:0">⚠️</span>
-          <span style="font-size:11px;color:var(--muted2);line-height:1.5">
-            <strong style="color:var(--gold)">Campanha ADS compartilhada</strong><br>
-            Este produto faz parte de um catálogo com múltiplas variações. Os dados de ADS exibidos correspondem à campanha inteira —
-            consulte o painel de <strong>Product Ads</strong> no Seller Center para ver o desempenho por variação individualmente.
-          </span>
-        </div>` : ''}
-        <!-- KPIs principais ADS -->
-        <div class="ml-ads-kpi-row">
-          <div class="ml-ads-kpi">
-            <div class="ml-ads-kpi-lbl">TACOS</div>
-            <div class="ml-ads-kpi-val" style="color:${tacosClr(per.tacos)}">${per.tacos>0?(per.tacos*100).toFixed(2)+'%':'—'}${badge(per.tacos, prev.tacos, true, tooltipPrev)}</div>
-            <div class="ml-ads-kpi-sub">custo / receita bruta</div>
-          </div>
-          <div class="ml-ads-kpi">
-            <div class="ml-ads-kpi-lbl">ACOS</div>
-            <div class="ml-ads-kpi-val">${per.acos>0?(per.acos*100).toFixed(2)+'%':'—'}${badge(per.acos, prev.acos, true, tooltipPrev)}</div>
-            <div class="ml-ads-kpi-sub">custo / receita ADS</div>
-          </div>
-          <div class="ml-ads-kpi">
-            <div class="ml-ads-kpi-lbl">ROAS</div>
-            <div class="ml-ads-kpi-val" style="color:var(--green)">${per.roas>0?per.roas.toFixed(2)+'×':'—'}${badge(per.roas, prev.roas, false, tooltipPrev)}</div>
-            <div class="ml-ads-kpi-sub">receita ADS / custo</div>
-          </div>
-          <div class="ml-ads-kpi">
-            <div class="ml-ads-kpi-lbl">Investimento ADS</div>
-            <div class="ml-ads-kpi-val" style="color:var(--purple)">${brl2(per.ads_total)}${badge(per.ads_total, prev.ads_total, true, tooltipPrev)}</div>
-            <div class="ml-ads-kpi-sub">R$ ${safeDiv(per.ads_total,(per.dias_periodo||1)).toFixed(2)}/dia</div>
-          </div>
-          <div class="ml-ads-kpi">
-            <div class="ml-ads-kpi-lbl">Receita ADS</div>
-            <div class="ml-ads-kpi-val">${brl2(per.receita_publi)}${badge(per.receita_publi, prev.receita_publi, false, tooltipPrev)}</div>
-            <div class="ml-ads-kpi-sub">amount_total da campanha</div>
-          </div>
-          <div class="ml-ads-kpi">
-            <div class="ml-ads-kpi-lbl">ROAS Objetivo</div>
-            <div class="ml-ads-kpi-val" style="color:var(--gold)">${per.roas_target>0?per.roas_target.toFixed(2)+'×':'—'}</div>
-            <div class="ml-ads-kpi-sub">meta da campanha ADS</div>
-          </div>
-        </div>
-        <!-- Vendas com/sem ADS + métricas de clique -->
-        <div class="ml-metrics-row cols-4">
-          <div class="ml-metric">
-            <div class="ml-metric-lbl">Vendas c/ Product Ads</div>
-            <div class="ml-metric-val" style="color:var(--green)">${r(vendComAds)}${badge(vendComAds, prev.vendas_com_ads||0, false, tooltipPrev)}</div>
-            <div class="ml-metric-sub">dir. ${r(vendDireta)} + ind. ${r(vendIndir)}</div>
-          </div>
-          <div class="ml-metric">
-            <div class="ml-metric-lbl">Vendas Sem Product Ads</div>
-            <div class="ml-metric-val">${r(vendSemAds)}${badge(vendSemAds, prev.vendas_sem_publi||0, false, tooltipPrev)}</div>
-            <div class="ml-metric-sub">orgânicas</div>
-          </div>
-          <div class="ml-metric">
-            <div class="ml-metric-lbl">Cliques</div>
-            <div class="ml-metric-val">${r(per.cliques)}${badge(per.cliques, prev.cliques, false, tooltipPrev)}</div>
-            <div class="ml-metric-sub">CPC ${brl2(cpcCalc)}</div>
-          </div>
-          <div class="ml-metric">
-            <div class="ml-metric-lbl">Impressões</div>
-            <div class="ml-metric-val">${r(per.impressoes)}${badge(per.impressoes, prev.impressoes, false, tooltipPrev)}</div>
-            <div class="ml-metric-sub">CTR ${ctrCalc.toFixed(2)}%</div>
-          </div>
-        </div>
-        <!-- Evolução semanal (proxy de diária) -->
-        <div style="padding:16px;background:var(--bg2)">
-          <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Evolução Semanal — distribuição proporcional à receita</div>
-          <table class="week-tbl">
-            <thead><tr><th>Semana</th><th>Receita</th><th>ADS</th><th>TACOS</th><th>Margem</th><th>Un.</th></tr></thead>
-            <tbody>${weekRows}</tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════════════════
-         DECOMPOSIÇÃO DA MARGEM
-    ═══════════════════════════════════════════════════════════════ -->
-    <div class="section-title">Decomposição da Margem</div>
-    <div style="display:grid;grid-template-columns:1fr 230px;gap:20px;margin-bottom:20px">
-      <div>
-        <div class="calc-line"><span class="calc-op"></span><span class="calc-lab">Receita bruta</span><span class="calc-val">${brl(per.receita)}</span></div>
-        <div class="calc-line"><span class="calc-op">−</span><span class="calc-lab">CMV<span class="calc-pct">${pR(per.cmv_total)}</span></span><span class="calc-val">${brl(per.cmv_total)}</span></div>
-        <div class="calc-line"><span class="calc-op">−</span><span class="calc-lab">Imposto ${(c.imposto_pct*100).toFixed(0)}%<span class="calc-pct">${pR(per.imposto_total)}</span></span><span class="calc-val">${brl(per.imposto_total)}</span></div>
-        <div class="calc-line"><span class="calc-op">−</span><span class="calc-lab">Comissão ML ${(c.comissao_pct*100).toFixed(0)}%<span class="calc-pct">${pR(per.comissao_total)}</span></span><span class="calc-val">${brl(per.comissao_total)}</span></div>
-        <div class="calc-line"><span class="calc-op">−</span><span class="calc-lab">Frete<span class="calc-pct">${pR(per.frete_total)}</span></span><span class="calc-val">${brl(per.frete_total)}</span></div>
-        <div class="calc-line"><span class="calc-op">+</span><span class="calc-lab">Rebot ${per.rebot_unit > 0 ? `<small class="pct-badge" style="background:rgba(0,184,148,0.15);color:var(--green)">${brl2(per.rebot_unit)}/un · ${per.rebot_inicio} → ${per.rebot_fim}</small>` : ''}</span><span class="calc-val" style="color:${per.rebot_total>0?'var(--green)':'inherit'}">${brl2(per.rebot_total||0)}</span></div>
-        <div class="calc-line"><span class="calc-op">−</span><span class="calc-lab">ADS<span class="calc-pct">${pR(per.ads_total)}</span></span><span class="calc-val">${brl(per.ads_total)}</span></div>
-        <div class="calc-line calc-total"><span class="calc-op">=</span><span class="calc-lab">Margem Líquida</span><span class="calc-val ${per.margem_total<0?'neg':'pos'}">${brl(per.margem_total)} <small style="font-size:10px;opacity:.7">(${(per.margem_pct*100).toFixed(2)}%)</small></span></div>
-      </div>
-      <div style="padding-top:4px">
-        <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">% sobre receita</div>
-        ${cBar('CMV',per.cmv_total,per.receita,'var(--red)')}
-        ${cBar('Imposto',per.imposto_total,per.receita,'var(--orange)')}
-        ${cBar('Comissão',per.comissao_total,per.receita,'var(--purple)')}
-        ${cBar('Frete',per.frete_total,per.receita,'var(--blue)')}
-        ${per.rebot_total > 0 ? cBar('Rebot',per.rebot_total,per.receita,'var(--green)') : ''}
-        ${cBar('ADS',per.ads_total,per.receita,'var(--gold)')}
-      </div>
-    </div>
-
-    <div class="section-title">Simulador de Cenário</div>
-    <div id="sim-real" style="font-size:12px;color:var(--muted2);margin-bottom:10px;line-height:1.5;">Buscando custos reais no ML…</div>
-    <div class="sim-grid">${(()=>{const sim=c.simulador||{};return`
-      <div class="sim-field"><label>Preço unit (R$)</label><input type="number" id="s-preco" value="${(sim.preco??precoUnit).toFixed(2)}" step="0.01" oninput="simEdit('${mlb}','${conta}',this)"/></div>
-      <div class="sim-field"><label>CMV unit (R$)</label><input type="number" id="s-cmv" value="${sim.cmv_unit??(c.cmv_unit||0)}" step="0.01" oninput="simEdit('${mlb}','${conta}',this)"/></div>
-      <div class="sim-field"><label>Frete unit (R$)</label><input type="number" id="s-frete" value="${((sim.frete_unit??(c.frete_unit||0))).toFixed(2)}" step="0.01" placeholder="0.00" oninput="simEdit('${mlb}','${conta}',this)"/></div>
-      <div class="sim-field"><label>Rebot (R$/un)</label><input type="number" id="s-rebot" value="${((sim.rebot_unit??(per.rebot_unit||c.rebot_unit||0))).toFixed(2)}" step="0.01" placeholder="0.00" oninput="simEdit('${mlb}','${conta}',this)"/></div>
-      <div class="sim-field"><label>Comissão ML (%)</label><input type="number" id="s-com" value="${(((sim.comissao_pct??(c.comissao_pct||0.11))*100)).toFixed(2)}" step="0.01" placeholder="Ex: 11" oninput="simEdit('${mlb}','${conta}',this)"/></div>
-      <div class="sim-field"><label>Imposto (%)</label><input type="number" id="s-imp" value="${(((sim.imposto_pct??(c.imposto_pct||0.10))*100)).toFixed(2)}" step="0.01" placeholder="Ex: 10" oninput="simEdit('${mlb}','${conta}',this)"/></div>
-      <div class="sim-field"><label>TACOS (%)</label><input type="number" id="s-tacos" value="${((sim.tacos??(per.tacos>0?per.tacos:0))*100).toFixed(2)}" step="0.01" placeholder="Ex: 5" oninput="simEdit('${mlb}','${conta}',this)"/></div>
+  // ── Simulação do cenário (campos compactos; ids preservados para calcSim/custos reais) ──
+  const sim = c.simulador || {};
+  const precoUnit = per.unidades > 0 ? per.receita / per.unidades : 0;
+  const fld = (lbl, id, val, step, ph='') =>
+    `<div class="sim-field"><label>${lbl}</label><input type="number" id="${id}" value="${val}" step="${step}" ${ph?`placeholder="${ph}"`:''} oninput="simEdit('${mlb}','${conta}',this)"/></div>`;
+  const colSim = `<div class="mx-col mx-sim"><div class="mx-col-t">Simulação do cenário</div>
+    <div class="sim-grid">
+      ${fld('Preço simulado (R$)','s-preco',(sim.preco??precoUnit).toFixed(2),'0.01')}
+      ${fld('CMV (R$)','s-cmv',(sim.cmv_unit??(c.cmv_unit||0)).toFixed(2),'0.01')}
+      ${fld('Imposto (%)','s-imp',((sim.imposto_pct??(c.imposto_pct||0.10))*100).toFixed(2),'0.01')}
+      ${fld('Comissão (%)','s-com',((sim.comissao_pct??(c.comissao_pct||0.11))*100).toFixed(2),'0.01')}
+      ${fld('Taxas (R$)','s-taxas',(sim.taxas??0).toFixed(2),'0.01','0,00')}
+      ${fld('Frete (R$)','s-frete',(sim.frete_unit??(c.frete_unit||0)).toFixed(2),'0.01','0,00')}
+      ${fld('TACOS (%)','s-tacos',((sim.tacos??(per.tacos>0?per.tacos:0))*100).toFixed(2),'0.01')}
+      ${fld('Rebot (R$/un)','s-rebot',(sim.rebot_unit??(per.rebot_unit||c.rebot_unit||0)).toFixed(2),'0.01','0,00')}
       <div class="sim-field"><label>Rebot início</label><input type="date" id="s-rebot-ini" value="${sim.rebot_inicio??(per.rebot_inicio||'')}" oninput="simEdit('${mlb}','${conta}',this)"/></div>
       <div class="sim-field"><label>Rebot fim</label><input type="date" id="s-rebot-fim" value="${sim.rebot_fim??(per.rebot_fim||'')}" oninput="simEdit('${mlb}','${conta}',this)"/></div>
-    `})()}</div>
-    <div id="sim-out"></div>
+    </div>
+    <div id="sim-out" class="mx-sim-out"></div>
+    <div id="sim-real" class="mx-sim-info" style="margin-top:8px">Buscando custos reais no ML…</div>
+    <div class="mx-sim-act"><a onclick="usarMediasDoPeriodo('${mlb}','${conta}')">Usar médias do período selecionado</a></div>
+  </div>`;
 
-  `;
+  document.getElementById('modal-body').innerHTML = `
+    <div class="mx-cols">${colSim}${colAds}${colVendas}</div>
+    <div class="mx-foot">
+      <label for="cm-texto">Comentários</label>
+      <textarea id="cm-texto" rows="2" placeholder="Comentário sobre este anúncio"></textarea>
+      <div class="mx-foot-act">
+        <button class="btn-sm" onclick="salvarComentario('${mlb}','${conta}')">Salvar comentário</button>
+        <a onclick="alternarHistoricoComentarios()" id="cm-hist-link">Histórico</a>
+        <span id="cm-status"></span>
+      </div>
+      <div class="mx-hist" id="cm-hist" style="display:none"></div>
+    </div>`;
   calcSim(mlb, conta, false);
   carregarCustosML(mlb, conta);
+  carregarComentario(mlb, conta);
+}
 
+// Preenche o simulador com as médias do período selecionado (alternativa ao pré-preenchimento pela última venda)
+function usarMediasDoPeriodo(mlb, conta) {
+  const per = _modalPer || {};
+  const un = per.unidades || 0, rec = per.receita || 0;
+  if (!(un > 0 && rec > 0)) { toast('Sem vendas no período para calcular médias', 'error'); return; }
+  const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v; };
+  set('s-preco', (rec / un).toFixed(2));
+  set('s-cmv', ((per.cmv_total||0) / un).toFixed(2));
+  set('s-imp', ((per.imposto_total||0) / rec * 100).toFixed(2));
+  set('s-com', ((per.comissao_total||0) / rec * 100).toFixed(2));
+  set('s-taxas', '0.00');   // a comissão real do pedido já inclui a tarifa fixa
+  set('s-frete', ((per.frete_total||0) / un).toFixed(2));
+  set('s-tacos', ((per.tacos||0) * 100).toFixed(2));
+  const f = document.getElementById('s-frete'); if (f) f.dataset.manual = '1';
+  calcSim(mlb, conta, true);
 }
 
 function calcSim(mlb, conta, persistir=true) {
   const p=db[conta]?.produtos?.find(x=>x.mlb===mlb); if(!p) return;
-  const per = _modalPer || p.periodo;
-  const preco    = parseFloat(document.getElementById('s-preco')?.value)||0;
-  const cmv      = parseFloat(document.getElementById('s-cmv')?.value)||0;
-  const com      = (parseFloat(document.getElementById('s-com')?.value)||11)/100;
-  const imp      = (parseFloat(document.getElementById('s-imp')?.value)||10)/100;
-  const frete    = parseFloat(document.getElementById('s-frete')?.value)||0;
-  const tacos    = (parseFloat(document.getElementById('s-tacos')?.value)||0)/100;
-  const rebotUnit= parseFloat(document.getElementById('s-rebot')?.value)||0;
+  const per = _modalPer || p.periodo || {};
+  const num = (id, pad=0) => { const v=parseFloat(document.getElementById(id)?.value); return isNaN(v)?pad:v; };
+  const preco    = num('s-preco');
+  const cmv      = num('s-cmv');
+  const com      = num('s-com', 11)/100;
+  const imp      = num('s-imp', 10)/100;
+  const taxas    = num('s-taxas');
+  const frete    = num('s-frete');
+  const tacos    = num('s-tacos')/100;
+  const rebotUnit= num('s-rebot');
   const rebotIni = document.getElementById('s-rebot-ini')?.value||'';
   const rebotFim = document.getElementById('s-rebot-fim')?.value||'';
   const pDe  = document.getElementById('modal-de')?.value||'';
@@ -1930,36 +1833,21 @@ function calcSim(mlb, conta, persistir=true) {
     } catch(e){}
   }
 
-  // Fórmulas por unidade
-  const recSim  = preco;
-  const adsSim  = preco * tacos;
-  const impSim  = preco * imp;
-  const comSim  = preco * com;
-  const margSim = preco - cmv - impSim - comSim - frete - adsSim + rebotSim;
-  const mpSim   = recSim>0 ? margSim/recSim*100 : 0;
+  // resultado = preço − CMV − imposto − comissão − taxas − frete − ADS (TACOS) + rebot ; margem = resultado ÷ preço
+  const margSim = preco - cmv - preco*imp - preco*com - taxas - frete - preco*tacos + rebotSim;
+  const mpSim   = preco>0 ? margSim/preco : 0;
   const diff    = margSim - (per.margem_unit||0);
 
   const outEl=document.getElementById('sim-out'); if(!outEl) return;
-  outEl.innerHTML=`<div class="sim-result"><div class="sim-out">
-    <div class="sim-out-row"><span>Receita unit</span><span class="mono">${brl2(recSim)}</span></div>
-    <div class="sim-out-row"><span>(-) Imposto</span><span class="mono">${brl2(-impSim)} <small>(${(imp*100).toFixed(2)}%)</small></span></div>
-    <div class="sim-out-row"><span>(-) CMV</span><span class="mono">${brl2(-cmv)}</span></div>
-    <div class="sim-out-row"><span>(-) Frete</span><span class="mono">${brl2(-frete)}</span></div>
-    <div class="sim-out-row"><span>(-) Comissão ML</span><span class="mono">${brl2(-comSim)} <small>(${(com*100).toFixed(2)}%)</small></span></div>
-    <div class="sim-out-row"><span>(-) ADS (TACoS)</span><span class="mono">${brl2(-adsSim)} <small>(${(tacos*100).toFixed(2)}%)</small></span></div>
-    <div class="sim-out-row"><span>(+) Rebot</span><span class="mono" style="color:${rebotSim>0?'var(--green)':'inherit'}">${brl2(rebotSim)}</span></div>
-    <div class="sim-out-row" style="border-top:1px solid var(--border2);margin-top:4px;padding-top:8px;">
-      <span style="font-weight:600;">= Margem unit</span>
-      <span class="mono" style="font-weight:600;color:${margSim<0?'var(--red)':'var(--green)'}">${brl2(margSim)} <small>(${mpSim.toFixed(2)}%)</small></span>
-    </div>
-    ${(per.margem_unit||0)!==0?`<div class="sim-out-row"><span>Δ vs atual (1 un)</span><span class="mono ${diff>=0?'vb-up':'vb-dn'}">${diff>=0?'+':''}${brl2(diff)}</span></div>`:''}
-  </div></div>`;
+  outEl.innerHTML=`
+    <div class="mx-row"><span class="mx-lbl">Resultado unitário</span><span class="mx-val" style="color:${margSim<0?'var(--red)':'var(--green)'}">${brl2(margSim)}</span></div>
+    <div class="mx-row"><span class="mx-lbl">Margem simulada</span><span class="mx-val" style="color:${margSim<0?'var(--red)':'var(--green)'}">${pct1(mpSim)}</span></div>
+    ${(per.margem_unit||0)!==0?`<div class="mx-row"><span class="mx-lbl">Diferença vs. margem atual</span><span class="mx-val ${diff>=0?'vb-up':'vb-dn'}">${diff>=0?'+':''}${brl2(diff)}</span></div>`:''}`;
 
   if(!persistir) return;   // só grava quando o usuário altera algo
-  // Persiste estado do simulador no produtos.json
   const simPayload = {
     mlb,
-    simulador: {preco, cmv_unit:cmv, frete_unit:frete, comissao_pct:com,
+    simulador: {preco, cmv_unit:cmv, frete_unit:frete, comissao_pct:com, taxas,
                 imposto_pct:imp, tacos, rebot_unit:rebotUnit,
                 rebot_inicio:rebotIni, rebot_fim:rebotFim}
   };
@@ -2004,6 +1892,7 @@ function aplicarCustosReais(mlb, conta) {
   const set=(id,v)=>{const e=document.getElementById(id); if(e && v!=null) e.value=v;};
   set('s-preco', d.preco.toFixed(2));
   set('s-com', (d.comissao_pct*100).toFixed(2));
+  if(d.taxa_fixa!=null) set('s-taxas', Number(d.taxa_fixa).toFixed(2));
   if(d.frete!=null) set('s-frete', d.frete.toFixed(2));
   set('s-rebot', d.rebot_un.toFixed(2));
   const c=d.campanha_ativa;
@@ -2022,11 +1911,11 @@ function msgOportunidadeRebot(o) {
     ? `mesmo preço e líquido de hoje — preferir a campanha do ML à nossa`
     : `líquido <b style="color:var(--green)">+${brl2(o.ganho_un)}/un</b>`);
   partes.push(`${brl2(o.atual_preco)} → ${brl2(o.preco)} · rebot ${brl2(o.atual_rebot)} → ${brl2(o.rebot)}`);
-  if(o.delta_preco>0) partes.push(`<span style="color:var(--gold);">⚠ preço sobe ${brl2(o.delta_preco)} — checar buybox</span>`);
+  if(o.delta_preco>0) partes.push(`<span style="color:var(--gold);">atenção: preço sobe ${brl2(o.delta_preco)} — checar buybox</span>`);
   if(o.tipo==='LIGHTNING' && o.estoque) partes.push(`exige estoque ${o.estoque.min}–${o.estoque.max} un`);
   if(o.fim) partes.push(`até ${dt(o.fim)}`);
   return `<div style="border:1px solid var(--green);border-radius:8px;padding:8px 12px;margin-bottom:8px;color:var(--text);">
-    💡 <b>Rebot disponível:</b> «${o.nome}» <small>(${o.tipo})</small> em vez de «${o.atual_nome}»<br>${partes.join(' · ')}</div>`;
+    <b>Rebot disponível:</b> «${o.nome}» <small>(${o.tipo})</small> em vez de «${o.atual_nome}»<br>${partes.join(' · ')}</div>`;
 }
 
 async function carregarCustosML(mlb, conta) {
@@ -2053,113 +1942,67 @@ async function carregarCustosML(mlb, conta) {
   }
 }
 
-// ── ABAS DO MODAL ─────────────────────────────────────────────────────────────
-function switchModalTab(tab, btn) {
-  document.querySelectorAll('.modal-tab').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.modal-tab-content').forEach(c => c.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById(`modal-tab-${tab}`)?.classList.add('active');
-  if (tab === 'anotacoes') {
-    const ac = document.getElementById('anotacoes-container');
-    if (ac) ac.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:11px">Carregando...</div>';
-    renderAnotacoesTab(_modalMlb, _modalConta);
-  }
-}
-
-// ── ANOTAÇÕES ─────────────────────────────────────────────────────────────────
-async function renderAnotacoesTab(mlb, conta) {
-  mlb   = _modalMlb   || mlb;
-  conta = _modalConta || conta;
-
-  const container = document.getElementById('anotacoes-container');
-  if (!container) return;
-  const de  = document.getElementById('modal-de')?.value  || '';
-  const ate = document.getElementById('modal-ate')?.value || '';
-
-  container.innerHTML = '<div style="padding:8px 0 16px;color:var(--muted);font-size:11px">Carregando...</div>';
-
+// ── COMENTÁRIOS DO ANÚNCIO (por MLB; o histórico fica no servidor) ──────────────
+let _cmLista = [];
+async function carregarComentario(mlb, conta) {
+  const ta = document.getElementById('cm-texto'); if (!ta) return;
   try {
-    const res  = await fetch(`${API}/anotacoes/${conta}/${mlb}`);
+    const res = await fetch(`${API}/anotacoes/${conta}/${mlb}`);
     const data = await res.json();
-    const list = data.anotacoes || [];
-
-    container.innerHTML = `
-      <div style="margin-bottom:16px;">
-        <textarea class="anotacao-input" id="anotacao-input"
-          placeholder="Escreva uma anotação sobre este produto..."></textarea>
-        <button class="btn-anotacao" onclick="salvarAnotacao('${mlb}','${conta}')">
-          💾 Salvar Anotação
-        </button>
-      </div>
-      <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">
-        ${list.length} anotaç${list.length !== 1 ? 'ões' : 'ão'} registrada${list.length !== 1 ? 's' : ''}
-      </div>
-      ${list.length === 0 ? '<div style="font-size:12px;color:var(--muted);padding:16px 0;text-align:center">Nenhuma anotação ainda.</div>' : ''}
-      ${list.map(a => `
-        <div class="anotacao-item">
-          <button class="anotacao-del" onclick="deletarAnotacao('${mlb}','${conta}','${a.id}')" title="Excluir">✕</button>
-          <div class="anotacao-texto">${a.texto.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
-          <div class="anotacao-meta">📅 ${a.criado_em}</div>
-        </div>
-      `).join('')}
-    `;
-  } catch(e) {
-    container.innerHTML = '<div style="color:var(--red);font-size:12px">Erro ao carregar anotações.</div>';
-  }
+    if (_modalMlb !== mlb) return;
+    _cmLista = data.anotacoes || [];
+    ta.value = _cmLista[0]?.texto || '';
+    ta.dataset.orig = ta.value;
+    document.getElementById('cm-hist-link').textContent = `Histórico (${_cmLista.length})`;
+    desenharHistoricoComentarios(mlb, conta);
+  } catch(e) { document.getElementById('cm-status').textContent = 'Comentários indisponíveis'; }
 }
-
-async function salvarAnotacao(mlb, conta) {
-  mlb = _modalMlb || mlb; conta = _modalConta || conta;
-  const input = document.getElementById('anotacao-input');
-  const texto = input?.value?.trim();
-  if (!texto) { toast('Digite uma anotação antes de salvar', 'error'); return; }
-  try {
-    const res = await fetch(`${API}/anotacoes/${conta}/${mlb}`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({texto})
-    });
-    if (!res.ok) { toast('Erro ao salvar anotação', 'error'); return; }
-    input.value = '';
-    toast('✓ Anotação salva!');
-    renderAnotacoesTab(mlb, conta);
-  } catch(e) { toast('Erro de conexão', 'error'); }
+function desenharHistoricoComentarios(mlb, conta) {
+  const box = document.getElementById('cm-hist'); if (!box) return;
+  const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  box.innerHTML = _cmLista.map(a => `<div><span>${esc(a.texto)}</span><span class="sac-mut">${esc(a.criado_em)} <a onclick="deletarComentario('${mlb}','${conta}','${a.id}')">excluir</a></span></div>`).join('')
+    || '<div class="sac-mut">Sem comentários anteriores.</div>';
 }
-
-async function deletarAnotacao(mlb, conta, id) {
-  if (!confirm('Excluir esta anotação?')) return;
+function alternarHistoricoComentarios() {
+  const box = document.getElementById('cm-hist'); if (box) box.style.display = box.style.display === 'none' ? 'block' : 'none';
+}
+async function salvarComentario(mlb, conta) {
+  const ta = document.getElementById('cm-texto'); const texto = ta.value.trim();
+  if (!texto) { toast('Escreva o comentário', 'error'); return; }
+  if (texto === (ta.dataset.orig || '').trim()) { toast('Comentário sem alterações'); return; }
   try {
-    await fetch(`${API}/anotacoes/${conta}/${mlb}/${id}`, {method: 'DELETE'});
-    toast('Anotação excluída');
-    renderAnotacoesTab(mlb, conta);
-  } catch(e) { toast('Erro ao excluir', 'error'); }
+    const res = await fetch(`${API}/anotacoes/${conta}/${mlb}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({texto})});
+    if (!res.ok) throw new Error(res.status);
+    toast('Comentário salvo');
+    carregarComentario(mlb, conta);
+  } catch(e) { toast('Erro ao salvar o comentário', 'error'); }
+}
+async function deletarComentario(mlb, conta, id) {
+  await fetch(`${API}/anotacoes/${conta}/${mlb}/${id}`, {method:'DELETE'});
+  carregarComentario(mlb, conta);
 }
 
 function closeModal() {
   document.getElementById('modal-prod').classList.remove('open');
   _modalMlb = null; _modalConta = null;
-  // Volta sempre para a aba Dados ao fechar
-  document.querySelectorAll('.modal-tab').forEach((b,i) => b.classList.toggle('active', i===0));
-  document.querySelectorAll('.modal-tab-content').forEach((c,i) => c.classList.toggle('active', i===0));
 }
 document.getElementById('modal-prod').addEventListener('click', function(e){if(e.target===this)closeModal();});
 
+// ── POSIÇÃO DO ANÚNCIO (digitada pelo analista; salva no servidor) ─────────────
 function salvarPosicao(mlb, conta) {
   const pag = parseInt(document.getElementById('pos-pag').value)||1;
   const pos = parseInt(document.getElementById('pos-num').value)||0;
   const kw  = document.getElementById('pos-kw').value.trim();
   if(!pos){toast('Informe a posição','error');return;}
-  const key = `pos_${mlb}`;
-  const existing = (() => { try{return JSON.parse(localStorage.getItem(key)||'{}')} catch{return {}} })();
-  const hist = existing.historico||[];
-  hist.push({data:new Date().toLocaleDateString('pt-BR'),pagina:pag,posicao:pos,keyword:kw});
-  const novo = {pagina:pag,posicao:pos,keyword:kw,historico:hist.slice(-20)};
-  localStorage.setItem(key, JSON.stringify(novo));
-  toast(`✓ Posição salva: página ${pag}, #${pos}`);
-  // Atualiza badge na tabela
-  const badge = document.querySelector(`tr[onclick*="${mlb}"] td:last-child`);
-  if(badge) badge.innerHTML = renderPosBadge(mlb);
-  closeModal();
+  fetch(`${API}/posicoes/${conta}/${mlb}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({pagina:pag, posicao:pos, keyword:kw})})
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(d => {
+      _posCache[mlb] = d.posicao;
+      const t = document.getElementById('pos-txt'); if (t) t.textContent = `p${pag} #${pos}`;
+      atualizarBadgesPosicao();
+      toast(`Posição salva: página ${pag}, #${pos}`);
+    })
+    .catch(() => toast('Erro ao salvar a posição', 'error'));
 }
 
 // ── CONFIG ────────────────────────────────────────────────────────────────

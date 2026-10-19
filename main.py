@@ -733,6 +733,42 @@ def _save_anotacoes(db: dict):
         json.dump(db, f, indent=2, ensure_ascii=False)
 
 
+POSICOES_PATH = os.path.join(BASE_DIR, "posicoes.json")
+
+def _load_posicoes() -> dict:
+    try:
+        with open(POSICOES_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+@app.get("/posicoes/{conta}")
+async def listar_posicoes(conta: str):
+    """Posição de cada anúncio na busca do ML (digitada pelo analista), compartilhada entre usuários."""
+    return {"success": True, "posicoes": _load_posicoes().get(conta, {})}
+
+@app.post("/posicoes/{conta}/{mlb}")
+async def salvar_posicao_anuncio(conta: str, mlb: str, payload: dict):
+    from datetime import datetime as _dt
+    try:
+        pagina, posicao = int(payload.get("pagina") or 1), int(payload.get("posicao") or 0)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="pagina e posicao devem ser números")
+    if not (1 <= pagina <= 99 and 1 <= posicao <= 99):
+        raise HTTPException(status_code=400, detail="pagina e posicao devem estar entre 1 e 99")
+    db = _load_posicoes()
+    atual = db.setdefault(conta, {}).get(mlb, {})
+    hist = atual.get("historico", [])
+    hist.append({"data": _dt.now().strftime("%d/%m/%Y"), "pagina": pagina, "posicao": posicao,
+                 "keyword": str(payload.get("keyword", "")).strip()[:80]})
+    novo = {"pagina": pagina, "posicao": posicao, "keyword": str(payload.get("keyword", "")).strip()[:80],
+            "historico": hist[-20:]}
+    db[conta][mlb] = novo
+    with open(POSICOES_PATH, "w", encoding="utf-8") as f:
+        json.dump(db, f, indent=2, ensure_ascii=False)
+    return {"success": True, "posicao": novo}
+
+
 @app.get("/anotacoes/{conta}/{mlb}")
 async def get_anotacoes(conta: str, mlb: str):
     """Retorna TODAS as anotações do produto, ordenadas da mais recente."""

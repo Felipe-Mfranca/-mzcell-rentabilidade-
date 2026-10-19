@@ -63,3 +63,6 @@ promocoes_log.jsonl
 shopee_lojas.json
 shopee_custos.json
 shopee.db
+
+# Posição dos anúncios na busca (local)
+posicoes.json
