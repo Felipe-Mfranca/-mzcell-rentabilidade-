@@ -81,6 +81,18 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
 
 /* ── TABS ── */
 .tab{display:none;}
+.tab-frame{width:100%;height:calc(100vh - 120px);border:1px solid var(--border);border-radius:10px;background:#fff;}
+.sac-barra{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:14px;}
+.sac-barra select{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-family:var(--font);}
+.sac-mut{color:var(--muted2);font-size:12px;}
+.sac-resumo{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+.sac-chip{padding:4px 12px;border-radius:12px;font-size:12px;font-weight:700;background:var(--bg3);}
+.sac-card{background:var(--bg2);border:1px solid var(--border);border-left:5px solid var(--muted2);border-radius:10px;padding:12px 16px;margin-bottom:10px;}
+.sac-card.rev{border-left-color:#22c55e;}.sac-card.rec{border-left-color:#ef4444;}.sac-card.ana{border-left-color:#f6c90e;}
+.sac-top{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;justify-content:space-between;}
+.sac-tit{font-weight:600;}
+.sac-tag{font-size:11px;font-weight:700;letter-spacing:.04em;}
+.sac-lin{font-size:12px;color:var(--muted2);margin-top:4px;}
 .tab.active{display:block;}
 
 /* ── PERIODO BAR ── */
@@ -606,6 +618,9 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       <button class="nav-item active" onclick="switchTab('meli01',this)"><span class="icon">◈</span> Meli01</button>
       <button class="nav-item" onclick="switchTab('meli02',this)"><span class="icon">◈</span> Meli02</button>
       <button class="nav-item" onclick="switchTab('meli03',this)"><span class="icon">◈</span> Meli03</button>
+      <div class="nav-section">Módulos</div>
+      <button class="nav-item" onclick="switchTab('expedicao',this)"><span class="icon">▤</span> Expedição</button>
+      <button class="nav-item" onclick="switchTab('sac',this)"><span class="icon">✉</span> SAC</button>
       <div class="nav-section">Sistema</div>
       <button class="nav-item" onclick="switchTab('config',this)"><span class="icon">⚙</span> Configurações</button>
     </div>
@@ -626,6 +641,17 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       <div class="tab active" id="tab-meli01"><div id="painel-meli01"></div></div>
       <div class="tab" id="tab-meli02"><div id="painel-meli02"></div></div>
       <div class="tab" id="tab-meli03"><div id="painel-meli03"></div></div>
+      <div class="tab" id="tab-expedicao"><iframe id="frame-expedicao" class="tab-frame" title="Expedição"></iframe></div>
+      <div class="tab" id="tab-sac">
+        <div class="sac-barra">
+          <select id="sac-conta"><option value="meli01">Meli01</option><option value="meli02">Meli02</option><option value="meli03">Meli03</option></select>
+          <label><input type="checkbox" id="sac-abertas" checked> incluir abertas</label>
+          <button class="btn-save" style="margin:0" onclick="carregarSac()">Carregar contestações</button>
+          <span id="sac-status" class="sac-mut"></span>
+        </div>
+        <div id="sac-resumo" class="sac-resumo"></div>
+        <div id="sac-lista"></div>
+      </div>
       <div class="tab" id="tab-config">
         <div class="config-grid" id="config-contas"></div>
         <div class="config-card" style="margin-top:24px;max-width:420px">
@@ -962,9 +988,39 @@ function switchTab(tab, btn) {
   document.getElementById(`tab-${tab}`).classList.add('active');
   btn.classList.add('active');
   contaAtiva = tab;
-  const titles = {meli01:'Meli01 — Rentabilidade',meli02:'Meli02 — Rentabilidade',meli03:'Meli03 — Rentabilidade',config:'Configurações'};
+  const titles = {meli01:'Meli01 — Rentabilidade',meli02:'Meli02 — Rentabilidade',meli03:'Meli03 — Rentabilidade',config:'Configurações',expedicao:'Expedição — Galpão',sac:'SAC — Contestações de devolução'};
   document.getElementById('topbar-title').textContent = titles[tab] || tab;
   if(tab==='config') loadConfig();
+  if(tab==='expedicao'){ const f=document.getElementById('frame-expedicao'); if(!f.getAttribute('src')) f.setAttribute('src',`${API}/expedicao`); }
+  if(tab==='sac' && !document.getElementById('sac-lista').innerHTML) carregarSac();
+}
+
+// ── SAC: contestações (somente leitura) ───────────────────────────────────
+const SAC_DESFECHO = {
+  REVERTIDO_NO_PEDIDO:['Revertido no pedido','rev'], REVERTIDO_REEMBOLSO:['Revertido por reembolso','rev'],
+  REVERTIDO_NAO_CONFIRMADO:['Reversão sem prova','ana'], RECUSADO:['Recusado','rec'],
+  EM_ANALISE:['Em análise','ana'], SEM_DESFECHO:['Sem desfecho','']
+};
+function sacEsc(x){ return String(x==null?'':x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+async function carregarSac(){
+  const conta=document.getElementById('sac-conta').value, abertas=document.getElementById('sac-abertas').checked;
+  const st=document.getElementById('sac-status'), lista=document.getElementById('sac-lista');
+  st.textContent='carregando (pode levar até 1 min)…'; lista.innerHTML=''; document.getElementById('sac-resumo').innerHTML='';
+  try{
+    const r=await fetch(`${API}/sac/${conta}/contestacoes?limite=30&abertas=${abertas}`);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    document.getElementById('sac-resumo').innerHTML=Object.entries(d.resumo||{}).map(([k,v])=>`<span class="sac-chip">${sacEsc((SAC_DESFECHO[k]||[k])[0])}: ${v}</span>`).join('');
+    lista.innerHTML=(d.itens||[]).map(i=>{
+      const [rot,cls]=SAC_DESFECHO[i.desfecho]||[i.desfecho,''];
+      const val=i.valor!=null?` · ${brl2(i.valor)}`:'', op=i.operacao?` · operação ${sacEsc(i.operacao)}`:'';
+      return `<div class="sac-card ${cls}"><div class="sac-top"><span class="sac-tit">${sacEsc((i.titulo||'').slice(0,80))}</span><span class="sac-tag">${sacEsc(rot)} (${sacEsc(i.confianca)})${val}${op}</span></div>
+        <div class="sac-lin">Pedido ${sacEsc(i.pedido)} · reclamação ${sacEsc(i.claim_id)} · ${sacEsc(i.mlb)} · venda ${brl2(i.valor_venda)}${i.custo_devolucao_api?` · custo devolução ${brl2(i.custo_devolucao_api)}`:''}${i.custo_etiqueta_texto?` · etiqueta ${brl2(i.custo_etiqueta_texto)}`:''}</div>
+        <div class="sac-lin">Status ${sacEsc(i.status)} · devolução ${sacEsc(i.devolucao||'-')} · dinheiro ${sacEsc(i.dinheiro||'-')}${i.prazo_texto?` · prazo ${sacEsc(i.prazo_texto)}`:''}${i.msgs_ilegiveis?` · ${i.msgs_ilegiveis} msg(s) ilegível(is)`:''}</div>
+        <div class="sac-lin">${sacEsc(i.evidencia||'')}</div></div>`;
+    }).join('')||'<div class="sac-mut">Nenhuma contestação encontrada.</div>';
+    st.textContent=`${(d.itens||[]).length} contestação(ões) · ${conta}`;
+  }catch(e){ st.textContent='erro: '+e.message; }
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────
