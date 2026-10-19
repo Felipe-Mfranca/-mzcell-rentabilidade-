@@ -981,12 +981,39 @@ if __name__ == "__main__":
     uvicorn.run("main:app", host=host, port=port, reload=False)
 
 
+def _validar_datas(de: Optional[str], ate: Optional[str]):
+    for v in (de, ate):
+        if v:
+            try:
+                datetime.strptime(v, "%Y-%m-%d")
+            except ValueError:
+                raise HTTPException(status_code=400, detail="datas devem estar no formato AAAA-MM-DD")
+
+
+@app.get("/sac/resumo")
+async def sac_resumo(de: Optional[str] = None, ate: Optional[str] = None):
+    """Dashboard geral do SAC: perguntas, mensagens e reclamações pendentes por conta. Somente leitura."""
+    _validar_datas(de, ate)
+    return await ml_api.sac_resumo(de, ate)
+
+
+@app.get("/sac/{conta}/pendencias")
+async def sac_pendencias(conta: str, de: Optional[str] = None, ate: Optional[str] = None):
+    """Pendências do SAC de uma conta, com as listas. Somente leitura (nada é marcado como lido)."""
+    _validar_datas(de, ate)
+    if conta not in ("meli01", "meli02", "meli03"):
+        raise HTTPException(status_code=404, detail="conta inválida")
+    return await ml_api.sac_pendencias(conta, de, ate)
+
+
 @app.get("/sac/{conta}/contestacoes")
-async def sac_contestacoes(conta: str, limite: int = 30, abertas: bool = True):
+async def sac_contestacoes(conta: str, limite: int = 30, abertas: bool = True,
+                           de: Optional[str] = None, ate: Optional[str] = None):
     """Contestações de devolução (etapa recontact) com o desfecho de cada uma. Somente leitura."""
     if not 1 <= limite <= 50:
         raise HTTPException(status_code=400, detail="limite deve estar entre 1 e 50")
-    res = await ml_api.sac_contestacoes(conta, limite, abertas)
+    _validar_datas(de, ate)
+    res = await ml_api.sac_contestacoes(conta, limite, abertas, de, ate)
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("error", "erro"))
     return res

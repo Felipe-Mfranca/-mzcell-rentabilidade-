@@ -16,10 +16,17 @@
   header .sub { color:#9ca3af; font-size:12px; }
   button { background:#fff; color:#111; border:0; border-radius:6px; padding:7px 14px; font:inherit; font-weight:600; cursor:pointer; }
   main { max-width:1100px; margin:0 auto; padding:16px; }
-  .kpis { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px; }
-  .kpi { flex:1 1 130px; background:var(--card); border:1px solid var(--bd); border-radius:8px; padding:10px 14px; }
-  .kpi b { display:block; font-size:24px; }
-  .kpi span { color:var(--mut); font-size:11px; text-transform:uppercase; letter-spacing:.06em; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:10px; margin-bottom:14px; }
+  .kpi { background:var(--card); border:1px solid var(--bd); border-radius:8px; padding:10px 14px; }
+  .kpi h3 { margin:0 0 6px; font-size:13px; }
+  .kpi .n { display:flex; justify-content:space-between; align-items:baseline; padding:3px 0; border-bottom:1px solid var(--bd); font-size:12px; color:var(--mut); }
+  .kpi .n:last-child { border-bottom:0; }
+  .kpi .n b { font-size:18px; color:var(--txt); }
+  .kpi .n.vm b { color:var(--vm); }
+  .kpi .canais { margin-top:6px; font-size:11px; color:var(--mut); }
+  .abas { display:flex; gap:4px; border-bottom:1px solid var(--bd); margin-bottom:6px; }
+  .abas button { background:none; color:var(--mut); border:0; border-bottom:2px solid transparent; border-radius:0; padding:9px 18px; font:inherit; font-weight:600; cursor:pointer; }
+  .abas button.ativa { color:var(--txt); border-bottom-color:var(--ok); }
   h2 { font-size:13px; letter-spacing:.1em; text-transform:uppercase; margin:20px 0 8px; border-bottom:2px solid var(--hd); padding-bottom:4px; }
   h2 small { color:var(--mut); font-weight:400; letter-spacing:0; text-transform:none; }
   .linha { background:var(--card); border:1px solid var(--bd); border-left:6px solid var(--cz); border-radius:8px; padding:10px 14px; margin-bottom:8px;
@@ -43,13 +50,17 @@
 </header>
 <main>
   <div class="kpis" id="kpis"></div>
+  <div class="abas"><button id="aba-hoje" class="ativa" type="button">Hoje</button><button id="aba-proximos" type="button">Próximos dias</button></div>
   <div id="erros"></div>
   <div id="lista"></div>
   <p class="nota">Protótipo, somente leitura. Mercado Livre: Flex (meta interna 12h; passagens 9h e 13h), Coleta na meli01 e Agência na meli02/03 (preparo termina 30 min antes do prazo do ML).
   Amazon DBA (corte 11h, ponto até 14h) e Shopee (12h) entram nas próximas etapas. Verde: mais de 60 min. Amarelo: até 60 min. Vermelho: vencido.</p>
 </main>
 <script>
-  var dados = null, AMARELO_MIN = 60;
+  var dados = null, AMARELO_MIN = 60, aba = 'hoje';
+  function dia(iso) { return iso ? new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) : ''; }
+  function hojeStr() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }); }
+  function ehHoje(l) { var d = dia(l.meta || l.prazo_ml); return !d || d <= hojeStr(); }
   function el(i) { return document.getElementById(i); }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
   function hm(iso) { var d = new Date(iso); return d.toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" }); }
@@ -66,13 +77,30 @@
   function dur(m) { var h = Math.floor(m / 60), r = m % 60; return h ? h + "h" + (r < 10 ? "0" : "") + r : r + " min"; }
   function desenhar() {
     if (!dados) return;
-    var porCanal = {}, cont = { ok: 0, am: 0, vm: 0, cz: 0 };
-    dados.linhas.forEach(function (l) { l._f = falta(l); cont[l._f.cls]++; (porCanal[l.canal + " · " + l.conta] = porCanal[l.canal + " · " + l.conta] || []).push(l); });
-    el("kpis").innerHTML =
-      "<div class='kpi'><b>" + dados.linhas.length + "</b><span>envios abertos</span></div>" +
-      "<div class='kpi'><b style='color:var(--vm)'>" + cont.vm + "</b><span>vencidos</span></div>" +
-      "<div class='kpi'><b style='color:var(--am)'>" + cont.am + "</b><span>até 60 min / fora da meta</span></div>" +
-      "<div class='kpi'><b style='color:var(--ok)'>" + cont.ok + "</b><span>no prazo</span></div>";
+    var porCanal = {}, cont = { ok: 0, am: 0, vm: 0, cz: 0 }, contas = {};
+    dados.linhas.forEach(function (l) {
+      l._f = falta(l);
+      var c = contas[l.conta] = contas[l.conta] || { total: 0, hoje: 0, prox: 0, vm: 0, aguardando: 0, canais: {} };
+      c.total++; c.canais[l.canal] = (c.canais[l.canal] || 0) + 1;
+      if (ehHoje(l)) c.hoje++; else c.prox++;
+      if (l._f.cls === 'vm') c.vm++;
+      if (!l.liberado) c.aguardando++;
+      if (ehHoje(l) === (aba === 'hoje')) { cont[l._f.cls]++; (porCanal[l.canal + " · " + l.conta] = porCanal[l.canal + " · " + l.conta] || []).push(l); }
+    });
+    var card = function (nome, c) {
+      var canais = Object.keys(c.canais).map(function (k) { return esc(k) + ': ' + c.canais[k]; }).join(' · ');
+      return "<div class='kpi'><h3>" + esc(nome) + "</h3>" +
+        "<div class='n'><span>Pedidos pendentes</span><b>" + c.total + "</b></div>" +
+        "<div class='n'><span>Hoje</span><b>" + c.hoje + "</b></div>" +
+        "<div class='n'><span>Próximos dias</span><b>" + c.prox + "</b></div>" +
+        "<div class='n" + (c.vm ? " vm" : "") + "'><span>Vencidos</span><b>" + c.vm + "</b></div>" +
+        "<div class='n'><span>Aguardando liberação</span><b>" + c.aguardando + "</b></div>" +
+        "<div class='canais'>" + (canais || 'sem pedidos') + "</div></div>";
+    };
+    var tot = { total: 0, hoje: 0, prox: 0, vm: 0, aguardando: 0, canais: {} };
+    Object.keys(contas).forEach(function (k) { var c = contas[k]; ['total','hoje','prox','vm','aguardando'].forEach(function (f) { tot[f] += c[f]; }); });
+    var nomes = { meli01: 'Meli01 (coleta)', meli02: 'Meli02 (agência)', meli03: 'Meli03 (agência)' };
+    el("kpis").innerHTML = card('Total', Object.assign(tot, { canais: {} })) + ['meli01','meli02','meli03'].map(function (k) { return card(nomes[k], contas[k] || { total: 0, hoje: 0, prox: 0, vm: 0, aguardando: 0, canais: {} }); }).join('');
     el("erros").innerHTML = Object.keys(dados.erros || {}).map(function (c) { return "<div class='erro'>❌ " + esc(c) + ": " + esc(dados.erros[c]) + " (conta não carregada)</div>"; }).join("");
     var html = "";
     Object.keys(porCanal).sort().forEach(function (k) {
@@ -88,7 +116,7 @@
           "<span class='tag'>" + esc(l.substatus || l.status) + "</span><span class='meta'>pedido " + esc(l.pedido) + "</span>" + its + "</div></div>";
       });
     });
-    el("lista").innerHTML = html || "<p class='meta'>Nenhum envio aberto no galpão.</p>";
+    el("lista").innerHTML = html || "<p class='meta'>" + (aba === "hoje" ? "Nenhum envio para hoje." : "Nenhum envio para os próximos dias.") + "</p>";
     el("sub").textContent = "dados de " + hm(dados.gerado_em) + " · contagem atualiza a cada 30 s";
   }
   function carregar(forcar) {
@@ -99,6 +127,9 @@
       .then(function () { el("atualizar").disabled = false; });
   }
   el("atualizar").addEventListener("click", function () { carregar(true); });
+  function irAba(a) { aba = a; el("aba-hoje").className = a === "hoje" ? "ativa" : ""; el("aba-proximos").className = a === "proximos" ? "ativa" : ""; desenhar(); }
+  el("aba-hoje").addEventListener("click", function () { irAba("hoje"); });
+  el("aba-proximos").addEventListener("click", function () { irAba("proximos"); });
   setInterval(desenhar, 30000);
   setInterval(function () { carregar(false); }, 300000);
   carregar(false);

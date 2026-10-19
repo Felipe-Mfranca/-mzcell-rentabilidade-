@@ -9,7 +9,7 @@ import os
 import base64
 import hashlib
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
@@ -728,7 +728,8 @@ async def _sac_creditos(client, conta: str, desde: str, max_paginas: int = 40) -
     return saida
 
 
-async def sac_contestacoes(conta: str, limite: int = 30, abertas: bool = True) -> dict:
+async def sac_contestacoes(conta: str, limite: int = 30, abertas: bool = True,
+                           de: Optional[str] = None, ate: Optional[str] = None) -> dict:
     """Contestações (etapa recontact) mais recentes, com desfecho. Só leitura: não marca nada como lido."""
     sem = asyncio.Semaphore(4)
     async with httpx.AsyncClient(timeout=30, verify=False) as client:
@@ -736,9 +737,10 @@ async def sac_contestacoes(conta: str, limite: int = 30, abertas: bool = True) -
         for st in (["opened", "closed"] if abertas else ["closed"]):
             d = await _get_json(client, conta,
                 f"/post-purchase/v1/claims/search?stage=recontact&status={st}"
-                f"&limit={min(limite, 50)}&sort=date_created:desc")
+                f"&limit=50&sort=date_created:desc")
             lista += (d or {}).get("data") or []
-        lista = sorted(lista, key=lambda x: x.get("date_created", ""), reverse=True)[:limite]
+        lista = sorted(lista, key=lambda x: x.get("date_created", ""), reverse=True)
+        lista = [c for c in lista if _no_periodo(c.get("date_created"), de, ate)][:limite]
         if not lista:
             return {"success": True, "conta": conta, "itens": [], "resumo": {}}
         desde = max(min(c["date_created"][:10] for c in lista),
@@ -785,3 +787,103 @@ async def sac_contestacoes(conta: str, limite: int = 30, abertas: bool = True) -
     for i in itens:
         resumo[i["desfecho"]] = resumo.get(i["desfecho"], 0) + 1
     return {"success": True, "conta": conta, "itens": list(itens), "resumo": resumo}
+
+# ─── SAC: pendências (perguntas, mensagens, reclamações) — somente leitura ───
+_BRT = timezone(timedelta(hours=-3))
+
+
+def _data_brt(iso: Optional[str]):
+    try:
+        return datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(_BRT).date()
+    except Exception:
+        return None
+
+
+def _no_periodo(iso: Optional[str], de: Optional[str], ate: Optional[str]) -> bool:
+    if not de and not ate:
+        return True
+    d = _data_brt(iso)
+    if d is None:
+        return False
+    return (not de or d.isoformat() >= de) and (not ate or d.isoformat() <= ate)
+
+
+async def sac_pendencias(conta: str, de: Optional[str] = None, ate: Optional[str] = None) -> dict:
+    """Pendências do SAC de uma conta: perguntas sem resposta, mensagens não lidas e reclamações abertas.
+    `de`/`ate` (AAAA-MM-DD, horário de Brasília) filtram perguntas e reclamações pela data de criação;
+    mensagens não lidas não têm data na API e vêm sempre completas. Nada é marcado como lido."""
+    sid = get_seller_id(conta)
+    hoje = datetime.now(_BRT).date()
+    async with httpx.AsyncClient(timeout=30, verify=False) as client:
+        q, m = await asyncio.gather(
+            _get_json(client, conta, f"/questions/search?seller_id={sid}&status=UNANSWERED&limit=50"
+                                     f"&sort_fields=date_created&sort_types=DESC"),
+            _get_json(client, conta, "/messages/unread?role=seller&tag=post_sale"))
+        claims, off = [], 0
+        while off < 400:
+            d = await _get_json(client, conta,
+                f"/post-purchase/v1/claims/search?status=opened&limit=50&offset={off}&sort=date_created:desc")
+            lote = (d or {}).get("data") or []
+            claims += lote
+            off += len(lote)
+            if len(lote) < 50 or off >= ((d or {}).get("paging") or {}).get("total", 0):
+                break
+
+    perguntas = []
+    for x in (q or {}).get("questions") or []:
+        if _no_periodo(x.get("date_created"), de, ate):
+            dd = _data_brt(x.get("date_created"))
+            perguntas.append({"id": x.get("id"), "data": x.get("date_created"), "mlb": x.get("item_id"),
+                              "texto": (x.get("text") or "")[:200], "dias": (hoje - dd).days if dd else None})
+
+    conversas = []
+    for r in (m or {}).get("results") or []:
+        rec = r.get("resource") or ""
+        pack = rec.split("/packs/")[-1].split("/")[0] if "/packs/" in rec else None
+        conversas.append({"pack": pack, "nao_lidas": r.get("count", 0), "assistente_ml": "ai-seller" in rec})
+
+    reclamacoes = []
+    for c in claims:
+        if not _no_periodo(c.get("date_created"), de, ate):
+            continue
+        vend = next((p for p in c.get("players") or [] if p.get("role") == "respondent"), {})
+        acoes = [a.get("action") for a in vend.get("available_actions") or []]
+        obrig = [a for a in vend.get("available_actions") or [] if a.get("mandatory")]
+        dd = _data_brt(c.get("date_created"))
+        reclamacoes.append({"id": c.get("id"), "tipo": c.get("type"), "etapa": c.get("stage"),
+                            "motivo": c.get("reason_id"), "pedido": c.get("resource_id"), "data": c.get("date_created"),
+                            "dias": (hoje - dd).days if dd else None, "acoes": acoes,
+                            "aguarda_voce": bool(acoes), "prazo": next((a.get("due_date") for a in obrig if a.get("due_date")), None)})
+
+    por_tipo = {}
+    for r in reclamacoes:
+        por_tipo[r["tipo"]] = por_tipo.get(r["tipo"], 0) + 1
+    clientes = [c for c in conversas if not c["assistente_ml"]]
+    return {
+        "success": True, "conta": conta, "de": de, "ate": ate,
+        "perguntas": {"total": len(perguntas), "total_api": (q or {}).get("total"), "itens": perguntas,
+                      "mais_antiga_dias": max((p["dias"] or 0) for p in perguntas) if perguntas else 0},
+        "mensagens": {"nao_lidas": sum(c["nao_lidas"] for c in clientes), "conversas": len(clientes),
+                      "assistente_ml": sum(c["nao_lidas"] for c in conversas if c["assistente_ml"]),
+                      "itens": conversas, "filtro_de_data_aplicavel": False},
+        "reclamacoes": {"total": len(reclamacoes), "aguardam_voce": sum(1 for r in reclamacoes if r["aguarda_voce"]),
+                        "por_tipo": por_tipo, "itens": reclamacoes,
+                        "mais_antiga_dias": max((r["dias"] or 0) for r in reclamacoes) if reclamacoes else 0},
+    }
+
+
+async def sac_resumo(de: Optional[str] = None, ate: Optional[str] = None, contas=("meli01", "meli02", "meli03")) -> dict:
+    """Dashboard geral: pendências das três contas (sem as listas) e totais."""
+    res = await asyncio.gather(*[sac_pendencias(c, de, ate) for c in contas], return_exceptions=True)
+    saida, tot = {}, {"perguntas": 0, "mensagens": 0, "reclamacoes": 0, "aguardam_voce": 0}
+    for c, r in zip(contas, res):
+        if isinstance(r, Exception):
+            saida[c] = {"erro": f"{type(r).__name__}: {str(r)[:100]}"}
+            continue
+        saida[c] = {"perguntas": r["perguntas"]["total"], "perguntas_mais_antiga_dias": r["perguntas"]["mais_antiga_dias"],
+                    "mensagens": r["mensagens"]["nao_lidas"], "mensagens_assistente_ml": r["mensagens"]["assistente_ml"],
+                    "reclamacoes": r["reclamacoes"]["total"], "aguardam_voce": r["reclamacoes"]["aguardam_voce"],
+                    "por_tipo": r["reclamacoes"]["por_tipo"], "reclamacoes_mais_antiga_dias": r["reclamacoes"]["mais_antiga_dias"]}
+        tot["perguntas"] += saida[c]["perguntas"]; tot["mensagens"] += saida[c]["mensagens"]
+        tot["reclamacoes"] += saida[c]["reclamacoes"]; tot["aguardam_voce"] += saida[c]["aguardam_voce"]
+    return {"success": True, "de": de, "ate": ate, "contas": saida, "total": tot}

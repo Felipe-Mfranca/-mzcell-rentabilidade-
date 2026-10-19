@@ -73,7 +73,7 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
 .btn-logout:hover{border-color:var(--red);color:var(--red);}
 
 /* ── MAIN ── */
-.main{margin-left:220px;min-height:100vh;}
+.main{margin-left:220px;min-height:100vh;flex:1;min-width:0;}
 .topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 28px;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;}
 .topbar-title{font-size:15px;font-weight:700;letter-spacing:-.01em;}
 .topbar-actions{display:flex;align-items:center;gap:10px;}
@@ -93,6 +93,23 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
 .sac-tit{font-weight:600;}
 .sac-tag{font-size:11px;font-weight:700;letter-spacing:.04em;}
 .sac-lin{font-size:12px;color:var(--muted2);margin-top:4px;}
+.sac-subtabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;}
+.sac-subtabs button{background:none;border:0;border-bottom:2px solid transparent;color:var(--muted2);padding:9px 18px;font:600 13px var(--font);cursor:pointer;}
+.sac-subtabs button.active{color:var(--gold);border-bottom-color:var(--gold);}
+.sac-geral{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;}
+.sac-conta-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;cursor:pointer;}
+.sac-conta-card:hover{border-color:var(--gold);}
+.sac-conta-card h4{margin:0 0 10px;font-size:14px;}
+.sac-num{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.sac-num:last-child{border-bottom:0;}
+.sac-num b{font:700 20px var(--mono);}
+.sac-num.alerta b{color:var(--red);}
+.sac-sec{margin-top:18px;}
+.sac-sec h3{font-size:13px;margin:0 0 8px;display:flex;align-items:center;gap:10px;}
+.sac-linha{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:12px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;}
+.sac-linha.alerta{border-left:4px solid var(--red);}
+.sac-pill{font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--bg3);}
+
 .tab.active{display:block;}
 
 /* ── PERIODO BAR ── */
@@ -686,13 +703,25 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       <div class="tab" id="tab-expedicao"><iframe id="frame-expedicao" class="tab-frame" title="Expedição"></iframe></div>
       <div class="tab" id="tab-sac">
         <div class="sac-barra">
-          <select id="sac-conta"><option value="meli01">Meli01</option><option value="meli02">Meli02</option><option value="meli03">Meli03</option></select>
-          <label><input type="checkbox" id="sac-abertas" checked> incluir abertas</label>
-          <button class="btn-save" style="margin:0" onclick="carregarSac()">Carregar contestações</button>
+          <button class="modal-preset active" onclick="sacPeriodo(0,this)">Todos</button>
+          <button class="modal-preset" onclick="sacPeriodo(1,this)">Hoje</button>
+          <button class="modal-preset" onclick="sacPeriodo(7,this)">7D</button>
+          <button class="modal-preset" onclick="sacPeriodo(30,this)">30D</button>
+          <button class="modal-preset" onclick="sacPeriodo(-1,this)">Personalizado</button>
+          <span id="sac-datas" style="display:none;align-items:center;gap:6px">
+            <input type="date" id="sac-de" class="modal-date"/> <span class="modal-date-sep">até</span> <input type="date" id="sac-ate" class="modal-date"/>
+            <button class="btn-sync-produto" onclick="sacAtualizar()" style="height:30px;padding:0 12px;font-size:11px">Buscar</button>
+          </span>
+          <button class="btn-sync-produto" onclick="sacAtualizar()" style="height:30px;padding:0 12px;font-size:11px;margin-left:auto">Atualizar</button>
           <span id="sac-status" class="sac-mut"></span>
         </div>
-        <div id="sac-resumo" class="sac-resumo"></div>
-        <div id="sac-lista"></div>
+        <div class="sac-subtabs" id="sac-subtabs">
+          <button class="active" onclick="sacIr('geral',this)">Geral</button>
+          <button onclick="sacIr('meli01',this)">Meli01</button>
+          <button onclick="sacIr('meli02',this)">Meli02</button>
+          <button onclick="sacIr('meli03',this)">Meli03</button>
+        </div>
+        <div id="sac-corpo"></div>
       </div>
       <div class="tab" id="tab-config">
         <div class="config-grid" id="config-contas"></div>
@@ -1029,38 +1058,103 @@ function switchTab(tab, btn) {
   document.getElementById(`tab-${tab}`).classList.add('active');
   btn.classList.add('active');
   contaAtiva = tab;
-  const titles = {meli01:'Meli01 — Rentabilidade',meli02:'Meli02 — Rentabilidade',meli03:'Meli03 — Rentabilidade',config:'Configurações',expedicao:'Expedição — Galpão',sac:'SAC — Contestações de devolução'};
+  const titles = {meli01:'Meli01 — Rentabilidade',meli02:'Meli02 — Rentabilidade',meli03:'Meli03 — Rentabilidade',config:'Configurações',expedicao:'Expedição — Galpão',sac:'SAC — Pendências e contestações'};
   document.getElementById('topbar-title').textContent = titles[tab] || tab;
   if(tab==='config') loadConfig();
   if(tab==='expedicao'){ const f=document.getElementById('frame-expedicao'); if(!f.getAttribute('src')) f.setAttribute('src',`${API}/expedicao`); }
-  if(tab==='sac' && !document.getElementById('sac-lista').innerHTML) carregarSac();
+  if(tab==='sac' && !window._sacIniciado){ window._sacIniciado=true; sacIr('geral'); }
 }
 
-// ── SAC: contestações (somente leitura) ───────────────────────────────────
+// ── SAC: pendências e contestações (somente leitura) ──────────────────────
 const SAC_DESFECHO = {
   REVERTIDO_NO_PEDIDO:['Revertido no pedido','rev'], REVERTIDO_REEMBOLSO:['Revertido por reembolso','rev'],
   REVERTIDO_NAO_CONFIRMADO:['Reversão sem prova','ana'], RECUSADO:['Recusado','rec'],
   EM_ANALISE:['Em análise','ana'], SEM_DESFECHO:['Sem desfecho','']
 };
+const SAC_TIPO = {mediations:'Mediação', returns:'Devolução', claims:'Reclamação', cancel_purchase:'Cancelamento'};
+let _sacAba = 'geral', _sacDe = '', _sacAte = '';
 function sacEsc(x){ return String(x==null?'':x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-async function carregarSac(){
-  const conta=document.getElementById('sac-conta').value, abertas=document.getElementById('sac-abertas').checked;
-  const st=document.getElementById('sac-status'), lista=document.getElementById('sac-lista');
-  st.textContent='carregando (pode levar até 1 min)…'; lista.innerHTML=''; document.getElementById('sac-resumo').innerHTML='';
+function sacDmy(iso){ if(!iso) return ''; const d=new Date(iso); return d.toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'}); }
+function sacQS(){ const q=[]; if(_sacDe) q.push('de='+_sacDe); if(_sacAte) q.push('ate='+_sacAte); return q.length?'?'+q.join('&'):''; }
+function sacPeriodo(dias, btn){
+  document.querySelectorAll('#tab-sac .sac-barra .modal-preset').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const datas=document.getElementById('sac-datas'); datas.style.display = dias===-1 ? 'inline-flex' : 'none';
+  if(dias===-1) return;
+  const hoje=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Sao_Paulo'}));
+  const ymd=d=>d.toISOString().split('T')[0];
+  if(dias===0){ _sacDe=''; _sacAte=''; }
+  else { _sacAte=ymd(hoje); _sacDe=ymd(new Date(hoje-(dias-1)*86400000)); }
+  sacAtualizar();
+}
+function sacAtualizar(){
+  const datas=document.getElementById('sac-datas');
+  if(datas.style.display!=='none'){ _sacDe=document.getElementById('sac-de').value; _sacAte=document.getElementById('sac-ate').value; }
+  sacIr(_sacAba);
+}
+function sacIr(aba, btn){
+  _sacAba = aba;
+  if(btn){ document.querySelectorAll('#sac-subtabs button').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); }
+  else document.querySelectorAll('#sac-subtabs button').forEach(b=>b.classList.toggle('active', b.textContent.trim().toLowerCase()===aba));
+  if(aba==='geral') carregarSacGeral(); else carregarSacConta(aba);
+}
+async function carregarSacGeral(){
+  const st=document.getElementById('sac-status'), corpo=document.getElementById('sac-corpo');
+  st.textContent='carregando…'; corpo.innerHTML='';
   try{
-    const r=await fetch(`${API}/sac/${conta}/contestacoes?limite=30&abertas=${abertas}`);
+    const r=await fetch(`${API}/sac/resumo${sacQS()}`); if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    const num=(l,v,alerta)=>`<div class="sac-num ${alerta&&v>0?'alerta':''}"><span>${l}</span><b>${v}</b></div>`;
+    const t=d.total;
+    let html=`<div class="sac-geral"><div class="sac-conta-card" style="cursor:default"><h4>Total das três contas</h4>
+      ${num('Perguntas pendentes',t.perguntas,true)}${num('Mensagens não lidas (clientes)',t.mensagens,true)}
+      ${num('Reclamações abertas',t.reclamacoes)}${num('Aguardam ação sua',t.aguardam_voce,true)}</div>`;
+    for(const [c,v] of Object.entries(d.contas)){
+      if(v.erro){ html+=`<div class="sac-conta-card"><h4>${c.toUpperCase()}</h4><div class="sac-mut">Erro: ${sacEsc(v.erro)}</div></div>`; continue; }
+      const tipos=Object.entries(v.por_tipo||{}).map(([k,n])=>`${SAC_TIPO[k]||k}: ${n}`).join(' · ');
+      html+=`<div class="sac-conta-card" onclick="sacIr('${c}')"><h4>${c.charAt(0).toUpperCase()+c.slice(1)}</h4>
+        ${num('Perguntas pendentes',v.perguntas,true)}${num('Mensagens não lidas',v.mensagens,true)}
+        ${num('Reclamações abertas',v.reclamacoes)}${num('Aguardam ação sua',v.aguardam_voce,true)}
+        <div class="sac-lin">${tipos||'sem reclamações'}${v.reclamacoes_mais_antiga_dias?` · mais antiga: ${v.reclamacoes_mais_antiga_dias} dia(s)`:''}${v.mensagens_assistente_ml?` · ${v.mensagens_assistente_ml} msg(s) do assistente ML`:''}</div></div>`;
+    }
+    corpo.innerHTML=html+'</div><div class="sac-lin" style="margin-top:12px">O filtro de datas vale para perguntas e reclamações (data de criação). Mensagens não lidas não têm data na API e aparecem sempre completas.</div>';
+    st.textContent=_sacDe||_sacAte?`período ${_sacDe||'início'} a ${_sacAte||'hoje'}`:'todas as pendências';
+  }catch(e){ st.textContent='erro: '+e.message; }
+}
+async function carregarSacConta(conta){
+  const st=document.getElementById('sac-status'), corpo=document.getElementById('sac-corpo');
+  st.textContent='carregando…'; corpo.innerHTML='';
+  try{
+    const r=await fetch(`${API}/sac/${conta}/pendencias${sacQS()}`); if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    const perg=d.perguntas.itens.map(p=>`<div class="sac-linha ${p.dias>=1?'alerta':''}"><span>${sacEsc(p.texto)}</span><span class="sac-mut">${sacEsc(p.mlb)} · ${sacDmy(p.data)} · há ${p.dias} dia(s)</span></div>`).join('')||'<div class="sac-mut">Nenhuma pergunta pendente.</div>';
+    const msgs=d.mensagens.itens.map(m=>`<div class="sac-linha"><span>Pacote ${sacEsc(m.pack)}</span><span><span class="sac-pill">${m.nao_lidas} não lida(s)</span> ${m.assistente_ml?'<span class="sac-pill">assistente ML</span>':'<span class="sac-pill">cliente</span>'}</span></div>`).join('')||'<div class="sac-mut">Nenhuma mensagem não lida.</div>';
+    const recl=d.reclamacoes.itens.map(c=>`<div class="sac-linha ${c.aguarda_voce?'alerta':''}"><span><b>${sacEsc(SAC_TIPO[c.tipo]||c.tipo)}</b> · ${sacEsc(c.etapa)} · motivo ${sacEsc(c.motivo)} · pedido ${sacEsc(c.pedido)}</span><span class="sac-mut">${sacDmy(c.data)} · há ${c.dias} dia(s) ${c.aguarda_voce?'<span class="sac-pill">aguarda você</span>':''}${c.prazo?` · prazo ${sacDmy(c.prazo)}`:''}</span></div>`).join('')||'<div class="sac-mut">Nenhuma reclamação aberta no período.</div>';
+    corpo.innerHTML=`
+      <div class="sac-sec"><h3>Perguntas pendentes <span class="sac-pill">${d.perguntas.total}</span></h3>${perg}</div>
+      <div class="sac-sec"><h3>Mensagens não lidas <span class="sac-pill">${d.mensagens.nao_lidas} de clientes</span> <span class="sac-pill">${d.mensagens.assistente_ml} do assistente ML</span></h3>${msgs}</div>
+      <div class="sac-sec"><h3>Reclamações abertas <span class="sac-pill">${d.reclamacoes.total}</span> <span class="sac-pill">${d.reclamacoes.aguardam_voce} aguardam você</span></h3>${recl}</div>
+      <div class="sac-sec"><h3>Contestações de devolução <button class="btn-sync-produto" style="height:28px;padding:0 12px;font-size:11px" onclick="carregarContestacoes('${conta}')">Carregar contestações</button> <span class="sac-mut" id="sac-cont-st"></span></h3><div id="sac-cont"></div></div>`;
+    st.textContent=(_sacDe||_sacAte?`período ${_sacDe||'início'} a ${_sacAte||'hoje'}`:'todas as pendências')+' · '+conta;
+  }catch(e){ st.textContent='erro: '+e.message; }
+}
+async function carregarContestacoes(conta){
+  const st=document.getElementById('sac-cont-st'), lista=document.getElementById('sac-cont');
+  st.textContent='carregando (pode levar até 1 min)…'; lista.innerHTML='';
+  try{
+    const r=await fetch(`${API}/sac/${conta}/contestacoes?limite=30&abertas=true${_sacDe?'&de='+_sacDe:''}${_sacAte?'&ate='+_sacAte:''}`);
     if(!r.ok) throw new Error('HTTP '+r.status);
     const d=await r.json();
-    document.getElementById('sac-resumo').innerHTML=Object.entries(d.resumo||{}).map(([k,v])=>`<span class="sac-chip">${sacEsc((SAC_DESFECHO[k]||[k])[0])}: ${v}</span>`).join('');
-    lista.innerHTML=(d.itens||[]).map(i=>{
+    const resumo=Object.entries(d.resumo||{}).map(([k,v])=>`<span class="sac-chip">${sacEsc((SAC_DESFECHO[k]||[k])[0])}: ${v}</span>`).join('');
+    lista.innerHTML=`<div class="sac-resumo">${resumo}</div>`+((d.itens||[]).map(i=>{
       const [rot,cls]=SAC_DESFECHO[i.desfecho]||[i.desfecho,''];
       const val=i.valor!=null?` · ${brl2(i.valor)}`:'', op=i.operacao?` · operação ${sacEsc(i.operacao)}`:'';
       return `<div class="sac-card ${cls}"><div class="sac-top"><span class="sac-tit">${sacEsc((i.titulo||'').slice(0,80))}</span><span class="sac-tag">${sacEsc(rot)} (${sacEsc(i.confianca)})${val}${op}</span></div>
         <div class="sac-lin">Pedido ${sacEsc(i.pedido)} · reclamação ${sacEsc(i.claim_id)} · ${sacEsc(i.mlb)} · venda ${brl2(i.valor_venda)}${i.custo_devolucao_api?` · custo devolução ${brl2(i.custo_devolucao_api)}`:''}${i.custo_etiqueta_texto?` · etiqueta ${brl2(i.custo_etiqueta_texto)}`:''}</div>
         <div class="sac-lin">Status ${sacEsc(i.status)} · devolução ${sacEsc(i.devolucao||'-')} · dinheiro ${sacEsc(i.dinheiro||'-')}${i.prazo_texto?` · prazo ${sacEsc(i.prazo_texto)}`:''}${i.msgs_ilegiveis?` · ${i.msgs_ilegiveis} msg(s) ilegível(is)`:''}</div>
         <div class="sac-lin">${sacEsc(i.evidencia||'')}</div></div>`;
-    }).join('')||'<div class="sac-mut">Nenhuma contestação encontrada.</div>';
-    st.textContent=`${(d.itens||[]).length} contestação(ões) · ${conta}`;
+    }).join('')||'<div class="sac-mut">Nenhuma contestação no período.</div>');
+    st.textContent=`${(d.itens||[]).length} contestação(ões)`;
   }catch(e){ st.textContent='erro: '+e.message; }
 }
 
