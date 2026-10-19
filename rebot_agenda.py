@@ -4,8 +4,9 @@ Para cada conta (meli01/02/03) compara a promoção atual de cada anúncio com a
   líquido ML/un = preço − (tarifa% × preço − rebot)        rebot = meli% × preço cheio
   ganho/un     = líquido da candidata − líquido atual
 Só recomenda o que vale a pena: ganho > 0, ou empate de preço e líquido em que a atual é nossa
-e a candidata é do ML (preferência pela campanha do ML). Candidatas já inscritas (pending) e
-anúncios já avisados antes não entram. Sem novidade, apenas informa.
+e a candidata é do ML (preferência pela campanha do ML). Candidatas já inscritas (pending) não
+entram. Uma sugestão NÃO some do relatório seguinte só por já ter sido avisada: continua listada
+(marcada "já avisada") até a campanha entrar em vigor ou o anúncio ser inscrito; a análise decide.
 
 Uso:
   python rebot_agenda.py                  # roda, avisa (Slack + e-mail) e guarda o que já foi avisado
@@ -172,16 +173,16 @@ def linha(o: dict) -> str:
             f"{ganho}{imp} | {o['un_30d']} un/30d" + (f" | {'; '.join(extras)}" if extras else ""))
 
 
-def montar(novas: list, erros: dict, abertas: int, quando: str) -> tuple:
-    """(assunto, texto, html). O texto vai ao Slack; o e-mail leva texto + HTML."""
-    if not novas and not erros:
-        resto = f" ({abertas} já avisada(s) continuam abertas)" if abertas else ""
-        t = f"Rebot {quando}: sem oportunidades novas nas contas verificadas{resto}."
-        return "MZCell - Rebot: sem novidades", t, None
-    assunto = f"MZCell - Rebot: {len(novas)} oportunidade(s)" + (" (com erro)" if erros else "")
+def montar(ops: list, erros: dict, quando: str) -> tuple:
+    """(assunto, texto, html) com TODAS as sugestões abertas. Texto vai ao Slack; e-mail leva texto + HTML."""
+    if not ops and not erros:
+        return "MZCell - Rebot: sem oportunidades", f"Rebot {quando}: sem oportunidades nas contas verificadas.", None
+    n_novas = sum(1 for o in ops if not o.get("repetida"))
+    assunto = (f"MZCell - Rebot: {len(ops)} oportunidade(s)" + (f", {n_novas} nova(s)" if n_novas != len(ops) else "")
+               + (" (com erro)" if erros else ""))
     return (assunto,
-            rebot_visual.texto(novas, erros, abertas, quando, CONTAS_PADRAO),
-            rebot_visual.html(novas, erros, abertas, quando, CONTAS_PADRAO))
+            rebot_visual.texto(ops, erros, 0, quando, CONTAS_PADRAO),
+            rebot_visual.html(ops, erros, 0, quando, CONTAS_PADRAO))
 
 
 def enviar_email(assunto: str, texto: str, html: str = None) -> bool:
@@ -222,10 +223,11 @@ def main():
         except Exception as e:
             erros[conta] = f"{type(e).__name__}: {str(e)[:80]}"
             log(f"{conta}: ERRO {traceback.format_exc(limit=2)}")
-    novas = [o for o in todas if o["chave"] not in avisadas]
-    abertas = len(todas) - len(novas)
+    for o in todas:
+        o["repetida"] = o["chave"] in avisadas
+    novas = [o for o in todas if not o["repetida"]]   # só para o estado; o relatório leva todas
     quando = datetime.now().strftime("%d/%m %H:%M")
-    assunto, texto, html = montar(novas, erros, abertas, quando)
+    assunto, texto, html = montar(todas, erros, quando)
     print("\n" + texto)
     if a.dry:
         return 1 if erros else 0

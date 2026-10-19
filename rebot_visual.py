@@ -5,7 +5,8 @@ Só formata: não fala com o Mercado Livre.
 Recomendação por oportunidade (só lado ML, sem CMV/imposto):
   RECOMENDADO     preço não sobe e o ganho compensa
   AVALIAR         ganho compensa, mas o preço sobe (buybox) ou a campanha exige estoque
-  BAIXA PRIORIDADE ganho irrelevante, empate ou sem vendas em 30 dias
+  BAIXA PRIORIDADE ganho irrelevante ou empate
+  Sem vendas em 30 dias NÃO rebaixa: o rebot pode alavancar o anúncio; vale pelo ganho por unidade.
 """
 
 from html import escape
@@ -42,15 +43,26 @@ def classificar(o: dict) -> tuple:
         motivos.append(f"exige estoque de {o['estoque'].get('min')} a {o['estoque'].get('max')} un")
     if o["empate"]:
         return "BAIXA", ["mesmo preço e líquido de hoje — a regra da casa prefere a campanha do ML à nossa"]
-    if o["un_30d"] == 0:
-        return "BAIXA", ["sem vendas nos últimos 30 dias — o ganho por unidade não vira dinheiro"] + motivos
+    if o["un_30d"] == 0:   # sem histórico o impacto é 0, mas o rebot pode ser justamente o que destrava a venda
+        if o["ganho_un"] < GANHO_MIN_UN:
+            return "BAIXA", [f"ganho pequeno ({brl(o['ganho_un'])}/un)"] + motivos
+        motivos.insert(0, "sem vendas nos últimos 30 dias — o rebot pode ajudar a alavancar o anúncio")
+        return ("ATENC" if len(motivos) > 1 else "OK"), motivos
     if o["ganho_un"] < GANHO_MIN_UN and o["impacto_mes"] < IMPACTO_MIN_MES:
         return "BAIXA", [f"ganho pequeno ({brl(o['ganho_un'])}/un ≈ {brl(o['impacto_mes'])}/mês)"] + motivos
     return ("ATENC" if motivos else "OK"), motivos
 
 
+def _origem(lista: list) -> str:
+    """' (2 nova(s), 5 já avisada(s))' — só aparece quando há as duas coisas."""
+    rep = sum(1 for o in lista if o.get("repetida"))
+    if not rep or rep == len(lista):
+        return f" ({rep} já avisada(s), seguem abertas)" if rep else ""
+    return f" ({len(lista) - rep} nova(s), {rep} já avisada(s))"
+
+
 def _ordenadas(novas: list) -> list:
-    return sorted(novas, key=lambda o: -o["impacto_mes"])
+    return sorted(novas, key=lambda o: (-o["impacto_mes"], -o["ganho_un"]))
 
 
 def recomendacao(novas: list) -> list:
@@ -71,9 +83,9 @@ def recomendacao(novas: list) -> list:
             + (f" (≈ {brl(o['impacto_mes'])}/mês)" if o["un_30d"] else "")
             + " — " + "; ".join(classificar(o)[1]) for o in top]))
     if por["BAIXA"]:
-        linhas.append(("BAIXA", "PODE IGNORAR", [f"{len(por['BAIXA'])} aviso(s) de baixo impacto (ganho mínimo, empate ou sem vendas)"]))
+        linhas.append(("BAIXA", "PODE IGNORAR", [f"{len(por['BAIXA'])} aviso(s) de baixo impacto (ganho mínimo ou empate)"]))
     if not linhas:
-        linhas.append(("BAIXA", "NADA A FAZER", ["nenhuma oportunidade nova"]))
+        linhas.append(("BAIXA", "NADA A FAZER", ["nenhuma oportunidade no momento"]))
     return linhas
 
 
@@ -81,7 +93,7 @@ def recomendacao(novas: list) -> list:
 
 def texto(novas: list, erros: dict, abertas: int, quando: str, contas: list) -> str:
     total = sum(o["impacto_mes"] for o in novas if not o["empate"] and o["un_30d"])
-    p = [f"🔔 *REBOT · {quando}*", f"*{len(novas)} OPORTUNIDADE(S) NOVA(S)* · potencial ≈ *{brl(total)}/mês*", ""]
+    p = [f"🔔 *REBOT · {quando}*", f"*{len(novas)} OPORTUNIDADE(S)*{_origem(novas)} · potencial ≈ *{brl(total)}/mês*", ""]
     for conta in contas:
         do = _ordenadas([o for o in novas if o["conta"] == conta])
         if not do:
@@ -90,7 +102,7 @@ def texto(novas: list, erros: dict, abertas: int, quando: str, contas: list) -> 
         for o in do:
             n, mot = classificar(o)
             nv = NIVEIS[n]
-            p.append(f"{nv['emoji']} *{nv['rotulo']}* · `{o['mlb']}`")
+            p.append(f"{nv['emoji']} *{nv['rotulo']}* · `{o['mlb']}`" + (" · 🔁 já avisada, segue aberta" if o.get("repetida") else " · 🆕 nova"))
             p.append(f"   {o['titulo'][:48]}")
             p.append(f"   🏷️ *{o['nome']}* ({o['tipo']})")
             p.append(f"   💲 {brl(o['atual_preco'])} → *{brl(o['preco'])}* · rebot {brl(o['atual_rebot'])} → *{brl(o['rebot'])}*")
@@ -111,8 +123,7 @@ def texto(novas: list, erros: dict, abertas: int, quando: str, contas: list) -> 
         p.append(f"{NIVEIS[n]['emoji']} *{titulo}*")
         p += [f"   • {i}" for i in itens]
         p.append("")
-    if abertas:
-        p.append(f"📌 {abertas} oportunidade(s) já avisada(s) antes seguem abertas.")
+    p.append("📌 _Sugestões seguem em todo relatório até a campanha entrar em vigor ou o anúncio ser inscrito._")
     p.append("🔒 _Somente recomendação: nada foi alterado no Mercado Livre._")
     return "\n".join(p)
 
@@ -141,7 +152,8 @@ def _card(o: dict) -> str:
  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e5e7eb;border-left:5px solid {nv["cor"]};border-radius:8px;">
   <tr><td style="padding:14px 16px;">
    <div style="margin-bottom:8px;">{_badge(nv["emoji"] + " " + nv["rotulo"], nv["cor"], nv["fundo"])}
-     <span style="font-size:12px;color:#6b7280;font-family:Consolas,monospace;"> {o["mlb"]}</span></div>
+     <span style="font-size:12px;color:#6b7280;font-family:Consolas,monospace;"> {o["mlb"]}</span>
+     {_badge("🔁 JÁ AVISADA", "#374151", "#e5e7eb") if o.get("repetida") else _badge("🆕 NOVA", "#1d4ed8", "#dbeafe")}</div>
    <div style="font-size:15px;font-weight:700;color:#111827;line-height:1.3;">{escape(o["titulo"][:60])}</div>
    <div style="font-size:13px;color:#166534;font-weight:700;margin-top:6px;">🏷️ {escape(o["nome"])} <span style="font-weight:400;color:#6b7280;">({escape(o["tipo"] or "")})</span>{fim}</div>
    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;"><tr>
@@ -186,7 +198,8 @@ def html(novas: list, erros: dict, abertas: int, quando: str, contas: list) -> s
                    f'<div style="font-size:12px;font-weight:800;letter-spacing:.08em;color:{nv["cor"]};">{nv["emoji"]} {titulo}</div>'
                    f'<ul style="margin:6px 0 0 0;padding-left:18px;font-size:13px;color:#1f2937;">{lis}</ul></div>')
 
-    abertas_txt = f'<div style="font-size:12px;color:#6b7280;margin-top:10px;">📌 {abertas} oportunidade(s) já avisada(s) antes seguem abertas.</div>' if abertas else ""
+    abertas_txt = ('<div style="font-size:12px;color:#6b7280;margin-top:10px;">📌 Sugestões seguem em todo relatório até a campanha '
+                   'entrar em vigor ou o anúncio ser inscrito.</div>')
     return f'''<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',Arial,sans-serif;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:20px 10px;">
@@ -198,7 +211,7 @@ def html(novas: list, erros: dict, abertas: int, quando: str, contas: list) -> s
   </td></tr>
   <tr><td style="background:#ffffff;border:1px solid #e5e7eb;border-top:0;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-      {kpi(len(novas), "oportunidades", "#111827")}
+      {kpi(len(novas), "oportunidades" + _origem(novas), "#111827")}
       {kpi(brl(total).replace("R$ ", "R$&nbsp;"), "potencial / mês", "#166534")}
       {kpi(contagem["OK"], "🟢 recomendadas", "#166534")}
       {kpi(contagem["ATENC"], "🟡 a avaliar", "#854d0e")}
