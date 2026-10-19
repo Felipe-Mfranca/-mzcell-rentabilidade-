@@ -57,6 +57,12 @@ try:
 except ImportError as e:
     print(f"[startup] Módulo Shopee indisponível: {e}")
 
+try:
+    from marketplaces.expedicao.router import router as expedicao_router
+    app.include_router(expedicao_router)
+except ImportError as e:
+    print(f"[startup] Módulo Expedição indisponível: {e}")
+
 
 _syncs_em_andamento: set = set()
 
