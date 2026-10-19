@@ -72,3 +72,5 @@ produtos.json.antes*
 
 # Backups locais do amazon_config.json (contem credenciais)
 amazon_config.json.*
+
+shopee.env

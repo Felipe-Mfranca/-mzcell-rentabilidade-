@@ -15,6 +15,7 @@ import os
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 ENV_PATH = os.path.join(BASE_DIR, ".env")
+ENV_ALTERNATIVO = os.path.join(BASE_DIR, "shopee.env")   # nome que o navegador salva sem apagar o ponto inicial
 LOJAS_PATH = os.path.join(BASE_DIR, "shopee_lojas.json")
 
 
@@ -27,7 +28,7 @@ class ErroShopee(Exception):
 def ler_env(caminho: str = None) -> dict:
     """Lê o .env (CHAVE=valor, # comentários). Variáveis do processo têm prioridade. Não imprime nada."""
     dados = {}
-    caminho = caminho or ENV_PATH
+    caminho = caminho or (ENV_PATH if os.path.exists(ENV_PATH) else ENV_ALTERNATIVO)
     if os.path.exists(caminho):
         with open(caminho, encoding="utf-8-sig") as f:
             for linha in f:
