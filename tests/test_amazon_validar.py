@@ -46,6 +46,12 @@ class Fluxo(unittest.TestCase):
         self.assertEqual(r["etapas"][-1][0], "Token LWA aceito pela Amazon")
         self.assertNotIn(BOM["client_secret"], str(r))
 
+    def test_429_na_sp_api_nao_reprova_a_credencial(self):
+        with mock.patch.object(api, "conta_cfg", return_value=BOM), mock.patch.object(api, "access_token", return_value="t"),              mock.patch.object(api, "get", return_value=(429, {})):
+            r = validar.validar("amazon01")
+        self.assertTrue(r["ok"])
+        self.assertIn("429", r["etapas"][-1][2])
+
     def test_sem_marketplace_brasil(self):
         corpo = {"payload": [{"marketplace": {"id": "ATVPDKIKX0DER"}}]}
         with mock.patch.object(api, "conta_cfg", return_value=BOM), mock.patch.object(api, "access_token", return_value="t"), \

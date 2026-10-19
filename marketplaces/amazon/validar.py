@@ -84,6 +84,9 @@ def validar(conta: str) -> dict:
     except api.ErroAmazon as e:
         reg("Chamada à SP-API", False, str(e))
         return {"ok": False, "etapas": etapas}
+    if st == 429:   # esta rota tem limite muito baixo; o token já foi aceito, então a credencial vale
+        reg("Chamada à SP-API", True, "limite de chamadas da Amazon (429): credencial válida; repita em 1 minuto para confirmar o marketplace")
+        return {"ok": True, "etapas": etapas}
     if st != 200:
         reg("Chamada à SP-API", False, f"HTTP {st}: {api.mascarar(str(corpo)[:200])}")
         return {"ok": False, "etapas": etapas}
