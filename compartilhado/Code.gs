@@ -6,11 +6,11 @@
  * Se o script for um projeto avulso (script.google.com), defina também a propriedade PLANILHA_ID (o trecho da URL
  * da planilha entre /d/ e /edit); presa à planilha (Extensões > Apps Script), ela é opcional.
  *
- * Cada coleção vira uma aba (criada sozinha): comentarios, posicoes, clips, pivo, contestacoes.
+ * Cada coleção vira uma aba (criada sozinha): comentarios, posicoes, clips, pivo, contestacoes, usuarios.
  * Colunas: chave | dados (JSON) | atualizado_em (ISO) | autor | removido
  * Regra de conflito: vale a gravação mais recente (compara atualizado_em).
  */
-var COLECOES = ['comentarios', 'posicoes', 'clips', 'pivo', 'contestacoes'];
+var COLECOES = ['comentarios', 'posicoes', 'clips', 'pivo', 'contestacoes', 'usuarios'];
 var CABECALHO = ['chave', 'dados', 'atualizado_em', 'autor', 'removido'];
 
 function doPost(e) {

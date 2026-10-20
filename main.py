@@ -36,6 +36,14 @@ except ImportError:
             return None
 
         @staticmethod
+        def configurado():
+            return False
+
+        @staticmethod
+        def sincronizar(*a, **k):
+            return {"configurado": False}
+
+        @staticmethod
         def agora_iso():
             from datetime import timezone
             return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
@@ -124,6 +132,8 @@ async def startup():
         print(f"[startup] Aviso token: {e}")
     # Banco compartilhado (Google Sheets): só liga se shared_config.json estiver preenchido
     try:
+        if shared_store.configurado():
+            auth_service.publicar_todos()      # semeia a planilha; troca de senha mais nova sempre prevalece
         if shared_store.iniciar_sincronizacao(_APLICADORES_COMPARTILHADOS):
             print("[startup] Sincronização com a planilha compartilhada ligada")
     except Exception as e:
@@ -163,6 +173,13 @@ async def login(payload: dict):
     login_val = payload.get("login", "").strip().lower()
     senha     = payload.get("senha", "")
     u = auth_service.verificar_login(login_val, senha)
+    if not u:
+        # a senha pode ter sido trocada em outro computador: traz os usuários da planilha e tenta de novo
+        try:
+            shared_store.sincronizar({"usuarios": _aplicar_usuarios})
+            u = auth_service.verificar_login(login_val, senha)
+        except Exception:
+            u = None
     if not u:
         raise HTTPException(status_code=401, detail="Login ou senha incorretos")
     log_atividade(f"Login: {u['nome']}")
@@ -414,12 +431,14 @@ def pivo_resultado(conta: str):
 def pivo_clip(conta: str, mlb: str, payload: dict):
     """Marcação manual de clip: {"tem_clip": true|false|null}. A API do ML não expõe os clips."""
     pivo_ml = _modulo("pivo_ml")
-    novo = pivo_ml.marcar_clip(conta, mlb, payload.get("tem_clip"))
-    if novo:
-        novo.pop("_entrada", None)
     tem = payload.get("tem_clip")
     autor = str(payload.get("autor", ""))[:40]
-    shared_store.enviar_async("clips", f"{conta}|{mlb}", {"clip": tem}, autor, removido=tem is None)
+    nome = str(payload.get("autor_nome", ""))[:60]
+    novo = pivo_ml.marcar_clip(conta, mlb, tem, autor, nome)
+    if novo:
+        novo.pop("_entrada", None)
+    info = (_ler_json(pivo_ml.MANUAL_PATH).get(conta) or {}).get(mlb) or {}
+    shared_store.enviar_async("clips", f"{conta}|{mlb}", {"clip": tem, "login": autor, "por": nome or autor, "em": info.get("em")}, autor, removido=tem is None)
     if novo:   # o resultado do PIVO recalculado também sobe, para os outros computadores verem o V atualizado
         pivo_ml.publicar(conta, {mlb: novo}, shared_store.agora_iso(), autor)
     return {"success": True, "item": novo}
@@ -970,10 +989,12 @@ def _aplicar_clips(registros: list):
     for r in registros:
         try:
             conta, mlb = r["chave"].split("|", 1)
-            clip = json.loads(r["dados"]).get("clip")
+            d = json.loads(r["dados"])
+            clip = d.get("clip")
         except (ValueError, KeyError, AttributeError):
             continue
-        pivo_ml.marcar_clip(conta, mlb, None if r.get("removido") else clip)
+        pivo_ml.marcar_clip(conta, mlb, None if r.get("removido") else clip, d.get("login", ""), d.get("por", ""),
+                            d.get("em") or r.get("atualizado_em"))
 
 
 def _aplicar_pivo(registros: list):
@@ -1009,8 +1030,18 @@ def _ler_json(path: str) -> dict:
         return {}
 
 
+def _aplicar_usuarios(registros: list):
+    auth_service.aplicar_usuarios(registros)
+
+
 _APLICADORES_COMPARTILHADOS = {"comentarios": _aplicar_comentarios, "posicoes": _aplicar_posicoes, "clips": _aplicar_clips,
-                               "pivo": _aplicar_pivo, "contestacoes": _aplicar_contestacoes}
+                               "pivo": _aplicar_pivo, "contestacoes": _aplicar_contestacoes, "usuarios": _aplicar_usuarios}
+
+
+@app.post("/compartilhado/sincronizar")
+def compartilhado_sincronizar():
+    """Sincronização sob demanda com a planilha da equipe (sobe a fila e traz o que mudou)."""
+    return shared_store.sincronizar(_APLICADORES_COMPARTILHADOS)
 
 
 POSICOES_PATH = os.path.join(BASE_DIR, "posicoes.json")

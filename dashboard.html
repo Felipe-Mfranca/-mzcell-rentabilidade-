@@ -2551,7 +2551,7 @@ async function pivoAlternarClip(conta, mlb) {
   const v = it.checks.find(c => c.id === 'V');
   const prox = v.ok === true ? false : (v.ok === false ? null : true);   // não confirmado → tem clip → sem clip → não confirmado
   try {
-    const r = await (await fetch(`${API}/pivo/${conta}/${mlb}/clip`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tem_clip: prox, autor: user?.login || ''})})).json();
+    const r = await (await fetch(`${API}/pivo/${conta}/${mlb}/clip`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tem_clip: prox, autor: user?.login || '', autor_nome: user?.nome || ''})})).json();
     if (r.item) { _pivo[conta].itens[mlb] = r.item; _pivo[conta].fora_do_pivo = Object.values(_pivo[conta].itens).filter(x => !x.passa).length; }
     mostrarPivoModal(conta, mlb); pivoAtualizarCelulas(conta);
     toast(prox === true ? 'Clip confirmado' : prox === false ? 'Marcado sem clip' : 'Marcação de clip removida');

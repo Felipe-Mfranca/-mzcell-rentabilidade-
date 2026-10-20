@@ -21,7 +21,7 @@ import json
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timezone
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_PATH = os.path.join(BASE_DIR, "pivo_cache.json")
@@ -129,6 +129,8 @@ def resultado(conta: str) -> dict:
         local = itens.get(mlb)
         if (not local or gerado < (d.get("gerado_em") or "")) and "grupos" in d:
             itens[mlb] = {**d, "remoto": True}
+    for mlb, v in itens.items():                              # quem marcou o clip e quando
+        _anexar_clip(v, manual.get(mlb))
     fora = sum(1 for v in itens.values() if not v["passa"])
     return {"conta": conta, "estado": estado(conta), "total": len(itens), "fora_do_pivo": fora, "itens": itens}
 
@@ -168,14 +170,40 @@ def aplicar_remoto(registros: list):
     _gravar(REMOTO_PATH, rem)
 
 
-def marcar_clip(conta: str, mlb: str, tem_clip):
-    """tem_clip: True, False ou None (limpa a marcação). Recalcula o item no cache sem chamar o ML."""
+def _quando(iso: str) -> str:
+    try:
+        d = datetime.fromisoformat((iso or "").replace("Z", "+00:00"))
+        if d.tzinfo:
+            d = d.astimezone()
+        return d.strftime("%d/%m/%Y %H:%M")
+    except ValueError:
+        return iso or ""
+
+
+def _anexar_clip(item: dict, info: dict):
+    """Põe no item (e no texto do V) quem marcou o clip e quando."""
+    if not item or not info or not info.get("em"):
+        return item
+    por = info.get("por") or info.get("login") or "usuário não identificado"
+    item["clip_info"] = {"por": por, "em": info["em"], "quando": _quando(info["em"])}
+    for g in item.get("grupos") or []:
+        if g.get("id") == "V":
+            for p in g.get("partes") or []:
+                if p.get("nome", "").startswith("Clip"):
+                    p["detalhe"] = f"{p.get('detalhe', '').split(' — ')[0]} — marcado por {por} em {item['clip_info']['quando']}"
+    return item
+
+
+def marcar_clip(conta: str, mlb: str, tem_clip, login: str = "", nome: str = "", em: str = None):
+    """tem_clip: True, False ou None (limpa a marcação). Recalcula o item no cache sem chamar o ML.
+    Guarda quem marcou (nome e login) e quando (ISO UTC)."""
     manual = _ler(MANUAL_PATH)
     m = manual.setdefault(conta, {})
     if tem_clip is None:
         m.pop(mlb, None)
     else:
-        m[mlb] = {"clip": bool(tem_clip)}
+        m[mlb] = {"clip": bool(tem_clip), "login": login, "por": nome or login,
+                  "em": em or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"}
     _gravar(MANUAL_PATH, manual)
     cache = _ler(CACHE_PATH)
     it = (cache.get(conta) or {}).get(mlb)
@@ -185,7 +213,7 @@ def marcar_clip(conta: str, mlb: str, tem_clip):
         novo["_entrada"] = base
         cache[conta][mlb] = novo
         _gravar(CACHE_PATH, cache)
-        return novo
+        return _anexar_clip(dict(novo), manual.get(conta, {}).get(mlb))
     return None
 
 

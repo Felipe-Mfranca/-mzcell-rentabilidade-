@@ -27,7 +27,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE_DIR, "shared_config.json")
 FILA_PATH = os.path.join(BASE_DIR, "shared_fila.json")
 ESTADO_PATH = os.path.join(BASE_DIR, "shared_estado.json")
-COLECOES = ("comentarios", "posicoes", "clips", "pivo", "contestacoes")
+COLECOES = ("comentarios", "posicoes", "clips", "pivo", "contestacoes", "usuarios")
 _trava = threading.Lock()
 
 
@@ -110,13 +110,13 @@ def esvaziar_fila() -> int:
         return subiram
 
 
-def enviar(colecao: str, chave: str, dados, autor: str = "", removido: bool = False) -> bool:
+def enviar(colecao: str, chave: str, dados, autor: str = "", removido: bool = False, ts: str = None) -> bool:
     """Coloca na fila e tenta subir já. Devolve True se subiu; False se ficou na fila (offline ou sem configuração)."""
     if colecao not in COLECOES or not configurado():
         return False
     with _trava:
         fila = _ler(FILA_PATH, [])
-        fila.append({"colecao": colecao, "registro": registro(chave, dados, autor, removido)})
+        fila.append({"colecao": colecao, "registro": registro(chave, dados, autor, removido, ts)})
         _gravar(FILA_PATH, fila)
     esvaziar_fila()
     return not _ler(FILA_PATH, [])
