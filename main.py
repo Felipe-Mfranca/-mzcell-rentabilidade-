@@ -882,6 +882,9 @@ def _aplicar_posicoes(registros: list):
             novo = json.loads(r["dados"])
         except (ValueError, KeyError):
             continue
+        if r.get("removido"):
+            db.get(conta, {}).pop(mlb, None)
+            continue
         atual = db.setdefault(conta, {}).get(mlb)
         if atual is None or (atual.get("atualizado_em") or "") <= (novo.get("atualizado_em") or r.get("atualizado_em", "")):
             db[conta][mlb] = novo
