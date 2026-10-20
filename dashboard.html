@@ -436,14 +436,14 @@ input.modal-date:focus{border-color:var(--gold);}
 .mx-card2 > h4 small{font-weight:500;color:var(--muted2);font-size:10.5px;}
 .mxt{display:flex;flex-direction:column;gap:1px;}
 .mxt-row{display:grid;grid-template-columns:66px repeat(var(--n),minmax(0,1fr));align-items:center;border-radius:12px;}
-.mxt-row > div{padding:3px 2px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.mxt-row > div{padding:3px 2px;text-align:right;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:clip;font-variant-numeric:tabular-nums;}
 .mxt-row > .lab{text-align:left;display:flex;flex-direction:column;gap:1px;line-height:1.2;}
-.mxt-head > div{white-space:normal;line-height:1.15;font-size:10px;font-weight:600;color:var(--muted2);padding-bottom:3px;}
+.mxt-head > div{white-space:normal;overflow-wrap:anywhere;hyphens:auto;line-height:1.15;font-size:10px;font-weight:600;color:var(--muted2);padding-bottom:3px;}
 .mxt-row.sel{background:linear-gradient(90deg,rgba(22,101,52,.10),rgba(22,101,52,.03));}
-.mxt-row.sel > div:not(.lab){font-weight:800;font-size:12.5px;}
+.mxt-row.sel > div:not(.lab){font-weight:800;font-size:12px;}
 .mxt-row .lab b{font-size:11px;}
 .mxt-row.ant{color:var(--muted2);}
-.mxt-row.ant > div:not(.lab){font-weight:400;font-size:11.5px;}
+.mxt-row.ant > div:not(.lab){font-weight:400;font-size:11px;}
 .mxt-row .lab small{font-size:10px;font-weight:400;color:var(--muted2);}
 .mxt-row.var > div:not(.lab){padding:1px 0;}.mxt-row.var .lab b{font-weight:500;font-size:10.5px;color:var(--muted2);}
 .mxt-pill{display:inline-flex;align-items:center;gap:2px;padding:1px 5px;border-radius:999px;font-size:9.5px;font-weight:400;}
@@ -1439,7 +1439,7 @@ function amzDesenharModal(d) {
       <div class="mx-left">
         <section class="mx-card2"><h4>Dados de ADS<small>indisponível por SKU</small></h4>
           <div class="sac-mut" style="font-size:12px;line-height:1.5">Falta a liberação da Advertising API da Amazon (credencial própria). A fatura de Ads da conta aparece nos cartões da tela principal, sem rateio.</div></section>
-        <section class="mx-card2"><h4>Dados de vendas<small>${rotA} · anterior ${rotB}</small></h4>${mxTabela(cols, A, B, rotA, rotB)}
+        <section class="mx-card2"><h4>Dados de vendas</h4>${mxTabela(cols, A, B, rotA, rotB)}
           <div id="amz-trafego" style="margin-top:10px"><div class="sac-mut" style="font-size:11px">Buscando visitas e conversão no relatório da Amazon (30 a 60 s)…</div></div></section>
       </div>
       ${colSim}
@@ -2342,8 +2342,8 @@ function renderModalContent(mlb, conta) {
   document.getElementById('modal-body').innerHTML = `
     <div class="mx-main">
       <div class="mx-left">
-        <section class="mx-card2"><h4>Dados de ADS<small>${rotA} · anterior ${rotB}</small></h4>${mxTabela(colsAds, A, B, rotA, rotB)}</section>
-        <section class="mx-card2"><h4>Dados de vendas<small>${rotA} · anterior ${rotB}</small></h4>${mxTabela(colsVendas, A, B, rotA, rotB)}
+        <section class="mx-card2"><h4>Dados de ADS</h4>${mxTabela(colsAds, A, B, rotA, rotB)}</section>
+        <section class="mx-card2"><h4>Dados de vendas</h4>${mxTabela(colsVendas, A, B, rotA, rotB)}
           <div class="mx-pos2"><span>Posição do anúncio: <b id="pos-txt" style="color:var(--text)">${posTxt}</b></span>
             <input type="number" id="pos-pag" value="${pos.pagina||1}" min="1" max="99" style="width:44px" title="Página"/>
             <input type="number" id="pos-num" value="${pos.posicao||''}" min="1" max="99" style="width:56px" placeholder="Posição" title="Posição"/>
