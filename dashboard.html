@@ -1474,7 +1474,7 @@ async function amzSalvarComentario() {
   if (!texto) { toast('Escreva o comentário', 'error'); return; }
   if (texto === (ta.dataset.orig || '').trim()) { toast('Comentário sem alterações'); return; }
   try {
-    const r = await fetch(`${API}/anotacoes/${_amz.conta}/${amzChaveComentario()}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({texto})});
+    const r = await fetch(`${API}/anotacoes/${_amz.conta}/${amzChaveComentario()}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({texto, autor: user?.login || ''})});
     if (!r.ok) throw new Error(r.status); toast('Comentário salvo'); ta.dataset.orig = texto;
   } catch(e) { toast('Erro ao salvar o comentário', 'error'); }
 }
@@ -2462,7 +2462,7 @@ async function pivoAlternarClip(conta, mlb) {
   const v = it.checks.find(c => c.id === 'V');
   const prox = v.ok === true ? false : (v.ok === false ? null : true);   // não confirmado → tem clip → sem clip → não confirmado
   try {
-    const r = await (await fetch(`${API}/pivo/${conta}/${mlb}/clip`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tem_clip: prox})})).json();
+    const r = await (await fetch(`${API}/pivo/${conta}/${mlb}/clip`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tem_clip: prox, autor: user?.login || ''})})).json();
     if (r.item) { _pivo[conta].itens[mlb] = r.item; _pivo[conta].fora_do_pivo = Object.values(_pivo[conta].itens).filter(x => !x.passa).length; }
     mostrarPivoModal(conta, mlb); pivoAtualizarCelulas(conta);
     toast(prox === true ? 'Clip confirmado' : prox === false ? 'Marcado sem clip' : 'Marcação de clip removida');
@@ -2651,7 +2651,7 @@ async function salvarComentario(mlb, conta) {
   if (!texto) { toast('Escreva o comentário', 'error'); return; }
   if (texto === (ta.dataset.orig || '').trim()) { toast('Comentário sem alterações'); return; }
   try {
-    const res = await fetch(`${API}/anotacoes/${conta}/${mlb}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({texto})});
+    const res = await fetch(`${API}/anotacoes/${conta}/${mlb}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({texto, autor: user?.login || ''})});
     if (!res.ok) throw new Error(res.status);
     toast('Comentário salvo');
     carregarComentario(mlb, conta);
@@ -2674,7 +2674,7 @@ function salvarPosicao(mlb, conta) {
   const pos = parseInt(document.getElementById('pos-num').value)||0;
   const kw  = document.getElementById('pos-kw').value.trim();
   if(!pos){toast('Informe a posição','error');return;}
-  fetch(`${API}/posicoes/${conta}/${mlb}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({pagina:pag, posicao:pos, keyword:kw})})
+  fetch(`${API}/posicoes/${conta}/${mlb}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({pagina:pag, posicao:pos, keyword:kw, autor: user?.login || ''})})
     .then(r => r.ok ? r.json() : Promise.reject(r.status))
     .then(d => {
       _posCache[mlb] = d.posicao;

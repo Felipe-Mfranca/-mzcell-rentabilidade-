@@ -1,0 +1,6 @@
+{
+  "_leia_me": "Copie para shared_config.json (fica fora do GitHub) e preencha com a URL do Apps Script e o codigo de acesso. Passo a passo em compartilhado/LEIA-ME.md",
+  "url": "COLE_AQUI",
+  "token": "COLE_AQUI",
+  "intervalo_seg": 60
+}

@@ -88,6 +88,13 @@ async def startup():
         print("[startup] Token verificado/renovado com sucesso")
     except Exception as e:
         print(f"[startup] Aviso token: {e}")
+    # Banco compartilhado (Google Sheets): só liga se shared_config.json estiver preenchido
+    try:
+        import shared_store
+        if shared_store.iniciar_sincronizacao(_APLICADORES_COMPARTILHADOS):
+            print("[startup] Sincronização com a planilha compartilhada ligada")
+    except Exception as e:
+        print(f"[startup] Aviso planilha compartilhada: {e}")
 
 
 # ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -377,6 +384,9 @@ def pivo_clip(conta: str, mlb: str, payload: dict):
     novo = pivo_ml.marcar_clip(conta, mlb, payload.get("tem_clip"))
     if novo:
         novo.pop("_entrada", None)
+    import shared_store
+    tem = payload.get("tem_clip")
+    shared_store.enviar_async("clips", f"{conta}|{mlb}", {"clip": tem}, str(payload.get("autor", ""))[:40], removido=tem is None)
     return {"success": True, "item": novo}
 
 
@@ -844,6 +854,55 @@ def _save_anotacoes(db: dict):
         json.dump(db, f, indent=2, ensure_ascii=False)
 
 
+# ─── Banco compartilhado: aplica no disco local o que veio da planilha ────────────────
+def _aplicar_comentarios(registros: list):
+    db = _load_anotacoes()
+    for r in registros:
+        try:
+            conta, mlb, cid = r["chave"].split("|", 2)
+            d = json.loads(r["dados"]) if r.get("dados") else {}
+        except (ValueError, KeyError):
+            continue
+        lista = db.setdefault(conta, {}).setdefault(mlb, [])
+        existente = next((a for a in lista if a.get("id") == cid), None)
+        if r.get("removido"):
+            if existente:
+                lista.remove(existente)
+        elif existente is None and d.get("texto"):
+            lista.append({"id": cid, "texto": d["texto"], "criado_em": d.get("criado_em", ""),
+                          "criado_ts": d.get("criado_ts", r.get("atualizado_em", "")), "autor": d.get("autor", r.get("autor", ""))})
+    _save_anotacoes(db)
+
+
+def _aplicar_posicoes(registros: list):
+    db = _load_posicoes()
+    for r in registros:
+        try:
+            conta, mlb = r["chave"].split("|", 1)
+            novo = json.loads(r["dados"])
+        except (ValueError, KeyError):
+            continue
+        atual = db.setdefault(conta, {}).get(mlb)
+        if atual is None or (atual.get("atualizado_em") or "") <= (novo.get("atualizado_em") or r.get("atualizado_em", "")):
+            db[conta][mlb] = novo
+    with open(POSICOES_PATH, "w", encoding="utf-8") as f:
+        json.dump(db, f, indent=2, ensure_ascii=False)
+
+
+def _aplicar_clips(registros: list):
+    import pivo_ml
+    for r in registros:
+        try:
+            conta, mlb = r["chave"].split("|", 1)
+            clip = json.loads(r["dados"]).get("clip")
+        except (ValueError, KeyError, AttributeError):
+            continue
+        pivo_ml.marcar_clip(conta, mlb, None if r.get("removido") else clip)
+
+
+_APLICADORES_COMPARTILHADOS = {"comentarios": _aplicar_comentarios, "posicoes": _aplicar_posicoes, "clips": _aplicar_clips}
+
+
 POSICOES_PATH = os.path.join(BASE_DIR, "posicoes.json")
 
 def _load_posicoes() -> dict:
@@ -874,9 +933,12 @@ async def salvar_posicao_anuncio(conta: str, mlb: str, payload: dict):
                  "keyword": str(payload.get("keyword", "")).strip()[:80]})
     novo = {"pagina": pagina, "posicao": posicao, "keyword": str(payload.get("keyword", "")).strip()[:80],
             "historico": hist[-20:]}
+    import shared_store
+    novo["atualizado_em"] = shared_store.agora_iso()
     db[conta][mlb] = novo
     with open(POSICOES_PATH, "w", encoding="utf-8") as f:
         json.dump(db, f, indent=2, ensure_ascii=False)
+    shared_store.enviar_async("posicoes", f"{conta}|{mlb}", novo, str(payload.get("autor", ""))[:40])
     return {"success": True, "posicao": novo}
 
 
@@ -907,9 +969,12 @@ async def salvar_anotacao(conta: str, mlb: str, payload: dict):
         "texto":     texto,
         "criado_em": _dt.now().strftime("%d/%m/%Y %H:%M"),
         "criado_ts": _dt.now().isoformat(),
+        "autor":     str(payload.get("autor", ""))[:40],
     }
     db[conta][mlb].append(anotacao)
     _save_anotacoes(db)
+    import shared_store
+    shared_store.enviar_async("comentarios", f"{conta}|{mlb}|{anotacao['id']}", anotacao, anotacao["autor"])
     log_atividade(f"Anotação: {mlb} ({conta}) {anotacao['criado_em']}")
     return {"success": True, "anotacao": anotacao}
 
@@ -924,6 +989,8 @@ async def deletar_anotacao(conta: str, mlb: str, anotacao_id: str):
         raise HTTPException(status_code=404, detail="Anotação não encontrada")
     db[conta][mlb] = nova
     _save_anotacoes(db)
+    import shared_store
+    shared_store.enviar_async("comentarios", f"{conta}|{mlb}|{anotacao_id}", {"id": anotacao_id}, removido=True)
     return {"success": True}
 
 

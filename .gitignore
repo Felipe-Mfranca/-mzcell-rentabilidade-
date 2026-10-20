@@ -89,3 +89,8 @@ amazon_trafego_*.json
 pivo_cache.json
 pivo_manual.json
 full_alertas_cache.json
+
+# Banco compartilhado (Google Sheets): configuracao local e filas
+shared_config.json
+shared_fila.json
+shared_estado.json
