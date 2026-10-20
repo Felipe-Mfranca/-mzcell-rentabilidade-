@@ -70,6 +70,6 @@ def atualizar_email_senha(login, email, nova_senha):
     save_usuarios(usuarios)
 
 def tem_permissao(role, acao):
-    p = {"master":["tudo"],"adminplus":["ver","sync","custos","anotacoes","simulador"],"viewer":["ver"]}
+    p = {"master":["tudo"],"adminplus":["ver","sync","custos","anotacoes","simulador"],"viewer":["ver"],"operador":["ver","anotacoes"]}
     perms = p.get(role,[])
     return "tudo" in perms or acao in perms

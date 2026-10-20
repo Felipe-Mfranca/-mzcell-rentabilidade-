@@ -132,6 +132,7 @@ async def login(payload: dict):
         "nome":            u["nome"],
         "role":            u["role"],
         "contas":          u.get("contas", []),
+        "modulos":         u.get("modulos", ["todos"]),
         "primeiro_acesso": u.get("primeiro_acesso", False),
         "email":           u.get("email", ""),
     }

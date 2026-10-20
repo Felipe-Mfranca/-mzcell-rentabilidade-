@@ -696,18 +696,18 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       <div class="user-role" id="urole">—</div>
     </div>
     <div class="sidebar-nav">
-      <div class="nav-section">Contas</div>
-      <button class="nav-item active" onclick="switchTab('meli01',this)"><span class="icon">◈</span> Meli01</button>
-      <button class="nav-item" onclick="switchTab('meli02',this)"><span class="icon">◈</span> Meli02</button>
-      <button class="nav-item" onclick="switchTab('meli03',this)"><span class="icon">◈</span> Meli03</button>
-      <div class="nav-section">Amazon</div>
-      <button class="nav-item" onclick="switchTab('amazon01',this)"><span class="icon">◈</span> Amazon 01</button>
-      <button class="nav-item" onclick="switchTab('amazon02',this)"><span class="icon">◈</span> Amazon 02</button>
-      <div class="nav-section">Shopee</div>
-      <button class="nav-item" onclick="switchTab('shopee',this)"><span class="icon">◈</span> Shopee</button>
+      <div class="nav-section" data-mod="meli">Contas</div>
+      <button class="nav-item active" data-mod="meli" onclick="switchTab('meli01',this)"><span class="icon">◈</span> Meli01</button>
+      <button class="nav-item" data-mod="meli" onclick="switchTab('meli02',this)"><span class="icon">◈</span> Meli02</button>
+      <button class="nav-item" data-mod="meli" onclick="switchTab('meli03',this)"><span class="icon">◈</span> Meli03</button>
+      <div class="nav-section" data-mod="amazon">Amazon</div>
+      <button class="nav-item" data-mod="amazon" onclick="switchTab('amazon01',this)"><span class="icon">◈</span> Amazon 01</button>
+      <button class="nav-item" data-mod="amazon" onclick="switchTab('amazon02',this)"><span class="icon">◈</span> Amazon 02</button>
+      <div class="nav-section" data-mod="shopee">Shopee</div>
+      <button class="nav-item" data-mod="shopee" onclick="switchTab('shopee',this)"><span class="icon">◈</span> Shopee</button>
       <div class="nav-section">Módulos</div>
-      <button class="nav-item" onclick="switchTab('expedicao',this)"><span class="icon">▤</span> Expedição</button>
-      <button class="nav-item" onclick="switchTab('sac',this)"><span class="icon">✉</span> SAC</button>
+      <button class="nav-item" data-mod="expedicao" onclick="switchTab('expedicao',this)"><span class="icon">▤</span> Expedição</button>
+      <button class="nav-item" data-mod="sac" onclick="switchTab('sac',this)"><span class="icon">✉</span> SAC</button>
       <div class="nav-section">Sistema</div>
       <button class="nav-item" onclick="switchTab('config',this)"><span class="icon">⚙</span> Configurações</button>
     </div>
@@ -755,7 +755,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       <div class="tab" id="tab-amazon02"><div id="painel-amazon02"></div></div>
       <div class="tab" id="tab-shopee"><div id="painel-shopee"></div></div>
       <div class="tab" id="tab-config">
-        <div class="config-card" style="max-width:760px;margin-bottom:24px">
+        <div class="config-card" id="cfg-cmv-card" style="max-width:760px;margin-bottom:24px">
           <div class="config-card-title">CMV e imposto</div>
           <div class="config-card-sub">Um único arquivo de CMV do Grupo vale para todas as plataformas (Mercado Livre, Amazon e, depois, Shopee). O imposto usa a alíquota de cada conta.</div>
           <div id="cmv-status" class="sac-mut" style="margin:8px 0">Carregando…</div>
@@ -1001,6 +1001,7 @@ async function fazerLogin() {
     if (!res.ok) { mostrarErroLogin(data.detail || 'Login inválido'); return; }
     _loginAtual = data;
     if (data.primeiro_acesso) {
+      const pe = document.getElementById('pa-email'); if (pe) { pe.value = data.email || ''; pe.readOnly = !!data.email; }
       document.getElementById('tela-login').style.display = 'none';
       document.getElementById('tela-primeiro-acesso').style.display = 'flex';
     } else {
@@ -1010,6 +1011,7 @@ async function fazerLogin() {
       document.getElementById('uname').textContent = user.nome;
       document.getElementById('urole').textContent = user.role;
       initApp();
+      aplicarModulos();
       fetch('/sistema/houve-atualizacao').then(r => r.json()).then(d => {
         if (d.houve) setTimeout(() => mostrarPopupChangelog(), 800);
       }).catch(() => {});
@@ -1078,6 +1080,7 @@ async function finalizarPrimeiroAcesso() {
     document.getElementById('urole').textContent = user.role;
     toast('Acesso configurado com sucesso!');
     initApp();
+    aplicarModulos();
   } catch(e) { erroEl.textContent='Erro de conexão'; erroEl.style.display='block'; }
 }
 
@@ -1585,10 +1588,34 @@ async function carregarContestacoes(conta){
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────
+// ── ACESSO POR MÓDULO (da tela): modulos = ["todos"] ou lista de "expedicao", "sac", "meli", "amazon", "shopee" ──
+function temModulo(m) {
+  const ms = user?.modulos;
+  return !ms || !ms.length || ms.includes('todos') || ms.includes(m);
+}
+function aplicarModulos() {
+  const completo = temModulo('meli') && temModulo('amazon') && temModulo('shopee') && temModulo('expedicao') && temModulo('sac');
+  document.querySelectorAll('.nav-item[data-mod], .nav-section[data-mod]').forEach(el => { el.style.display = temModulo(el.dataset.mod) ? '' : 'none'; });
+  // seção "Módulos" e "Sistema": aparecem se algum item filho estiver visível
+  document.querySelectorAll('.sidebar-nav .nav-section').forEach(sec => {
+    if (sec.dataset.mod) return;
+    let el = sec.nextElementSibling, algum = false;
+    while (el && !el.classList.contains('nav-section')) { if (el.style.display !== 'none') algum = true; el = el.nextElementSibling; }
+    sec.style.display = algum ? '' : 'none';
+  });
+  const cfg = document.getElementById('config-contas'); if (cfg) cfg.style.display = completo ? '' : 'none';
+  const cmv = document.getElementById('cfg-cmv-card'); if (cmv) cmv.style.display = completo ? '' : 'none';
+  if (!completo) document.getElementById('urole').textContent = 'acesso: ' + user.modulos.join(', ');
+  // aba inicial: a primeira permitida
+  const primeiro = [...document.querySelectorAll('.nav-item[data-mod]')].find(b => b.style.display !== 'none');
+  if (primeiro && !temModulo('meli')) {
+    const m = /switchTab\('([^']+)'/.exec(primeiro.getAttribute('onclick'));
+    if (m) switchTab(m[1], primeiro);
+  }
+}
+
 function initApp() {
-  renderPainel('meli01');
-  renderPainel('meli02');
-  renderPainel('meli03');
+  if (temModulo('meli')) { renderPainel('meli01'); renderPainel('meli02'); renderPainel('meli03'); }
   fetch(`${API}/sistema/versao`)
     .then(r=>r.json())
     .then(d=>{ const el=document.getElementById('logo-versao'); if(el&&d.versao) el.textContent='v'+d.versao; })
