@@ -231,6 +231,13 @@ async def recuperar_senha(payload: dict):
     email    = payload.get("email", "").strip()
     usuarios = auth_service.load_usuarios()
     u = next((u for u in usuarios if u.get("email") == email), None)
+    if not u:      # o email pode ter sido cadastrado em outro computador: traz os usuários da planilha
+        try:
+            shared_store.sincronizar({"usuarios": _aplicar_usuarios})
+            usuarios = auth_service.load_usuarios()
+            u = next((u for u in usuarios if u.get("email") == email), None)
+        except Exception:
+            u = None
     if not u:
         return {"success": True, "msg": "Se o email estiver cadastrado, você receberá um código"}
     auth_service.enviar_codigo(email, u["nome"])

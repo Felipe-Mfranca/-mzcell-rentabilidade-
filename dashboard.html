@@ -756,6 +756,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       <div class="login-field"><label>Confirmar senha</label><input type="password" id="rec-confirmar-senha" placeholder="repita a senha"/></div>
       <div id="rec-erro2" class="login-erro" style="display:none"></div>
       <button class="login-btn" onclick="redefinirSenha()">Redefinir senha →</button>
+      <div style="text-align:center;margin-top:12px"><button id="rec-reenviar" class="btn-sm" onclick="reenviarCodigoRecuperacao()" style="width:100%">Reenviar código</button></div>
     </div>
   </div>
 </div>
@@ -1170,11 +1171,38 @@ async function finalizarPrimeiroAcesso() {
 async function enviarCodigoRecuperacao() {
   const email  = document.getElementById('rec-email').value.trim();
   const erroEl = document.getElementById('rec-erro1');
+  if (!email || !email.includes('@')) { erroEl.textContent='Informe o email cadastrado'; erroEl.style.display='block'; return; }
+  erroEl.style.display = 'none';
   try {
-    await fetch(`${API}/auth/recuperar-senha`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    const res = await fetch(`${API}/auth/recuperar-senha`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    if (!res.ok) { erroEl.textContent='Não foi possível enviar o código agora. Tente de novo em instantes.'; erroEl.style.display='block'; return; }
     document.getElementById('rec-step1').style.display = 'none';
     document.getElementById('rec-step2').style.display = 'block';
+    recContagem();
   } catch(e) { erroEl.textContent='Erro de conexão'; erroEl.style.display='block'; }
+}
+
+// Reenvio do código: libera 30 s depois de cada envio para não disparar vários emails seguidos
+let _recTimer = null;
+function recContagem(seg = 30) {
+  const b = document.getElementById('rec-reenviar'); if (!b) return;
+  clearInterval(_recTimer); b.disabled = true;
+  let n = seg; b.textContent = `Reenviar código (${n}s)`;
+  _recTimer = setInterval(() => {
+    n--; if (n <= 0) { clearInterval(_recTimer); b.disabled = false; b.textContent = 'Reenviar código'; } else b.textContent = `Reenviar código (${n}s)`;
+  }, 1000);
+}
+async function reenviarCodigoRecuperacao() {
+  const email = document.getElementById('rec-email').value.trim();
+  const erroEl = document.getElementById('rec-erro2');
+  const b = document.getElementById('rec-reenviar'); if (b.disabled) return;
+  erroEl.style.display = 'none'; b.disabled = true; b.textContent = 'Enviando…';
+  try {
+    const res = await fetch(`${API}/auth/recuperar-senha`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    if (!res.ok) throw new Error(res.status);
+    toast('Novo código enviado para ' + email);
+    recContagem();
+  } catch(e) { erroEl.textContent = 'Não foi possível reenviar o código. Tente de novo em instantes.'; erroEl.style.display = 'block'; b.disabled = false; b.textContent = 'Reenviar código'; }
 }
 
 async function redefinirSenha() {
