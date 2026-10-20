@@ -480,6 +480,15 @@ html:not([data-tema="claro"]) .mxt-pill.up{color:#4ade80;}html:not([data-tema="c
 .mapa-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;}
 .mapa-chip{font-size:10.5px;padding:2px 8px;border-radius:999px;background:rgba(120,120,120,.12);color:var(--muted2);white-space:nowrap;}
 .mapa-chip b{color:var(--text);font-weight:700;}
+.mxt-sel{width:100%;background:transparent;border:0;color:var(--muted2);font:600 10px var(--font);text-align:right;text-align-last:right;cursor:pointer;padding:0;appearance:none;-webkit-appearance:none;outline:none;}
+.mxt-sel:hover{color:var(--text);}
+.mxt-sel option{background:var(--bg2);color:var(--text);font-size:12px;}
+.mxt-head > div.sel-h{padding-right:2px;}
+.mxt-head > div.sel-h::after{content:'▾';font-size:8px;color:var(--muted2);margin-left:1px;}
+.info-i{position:relative;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--muted2);color:var(--muted2);font:italic 700 10px Georgia,serif;cursor:help;margin-left:6px;vertical-align:middle;}
+.info-i:hover{color:var(--text);border-color:var(--text);}
+.info-i::after{content:attr(data-tip);position:absolute;top:calc(100% + 6px);left:-8px;width:270px;white-space:pre-line;text-align:left;font:400 11px/1.45 var(--font);font-style:normal;background:var(--bg1);border:1px solid var(--border2);color:var(--text);padding:8px 10px;border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .12s;z-index:30;}
+.info-i:hover::after{opacity:1;}
 @media (max-width:1200px){.mx-main{grid-template-columns:1fr;}}
 
 .mx-avisos{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px;min-height:0;}
@@ -1408,7 +1417,7 @@ function amzDesenharModal(d) {
   const temSt = c.tem_st ?? true;
   const impPct = c.imposto_pct != null ? c.imposto_pct : al.com_st;
   const comPct = rl > 0 ? Math.abs(a.comissao) / rl : 0;
-  const fld = (lbl, id, val) => `<div class="sim-field"><label>${lbl}</label><input type="number" id="${id}" value="${val}" step="0.01" oninput="amzCalc()"/></div>`;
+  const fld = (lbl, id, val) => `<div class="sim-field"><label>${lbl}</label><input type="number" id="${id}" value="${val}" step="0.01" oninput="amzCalc()" onblur="fmt2(this)"/></div>`;
   const dec2 = v => Number(v||0).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   const prep = o => o ? {...o, preco_c: o.un_liquidas > 0 ? o.receita_liquida / o.un_liquidas : 0, mp: o.completo ? (o.margem_pct || 0) / 100 : null, m: o.completo ? o.margem : null} : null;
   const A = prep(a), B = prep(p);
@@ -1490,7 +1499,7 @@ function amzCalc() {
   const mp = preco > 0 ? res/preco : 0, cor = res < 0 ? 'var(--red)' : 'var(--green)';
   const el = document.getElementById('amz-sim-out'); if (!el) return;
   el.innerHTML = `<div class="mx-row"><span class="mx-lbl">Resultado unitário</span><span class="mx-val" style="color:${cor}">${brl2(res)}</span></div>
-    <div class="mx-row"><span class="mx-lbl">Margem simulada</span><span class="mx-val" style="color:${cor}">${pct1(mp)}</span></div>
+    <div class="mx-row"><span class="mx-lbl">Margem simulada</span><span class="mx-val" style="color:${cor}">${pct2(mp)}</span></div>
 `;
 }
 async function amzTrocarSt() {
@@ -2301,15 +2310,19 @@ function renderModalContent(mlb, conta) {
   const preparar = o => ({...o, ctr_c: ctrDe(o)/100, cpc_c: cpcDe(o), vads: comAds(o), preco_c: o.unidades > 0 ? o.receita/o.unidades : 0, conv_c: conv(o)});
   const A = preparar(per), B = preparar(prev);
   const dec2 = v => Number(v||0).toFixed(2).replace('.', ',');
-  const colsAds = [
-    {k:'acos', l:'ACOS', f:pct1, inv:true}, {k:'tacos', l:'TACOS', f:pct1, inv:true}, {k:'roas', l:'ROAS', f:dec2},
-    {k:'receita_publi', l:'Venda ADS (R$)', f:v=>dec2(v).replace(/\B(?=(\d{3})+(?!\d))/g,'.')}, {k:'ads_total', l:'Investimento (R$)', f:v=>dec2(v).replace(/\B(?=(\d{3})+(?!\d))/g,'.'), neu:true},
-    {k:'impressoes', l:'Impressões', f:v=>r(v)}, {k:'cliques', l:'Cliques', f:v=>r(v)}, {k:'ctr_c', l:'CTR', f:v=>(v*100).toFixed(2).replace('.',',')+'%'},
-    {k:'cpc_c', l:'CPC (R$)', f:dec2, inv:true}, {k:'vads', l:'Vendas ADS (un.)', f:v=>r(v)}, {k:'vendas_sem_publi', l:'Vendas orgânicas (un.)', f:v=>r(v)}
-  ];
+  const mil = v => dec2(v).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  const diasB = diasPer || 1;
+  A.media_dia = diasPer ? (A.unidades || 0) / diasPer : 0; B.media_dia = diasPer ? (B.unidades || 0) / diasB : 0;
+  _adsCtx = {A, B, rotA, rotB, todas: [
+    {k:'tacos', l:'TACOS', f:pct2, inv:true}, {k:'acos', l:'ACOS', f:pct2, inv:true}, {k:'roas', l:'ROAS', f:dec2},
+    {k:'ads_total', l:'Investimento (R$)', f:mil, neu:true}, {k:'receita_publi', l:'Receita por ADS (R$)', f:mil},
+    {k:'vads', l:'Vendas por ADS (un.)', f:v=>r(v)}, {k:'vendas_sem_publi', l:'Vendas sem ADS (un.)', f:v=>r(v)},
+    {k:'impressoes', l:'Impressões', f:v=>r(v)}, {k:'cliques', l:'Cliques', f:v=>r(v)}, {k:'ctr_c', l:'CTR', f:pct2},
+    {k:'cpc_c', l:'CPC (R$)', f:dec2, inv:true}, {k:'cvr_ads', l:'Conversão do ADS', f:pct2}]};
+  A.cvr_ads = A.cliques > 0 ? (A.vads || 0) / A.cliques : 0; B.cvr_ads = B.cliques > 0 ? (B.vads || 0) / B.cliques : 0;
   const colsVendas = [
-    {k:'unidades', l:'Unidades', f:v=>r(v)}, {k:'visitas', l:'Visitas únicas', f:v=>r(v)}, {k:'receita', l:'Vendas (R$)', f:v=>dec2(v).replace(/\B(?=(\d{3})+(?!\d))/g,'.')},
-    {k:'conv_c', l:'Conversão', f:pct1}, {k:'preco_c', l:'Preço médio (R$)', f:dec2}
+    {k:'media_dia', l:'Média diária (un.)', f:dec2}, {k:'unidades', l:'Unidades', f:v=>r(v)}, {k:'visitas', l:'Visitas', f:v=>r(v)},
+    {k:'conv_c', l:'Conversão', f:pct2}
   ];
   const pos = getPosicao(mlb);
   const posTxt = pos.posicao ? `p${pos.pagina||1} #${pos.posicao}` : 'Sem registro';
@@ -2318,7 +2331,7 @@ function renderModalContent(mlb, conta) {
   const sim = c.simulador || {};
   const precoUnit = per.unidades > 0 ? per.receita / per.unidades : 0;
   const fld = (lbl, id, val, step, ph='') =>
-    `<div class="sim-field"><label>${lbl}</label><input type="number" id="${id}" value="${val}" step="${step}" ${ph?`placeholder="${ph}"`:''} oninput="simEdit('${mlb}','${conta}',this)"/></div>`;
+    `<div class="sim-field"><label>${lbl}</label><input type="number" id="${id}" value="${val}" step="${step}" ${ph?`placeholder="${ph}"`:''} oninput="simEdit('${mlb}','${conta}',this)" onblur="fmt2(this)"/></div>`;
   const colSim = `<aside class="mx-card2 mx-sim"><h4>Simulação do cenário</h4>
     <div class="sim-grid">
       ${fld('Preço simulado (R$)','s-preco',(sim.preco??precoUnit).toFixed(2),'0.01')}
@@ -2326,23 +2339,23 @@ function renderModalContent(mlb, conta) {
       <div class="sim-field"><label>Imposto (%)</label><div style="display:flex;gap:4px">
         <select id="s-st" title="Alíquota de imposto da conta" onchange="trocarSt('${mlb}','${conta}',this)" style="height:26px;font-size:11px;background:var(--bg2);color:var(--text);border:1px solid var(--border2);border-radius:6px;padding:0 4px;">
           <option value="1" ${(dbProd.tem_st??true)?'selected':''}>COM ST</option><option value="0" ${(dbProd.tem_st??true)?'':'selected'}>SEM ST</option></select>
-        <input type="number" id="s-imp" value="${((sim.imposto_pct??(c.imposto_pct||0.10))*100).toFixed(2)}" step="0.01" oninput="simEdit('${mlb}','${conta}',this)" style="min-width:0"/></div></div>
+        <input type="number" id="s-imp" value="${((sim.imposto_pct??(c.imposto_pct||0.10))*100).toFixed(2)}" step="0.01" oninput="simEdit('${mlb}','${conta}',this)" onblur="fmt2(this)" style="min-width:0"/></div></div>
       ${fld('Comissão (%)','s-com',((sim.comissao_pct??(c.comissao_pct||0.11))*100).toFixed(2),'0.01')}
       ${fld('Frete (R$)','s-frete',(sim.frete_unit??(c.frete_unit||0)).toFixed(2),'0.01','0,00')}
-      ${fld('TACOS (%)','s-tacos',((sim.tacos??(per.tacos>0?per.tacos:0))*100).toFixed(2),'0.01')}
+      ${fld('TACOS 30 dias (%)','s-tacos',((sim.tacos??(rec30 > 0 ? ads30 / rec30 : 0))*100).toFixed(2),'0.01')}
       ${fld('Rebot (R$/un)','s-rebot',(sim.rebot_unit??(per.rebot_unit||c.rebot_unit||0)).toFixed(2),'0.01','0,00')}
       <div class="sim-field"><label>Rebot início</label><input type="date" id="s-rebot-ini" value="${sim.rebot_inicio??(per.rebot_inicio||'')}" oninput="simEdit('${mlb}','${conta}',this)"/></div>
       <div class="sim-field"><label>Rebot fim</label><input type="date" id="s-rebot-fim" value="${sim.rebot_fim??(per.rebot_fim||'')}" oninput="simEdit('${mlb}','${conta}',this)"/></div>
     </div>
     <div id="sim-out" class="mx-sim-out"></div>
-    <div id="sim-real" class="mx-sim-info" style="margin-top:8px">Buscando custos reais no ML…</div>
+    <div id="sim-real" class="mx-sim-info" style="margin-top:8px">Buscando custos reais…</div>
     <div class="mx-sim-act"><a onclick="usarMediasDoPeriodo('${mlb}','${conta}')">Usar médias do período selecionado</a></div>
   </aside>`;
 
   document.getElementById('modal-body').innerHTML = `
     <div class="mx-main">
       <div class="mx-left">
-        <section class="mx-card2"><h4>Dados de ADS</h4>${mxTabela(colsAds, A, B, rotA, rotB)}</section>
+        <section class="mx-card2"><h4>Dados de ADS</h4><div id="ads-tab">${adsTabela()}</div></section>
         <section class="mx-card2"><h4>Dados de vendas</h4>${mxTabela(colsVendas, A, B, rotA, rotB)}
           <div class="mx-pos2"><span>Posição do anúncio: <b id="pos-txt" style="color:var(--text)">${posTxt}</b></span>
             <input type="number" id="pos-pag" value="${pos.pagina||1}" min="1" max="99" style="width:44px" title="Página"/>
@@ -2528,7 +2541,7 @@ function calcSim(mlb, conta, persistir=true) {
   const outEl=document.getElementById('sim-out'); if(!outEl) return;
   outEl.innerHTML=`
     <div class="mx-row"><span class="mx-lbl">Resultado unitário</span><span class="mx-val" style="color:${margSim<0?'var(--red)':'var(--green)'}">${brl2(margSim)}</span></div>
-    <div class="mx-row"><span class="mx-lbl">Margem simulada</span><span class="mx-val" style="color:${margSim<0?'var(--red)':'var(--green)'}">${pct1(mpSim)}</span></div>
+    <div class="mx-row"><span class="mx-lbl">Margem simulada</span><span class="mx-val" style="color:${margSim<0?'var(--red)':'var(--green)'}">${pct2(mpSim)}</span></div>
 `;
 
   if(!persistir) return;   // só grava quando o usuário altera algo
@@ -2618,8 +2631,9 @@ async function carregarCustosML(mlb, conta) {
     const camp = c ? `Campanha ativa: <b>${c.nome||c.tipo}</b> <small>(${c.tipo}${c.meli_pct?`, ML paga ${c.meli_pct}%`:', sem rebot'})</small>` : 'Sem campanha ativa';
     const rebotReal = v && v.rebot_real_un>0 ? ` · rebot dessa venda: ${brl2(v.rebot_real_un)}` : '';
     const salvo = !!p?.custos?.simulador;
-    box.innerHTML = `Custos reais do ML — base: ${origem}${rebotReal}<br>${camp} · Rebot ativo hoje: <b>${brl2(d.rebot_un)}</b> · Frete: <b>${d.frete!=null?brl2(d.frete):'n/d'}</b>${d.peso_g?` <small>(${d.peso_g} g)</small>`:''}
-      <br><a href="#" onclick="aplicarCustosReais('${mlb}','${conta}');return false;" style="color:var(--gold);">${salvo?'Cenário salvo carregado — usar valores reais':'Restaurar valores reais'}</a>`;
+    const txt = (`Custos reais do ML — base: ${origem}${rebotReal}
+${camp} · Rebot ativo hoje: ${brl2(d.rebot_un)} · Frete: ${d.frete!=null?brl2(d.frete):'n/d'}${d.peso_g?` (${d.peso_g} g)`:''}`).replace(/<[^>]+>/g, '');
+    box.innerHTML = `<a href="#" onclick="aplicarCustosReais('${mlb}','${conta}');return false;" style="color:var(--gold);">${salvo?'Cenário salvo: usar valores reais':'Restaurar valores reais'}</a><span class="info-i" data-tip="${sacEsc(txt)}">i</span>`;
     mostrarAvisoRebot(d.oportunidade);
     if(!salvo) aplicarCustosReais(mlb, conta);
   } catch(e) {
@@ -2637,11 +2651,31 @@ function mxVar(atual, ant, inverso, neutro) {
   const cls = neutro ? 'neu' : (bom ? 'up' : 'dn');
   return `<span class="mxt-pill ${cls}">${diff > 0 ? '▲' : '▼'} ${Math.abs(diff / ant * 100).toFixed(1).replace('.', ',')}%</span>`;
 }
-function mxTabela(cols, atual, ant, rotAtual, rotAnt) {
+let _adsCtx = null;
+const ADS_PADRAO = ['tacos', 'acos', 'roas', 'ads_total', 'receita_publi', 'vads', 'vendas_sem_publi'];
+function adsEscolha() {
+  try { const v = JSON.parse(localStorage.getItem('adsColunas') || 'null'); if (Array.isArray(v) && v.length === 7) return v; } catch(e) {}
+  return ADS_PADRAO.slice();
+}
+function adsTabela() {
+  const x = _adsCtx; if (!x) return '';
+  const esc = adsEscolha();
+  const cols = esc.map(k => x.todas.find(c => c.k === k) || x.todas[0]);
+  const hdr = (c, i) => `<div class="sel-h"><select class="mxt-sel" title="Trocar este indicador" onchange="adsTrocar(${i},this.value)">${x.todas.map(t => `<option value="${t.k}" ${t.k === c.k ? 'selected' : ''}>${t.l}</option>`).join('')}</select></div>`;
+  return mxTabela(cols, x.A, x.B, x.rotA, x.rotB, hdr);
+}
+function adsTrocar(i, k) {
+  const esc = adsEscolha(); esc[i] = k;
+  try { localStorage.setItem('adsColunas', JSON.stringify(esc)); } catch(e) {}
+  const box = document.getElementById('ads-tab'); if (box) box.innerHTML = adsTabela();
+}
+const pct2 = v => (Number(v||0) * 100).toFixed(2).replace('.', ',') + '%';
+const fmt2 = e => { const v = parseFloat(e.value); if (!isNaN(v)) e.value = v.toFixed(2); };
+function mxTabela(cols, atual, ant, rotAtual, rotAnt, hdr) {
   const g = `style="--n:${cols.length}"`;
   const cel = (o, c) => `<div>${o && o[c.k] != null ? c.f(o[c.k]) : '—'}</div>`;
   return `<div class="mxt" ${g}>
-    <div class="mxt-row mxt-head" ${g}><div></div>${cols.map(c => `<div>${c.l}</div>`).join('')}</div>
+    <div class="mxt-row mxt-head" ${g}><div></div>${cols.map((c, i) => hdr ? hdr(c, i) : `<div>${c.l}</div>`).join('')}</div>
     <div class="mxt-row sel" ${g}><div class="lab"><b>Selecionado</b></div>${cols.map(c => cel(atual, c)).join('')}</div>
     <div class="mxt-row ant" ${g}><div class="lab"><b>Anterior</b></div>${cols.map(c => cel(ant, c)).join('')}</div>
     <div class="mxt-row var" ${g}><div class="lab"><b>Variação</b></div>${cols.map(c => `<div>${mxVar(atual?.[c.k], ant?.[c.k], c.inv, c.neu)}</div>`).join('')}</div>
