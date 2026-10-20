@@ -483,6 +483,13 @@ html:not([data-tema="claro"]) .mxt-pill.up{color:#4ade80;}html:not([data-tema="c
 .mapa-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;}
 .mapa-chip{font-size:10.5px;padding:2px 8px;border-radius:999px;background:rgba(120,120,120,.12);color:var(--muted2);white-space:nowrap;}
 .mapa-chip b{color:var(--text);font-weight:700;}
+.ads-cols{position:relative;font-weight:400;}
+.ads-menu{position:absolute;right:0;top:calc(100% + 6px);width:240px;background:var(--bg2);border:1px solid var(--border2);border-radius:12px;box-shadow:0 14px 34px rgba(0,0,0,.28);padding:8px 10px;z-index:40;font-size:12px;}
+.ads-menu[hidden]{display:none;}
+.ads-op{display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;color:var(--text);}
+.ads-op.off{opacity:.45;cursor:not-allowed;}
+.ads-dica{font-size:10.5px;color:var(--muted2);margin:6px 2px 2px;line-height:1.35;}
+.ads-rest{display:inline-block;margin:4px 2px 2px;font-size:11px;color:var(--gold);cursor:pointer;}
 .mxt-sel{width:100%;background:transparent;border:0;color:var(--muted2);font:600 10px var(--font);text-align:right;text-align-last:right;cursor:pointer;padding:0;appearance:none;-webkit-appearance:none;outline:none;}
 .mxt-sel:hover{color:var(--text);}
 #s-st,#as-st{width:64px!important;flex:none;padding:0 2px!important;}
@@ -1454,7 +1461,7 @@ function amzDesenharModal(d) {
   document.getElementById('amz-body').innerHTML = `
     <div class="mx-main">
       <div class="mx-left">
-        <section class="mx-card2"><h4>Dados de ADS</h4><div id="ads-tab"></div>
+        <section class="mx-card2"><h4>Dados de ADS${adsBotao()}</h4><div id="ads-tab"></div>
           <div class="sac-mut" style="font-size:11px;margin-top:6px">Sem dados de ADS por SKU ainda (falta a Advertising API da Amazon); virão em breve.</div></section>
         <section class="mx-card2"><h4>Dados de vendas</h4><div id="amz-vendas"></div>
           <div id="amz-trafego" style="margin-top:8px"><div class="sac-mut" style="font-size:11px">Buscando visitas e conversão no relatório da Amazon (30 a 60 s)…</div></div></section>
@@ -2416,7 +2423,7 @@ function renderModalContent(mlb, conta) {
   document.getElementById('modal-body').innerHTML = `
     <div class="mx-main">
       <div class="mx-left">
-        <section class="mx-card2"><h4>Dados de ADS</h4><div id="ads-tab">${adsTabela()}</div></section>
+        <section class="mx-card2"><h4>Dados de ADS${adsBotao()}</h4><div id="ads-tab">${adsTabela()}</div></section>
         <section class="mx-card2"><h4>Dados de vendas</h4>${mxTabela(colsVendas, A, B, rotA, rotB, null, [{o: P3, rot: rotC}, {o: P4, rot: rotD}])}
           <div class="mx-pos2"><span>Posição do anúncio: <b id="pos-txt" style="color:var(--text)">${posTxt}</b></span>
             <input type="number" id="pos-pag" value="${pos.pagina||1}" min="1" max="99" style="width:44px" title="Página"/>
@@ -2724,21 +2731,40 @@ function adsTodas() {
 let _adsCtx = null;
 const ADS_PADRAO = ['tacos', 'acos', 'roas', 'ads_total', 'receita_publi', 'vads', 'vendas_sem_publi'];
 function adsEscolha() {
-  try { const v = JSON.parse(localStorage.getItem('adsColunas') || 'null'); if (Array.isArray(v) && v.length === 7) return v; } catch(e) {}
+  const validos = adsTodas().map(c => c.k);
+  try {
+    const v = JSON.parse(localStorage.getItem('adsColunas') || 'null');
+    if (Array.isArray(v)) { const f = v.filter(k => validos.includes(k)); if (f.length >= 1 && f.length <= 7) return f; }
+  } catch(e) {}
   return ADS_PADRAO.slice();
 }
 function adsTabela() {
   const x = _adsCtx; if (!x) return '';
   const esc = adsEscolha();
-  const cols = esc.map(k => x.todas.find(c => c.k === k) || x.todas[0]);
-  const hdr = (c, i) => `<div class="sel-h"><select class="mxt-sel" title="Trocar este indicador" onchange="adsTrocar(${i},this.value)">${x.todas.map(t => `<option value="${t.k}" ${t.k === c.k ? 'selected' : ''}>${t.l}</option>`).join('')}</select></div>`;
-  return mxTabela(cols, x.A, x.B, x.rotA, x.rotB, hdr, x.extras);
+  const cols = x.todas.filter(c => esc.includes(c.k));      // sempre na ordem do catálogo
+  return mxTabela(cols, x.A, x.B, x.rotA, x.rotB, null, x.extras);
 }
-function adsTrocar(i, k) {
-  const esc = adsEscolha(); esc[i] = k;
+function adsMenuHtml() {
+  const esc = adsEscolha(), cheio = esc.length >= 7;
+  return adsTodas().map(c => { const on = esc.includes(c.k); return `<label class="ads-op${!on && cheio ? ' off' : ''}"><input type="checkbox" ${on ? 'checked' : ''} ${!on && cheio ? 'disabled' : ''} onchange="adsToggle('${c.k}',this.checked)"> ${c.l}</label>`; }).join('') +
+    `<div class="ads-dica">${cheio ? 'Limite de 7 colunas: desmarque uma para adicionar outra.' : `${esc.length} de 7 colunas`}</div><a class="ads-rest" onclick="adsRestaurar()">Restaurar padrão</a>`;
+}
+function adsBotao() {
+  return `<span class="ads-cols"><button class="btn-sm" onclick="adsMenu(event)">Colunas ▾</button><div class="ads-menu" id="ads-menu" hidden onclick="event.stopPropagation()">${adsMenuHtml()}</div></span>`;
+}
+function adsMenu(ev) { ev.stopPropagation(); const m = document.getElementById('ads-menu'); if (m) m.hidden = !m.hidden; }
+document.addEventListener('click', () => { const m = document.getElementById('ads-menu'); if (m) m.hidden = true; });
+function adsSalvar(esc) {
   try { localStorage.setItem('adsColunas', JSON.stringify(esc)); } catch(e) {}
   const box = document.getElementById('ads-tab'); if (box) box.innerHTML = adsTabela();
+  const m = document.getElementById('ads-menu'); if (m) m.innerHTML = adsMenuHtml();
 }
+function adsToggle(k, on) {
+  let esc = adsEscolha();
+  if (on) { if (esc.length >= 7) return; esc.push(k); } else { if (esc.length <= 1) return; esc = esc.filter(x => x !== k); }
+  adsSalvar(esc);
+}
+function adsRestaurar() { adsSalvar(ADS_PADRAO.slice()); }
 function mxTabela(cols, atual, ant, rotAtual, rotAnt, hdr, extras) {
   const g = `style="--n:${cols.length}"`;
   const cel = (o, c) => `<div>${o && o[c.k] != null ? c.f(o[c.k]) : '—'}</div>`;
