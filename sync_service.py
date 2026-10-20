@@ -3,6 +3,8 @@ sync_service.py — Lógica de sync reutilizável e controle de status
 Usado por main.py (rota HTTP + background tasks) e refresh_ml_token.py (schedule diário)
 """
 
+import asyncio
+import copy
 import json
 import os
 from datetime import datetime, timedelta
@@ -152,7 +154,11 @@ async def _sync_mlb(conta: str, mlb: str, detalhe: dict,
         dados_dias[dia].update(margem)
 
     if mlb in produtos_db:
-        produtos_db[mlb]["dias"]          = dados_dias
+        # mantém os dias anteriores ao período (histórico dos modais), até 130 dias antes do fim do período
+        corte = (datetime.fromisoformat(date_to) - timedelta(days=130)).strftime("%Y-%m-%d")
+        antigos = {d: v for d, v in (produtos_db[mlb].get("dias") or {}).items()
+                   if d != "_ads_" and corte <= d < date_from}
+        produtos_db[mlb]["dias"]          = {**antigos, **dados_dias}
         produtos_db[mlb]["titulo"]        = titulo
         produtos_db[mlb]["atualizado_em"] = datetime.now().isoformat()
     else:
@@ -229,6 +235,10 @@ async def sincronizar_conta_func(conta: str, dias: int = 30,
         periodo_ate=date_to,
     )
     _log(f"Sync {conta}: {atualizados} produtos ({date_from} a {date_to})")
+    try:                       # histórico de até 120 dias, em segundo plano, sem atrasar a resposta
+        asyncio.create_task(sincronizar_historico(conta, date_from, date_to))
+    except RuntimeError:
+        pass
     return {
         "success":           True,
         "conta":             conta,
@@ -236,3 +246,59 @@ async def sincronizar_conta_func(conta: str, dias: int = 30,
         "ultimo_sync":       ts,
         "periodo":           {"de": date_from, "ate": date_to},
     }
+
+
+# ─── Histórico em segundo plano (alimenta os períodos P3 e P4 dos modais) ─────────────────────
+HISTORICO_DIAS = 120
+_historicos_rodando: set = set()
+
+
+async def sincronizar_historico(conta: str, date_from: str, date_to: str, dias_total: int = HISTORICO_DIAS):
+    """Completa os dias anteriores ao último sync, até `dias_total` dias contados de date_to, em blocos de 30 dias.
+    Cada bloco tem o ADS dividido só dentro dele (mais fiel que dividir 120 dias de uma vez) e só entram dias
+    que o produto ainda não tem: nunca mexe no período recém-sincronizado. Roda no máximo uma vez por dia e conta."""
+    hoje = datetime.now().strftime("%Y-%m-%d")
+    st = get_sync_status().get(conta, {})
+    if conta in _historicos_rodando or st.get("historico_em", "")[:10] == hoje and st.get("historico_ate") == date_to:
+        return
+    _historicos_rodando.add(conta)
+    update_sync_status(conta, historico_rodando=True)
+    try:
+        limite = (datetime.fromisoformat(date_to) - timedelta(days=dias_total - 1)).strftime("%Y-%m-%d")
+        blocos, ate = [], datetime.fromisoformat(date_from) - timedelta(days=1)
+        while ate.strftime("%Y-%m-%d") >= limite:
+            de = max(ate - timedelta(days=29), datetime.fromisoformat(limite))
+            blocos.append((de.strftime("%Y-%m-%d"), ate.strftime("%Y-%m-%d")))
+            ate = de - timedelta(days=1)
+        base = _load(PRODUTOS_PATH) or {}
+        mlbs = [m for m, p in base.items() if p.get("conta") == conta]
+        coletado = {}                                   # mlb -> {dia: valores}
+        for mlb in mlbs:
+            for de, ate_b in blocos:
+                tmp = {mlb: copy.deepcopy(base[mlb])}
+                try:
+                    if await _sync_mlb(conta, mlb, {"title": base[mlb].get("titulo", mlb)}, de, ate_b, tmp):
+                        for dia, v in (tmp[mlb].get("dias") or {}).items():
+                            if dia != "_ads_" and de <= dia <= ate_b:
+                                coletado.setdefault(mlb, {})[dia] = v
+                except Exception:
+                    pass
+                await asyncio.sleep(0.2)
+        fresh = _load(PRODUTOS_PATH) or {}               # relê: o usuário pode ter editado custos durante o processo
+        novos = 0
+        for mlb, dias in coletado.items():
+            if mlb in fresh:
+                d = fresh[mlb].setdefault("dias", {})
+                for dia, v in dias.items():
+                    if dia not in d:
+                        d[dia] = v
+                        novos += 1
+        _save(PRODUTOS_PATH, fresh)
+        update_sync_status(conta, historico_em=datetime.now().isoformat(), historico_ate=date_to,
+                           historico_de=limite, historico_dias_novos=novos)
+        _log(f"Histórico {conta}: {novos} dias de produto adicionados ({limite} a {date_from})")
+    except Exception as e:
+        _log(f"Histórico {conta} falhou: {type(e).__name__}: {str(e)[:150]}")
+    finally:
+        _historicos_rodando.discard(conta)
+        update_sync_status(conta, historico_rodando=False)

@@ -473,7 +473,8 @@ html:not([data-tema="claro"]) .mxt-pill.up{color:#4ade80;}html:not([data-tema="c
 .mapa-form{display:flex;gap:8px;align-items:flex-start;margin-bottom:10px;}
 .mapa-form textarea{flex:1;min-width:0;height:44px;resize:none;background:var(--bg2);border:1px solid var(--border2);color:var(--text);border-radius:10px;padding:8px 10px;font:12.5px/1.4 var(--font);}
 .mapa-form textarea:focus{border-color:var(--gold);outline:none;}
-.mapa-lista{display:flex;flex-direction:column;gap:2px;max-height:230px;overflow-y:auto;}
+.mapa-lista{display:flex;flex-direction:column;gap:2px;max-height:420px;overflow-y:auto;}
+.mapa-mais{align-self:flex-start;margin:6px 4px 2px;font-size:12px;color:var(--gold);cursor:pointer;}
 .mapa-item{display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;padding:9px 6px;border-bottom:1px solid rgba(128,128,128,.12);}
 .mapa-item:last-child{border-bottom:0;}
 .mapa-av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#475569,#94a3b8);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;}
@@ -2807,6 +2808,20 @@ function mapaHtml(titulo) {
       <button class="btn-sm" onclick="mapaSalvar()">Registrar alteração</button></div>
     <div class="mapa-lista" id="mapa-lista"><div class="sac-mut">Carregando…</div></div></section>`;
 }
+function mapaItemHtml(a) {
+  return `<div class="mapa-item"><div class="mapa-av" title="${sacEsc(a.autor_nome || a.autor || '')}">${sacEsc(mapaIniciais(a.autor_nome || a.autor))}</div>
+      <div><div class="mapa-top"><b>${sacEsc(a.autor_nome || a.autor || 'Usuário não identificado')}</b><span>${sacEsc(mapaFmtData(a))}</span></div>
+      <div class="mapa-txt">${sacEsc(a.texto)}</div>${mapaChips(a.dados)}</div></div>`;
+}
+function mapaDesenhar() {
+  const m = _mapa, box = document.getElementById('mapa-lista'); if (!m || !box) return;
+  const lista = m.lista || [], n = m.mostrar || 2;
+  const resto = lista.length - n;
+  box.innerHTML = (lista.slice(0, n).map(mapaItemHtml).join('') || '<div class="sac-mut">Nenhuma alteração registrada ainda.</div>') +
+    (resto > 0 ? `<a class="mapa-mais" onclick="mapaMais()">Carregar mais (${Math.min(5, resto)} de ${resto} restantes)</a>` : '');
+  const st = document.getElementById('mapa-st'); if (st) st.textContent = `${Math.min(n, lista.length)} de ${lista.length} registro(s)`;
+}
+function mapaMais() { if (_mapa) { _mapa.mostrar = (_mapa.mostrar || 2) + 5; mapaDesenhar(); } }
 async function mapaCarregar() {
   if (!_mapa) return;
   const box = document.getElementById('mapa-lista'); if (!box) return;
@@ -2814,11 +2829,8 @@ async function mapaCarregar() {
   try {
     const d = await (await fetch(`${API}/anotacoes/${m.conta}/${encodeURIComponent(m.chave)}`)).json();
     if (_mapa !== m) return;
-    const lista = d.anotacoes || [];
-    box.innerHTML = lista.map(a => `<div class="mapa-item"><div class="mapa-av" title="${sacEsc(a.autor_nome || a.autor || '')}">${sacEsc(mapaIniciais(a.autor_nome || a.autor))}</div>
-      <div><div class="mapa-top"><b>${sacEsc(a.autor_nome || a.autor || 'Usuário não identificado')}</b><span>${sacEsc(mapaFmtData(a))}</span></div>
-      <div class="mapa-txt">${sacEsc(a.texto)}</div>${mapaChips(a.dados)}</div></div>`).join('') || '<div class="sac-mut">Nenhuma alteração registrada ainda.</div>';
-    const st = document.getElementById('mapa-st'); if (st) st.textContent = `${lista.length} registro(s)`;
+    m.lista = d.anotacoes || []; m.mostrar = Math.max(m.mostrar || 2, 2);
+    mapaDesenhar();
   } catch(e) { box.innerHTML = '<div class="sac-mut">Mapa de alterações indisponível.</div>'; }
 }
 async function mapaSalvar() {

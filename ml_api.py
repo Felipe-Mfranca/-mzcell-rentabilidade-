@@ -248,7 +248,8 @@ async def visitas_diarias(conta: str, mlb: str, date_from: str, date_to: str) ->
     Retorna {date_str: total} apenas para dias dentro do intervalo [date_from, date_to].
     """
     from datetime import datetime as _dt
-    dias = (_dt.fromisoformat(date_to) - _dt.fromisoformat(date_from)).days + 2
+    dias = max((_dt.fromisoformat(date_to) - _dt.fromisoformat(date_from)).days,
+               (_dt.now() - _dt.fromisoformat(date_from)).days) + 2
     url = f"{ML_BASE_URL}/items/{mlb}/visits/time_window?last={dias + 3}&unit=day"
     async with httpx.AsyncClient(timeout=30, verify=False) as client:
         resp = await client.get(url, headers=_headers(conta))
