@@ -434,9 +434,9 @@ input.modal-date:focus{border-color:var(--gold);}
 .mx-card2{background:var(--bg3);border-radius:16px;padding:14px 16px;border:1px solid rgba(128,128,128,.10);box-shadow:0 1px 2px rgba(0,0,0,.04),0 12px 30px rgba(20,32,26,.06);min-width:0;}
 .mx-card2 > h4{margin:0 0 10px;font-size:16px;font-weight:700;display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
 .mx-card2 > h4 small{font-weight:500;color:var(--muted2);font-size:10.5px;}
-.mxt{display:flex;flex-direction:column;gap:3px;overflow-x:auto;}
-.mxt-row{display:grid;grid-template-columns:78px repeat(var(--n),minmax(0,1fr));align-items:center;border-radius:12px;}
-.mxt-row > div{padding:6px 4px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.mxt{display:flex;flex-direction:column;gap:1px;}
+.mxt-row{display:grid;grid-template-columns:66px repeat(var(--n),minmax(0,1fr));align-items:center;border-radius:12px;}
+.mxt-row > div{padding:3px 2px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
 .mxt-row > .lab{text-align:left;display:flex;flex-direction:column;gap:1px;line-height:1.2;}
 .mxt-head > div{white-space:normal;line-height:1.15;font-size:10px;font-weight:600;color:var(--muted2);padding-bottom:3px;}
 .mxt-row.sel{background:linear-gradient(90deg,rgba(22,101,52,.10),rgba(22,101,52,.03));}
@@ -445,8 +445,8 @@ input.modal-date:focus{border-color:var(--gold);}
 .mxt-row.ant{color:var(--muted2);}
 .mxt-row.ant > div:not(.lab){font-weight:400;font-size:11.5px;}
 .mxt-row .lab small{font-size:10px;font-weight:400;color:var(--muted2);}
-.mxt-row.var > div:not(.lab){padding:4px 6px;}
-.mxt-pill{display:inline-flex;align-items:center;gap:2px;padding:2px 6px;border-radius:999px;font-size:10px;font-weight:700;}
+.mxt-row.var > div:not(.lab){padding:1px 0;}.mxt-row.var .lab b{font-weight:500;font-size:10.5px;color:var(--muted2);}
+.mxt-pill{display:inline-flex;align-items:center;gap:2px;padding:1px 5px;border-radius:999px;font-size:9.5px;font-weight:400;}
 .mxt-pill.up{background:rgba(34,197,94,.15);color:#15803d;}
 .mxt-pill.dn{background:rgba(239,68,68,.14);color:#b91c1c;}
 .mxt-pill.neu{background:rgba(120,120,120,.14);color:var(--muted2);}
@@ -1439,7 +1439,7 @@ function amzDesenharModal(d) {
       <div class="mx-left">
         <section class="mx-card2"><h4>Dados de ADS<small>indisponível por SKU</small></h4>
           <div class="sac-mut" style="font-size:12px;line-height:1.5">Falta a liberação da Advertising API da Amazon (credencial própria). A fatura de Ads da conta aparece nos cartões da tela principal, sem rateio.</div></section>
-        <section class="mx-card2"><h4>Dados de vendas<small>período selecionado e período anterior</small></h4>${mxTabela(cols, A, B, rotA, rotB)}
+        <section class="mx-card2"><h4>Dados de vendas<small>${rotA} · anterior ${rotB}</small></h4>${mxTabela(cols, A, B, rotA, rotB)}
           <div id="amz-trafego" style="margin-top:10px"><div class="sac-mut" style="font-size:11px">Buscando visitas e conversão no relatório da Amazon (30 a 60 s)…</div></div></section>
       </div>
       ${colSim}
@@ -2342,8 +2342,8 @@ function renderModalContent(mlb, conta) {
   document.getElementById('modal-body').innerHTML = `
     <div class="mx-main">
       <div class="mx-left">
-        <section class="mx-card2"><h4>Dados de ADS<small>período selecionado e período anterior</small></h4>${mxTabela(colsAds, A, B, rotA, rotB)}</section>
-        <section class="mx-card2"><h4>Dados de vendas<small>período selecionado e período anterior</small></h4>${mxTabela(colsVendas, A, B, rotA, rotB)}
+        <section class="mx-card2"><h4>Dados de ADS<small>${rotA} · anterior ${rotB}</small></h4>${mxTabela(colsAds, A, B, rotA, rotB)}</section>
+        <section class="mx-card2"><h4>Dados de vendas<small>${rotA} · anterior ${rotB}</small></h4>${mxTabela(colsVendas, A, B, rotA, rotB)}
           <div class="mx-pos2"><span>Posição do anúncio: <b id="pos-txt" style="color:var(--text)">${posTxt}</b></span>
             <input type="number" id="pos-pag" value="${pos.pagina||1}" min="1" max="99" style="width:44px" title="Página"/>
             <input type="number" id="pos-num" value="${pos.posicao||''}" min="1" max="99" style="width:56px" placeholder="Posição" title="Posição"/>
@@ -2642,8 +2642,8 @@ function mxTabela(cols, atual, ant, rotAtual, rotAnt) {
   const cel = (o, c) => `<div>${o && o[c.k] != null ? c.f(o[c.k]) : '—'}</div>`;
   return `<div class="mxt" ${g}>
     <div class="mxt-row mxt-head" ${g}><div></div>${cols.map(c => `<div>${c.l}</div>`).join('')}</div>
-    <div class="mxt-row sel" ${g}><div class="lab"><b>Selecionado</b><small>${rotAtual}</small></div>${cols.map(c => cel(atual, c)).join('')}</div>
-    <div class="mxt-row ant" ${g}><div class="lab"><b>Anterior</b><small>${rotAnt}</small></div>${cols.map(c => cel(ant, c)).join('')}</div>
+    <div class="mxt-row sel" ${g}><div class="lab"><b>Selecionado</b></div>${cols.map(c => cel(atual, c)).join('')}</div>
+    <div class="mxt-row ant" ${g}><div class="lab"><b>Anterior</b></div>${cols.map(c => cel(ant, c)).join('')}</div>
     <div class="mxt-row var" ${g}><div class="lab"><b>Variação</b></div>${cols.map(c => `<div>${mxVar(atual?.[c.k], ant?.[c.k], c.inv, c.neu)}</div>`).join('')}</div>
   </div>`;
 }
