@@ -124,8 +124,48 @@ def resultado(conta: str) -> dict:
             novo = avaliar(e["item"], "x" * (e.get("descricao_n") or 0), e["promocoes"], e["ads"], (manual.get(mlb) or {}).get("clip"))
             novo["_entrada"] = e
             itens[mlb] = novo
+    gerado = (c.get("_meta") or {}).get("gerado_em") or ""
+    for mlb, d in (_ler(REMOTO_PATH).get(conta) or {}).items():     # análises feitas em outros computadores
+        local = itens.get(mlb)
+        if (not local or gerado < (d.get("gerado_em") or "")) and "grupos" in d:
+            itens[mlb] = {**d, "remoto": True}
     fora = sum(1 for v in itens.values() if not v["passa"])
     return {"conta": conta, "estado": estado(conta), "total": len(itens), "fora_do_pivo": fora, "itens": itens}
+
+
+REMOTO_PATH = os.path.join(BASE_DIR, "pivo_compartilhado.json")
+
+
+def _publico(item: dict, gerado_em: str) -> dict:
+    d = {k: v for k, v in item.items() if k != "_entrada"}
+    d["gerado_em"] = gerado_em
+    return d
+
+
+def publicar(conta: str, itens: dict, gerado_em: str, autor: str = ""):
+    """Sobe o resultado do PIVO para o banco compartilhado (sem os dados brutos da entrada)."""
+    try:
+        import shared_store
+        shared_store.enviar_lote_async("pivo", [(f"{conta}|{m}", _publico(v, gerado_em)) for m, v in itens.items()], autor)
+    except Exception:
+        pass
+
+
+def aplicar_remoto(registros: list):
+    """Guarda o que outro computador analisou; resultado() usa quando o item local não existe ou é mais antigo."""
+    rem = _ler(REMOTO_PATH)
+    for r in registros:
+        try:
+            conta, mlb = r["chave"].split("|", 1)
+            d = json.loads(r["dados"])
+        except (ValueError, KeyError):
+            continue
+        atual = rem.setdefault(conta, {}).get(mlb)
+        if r.get("removido"):
+            rem[conta].pop(mlb, None)
+        elif not atual or (atual.get("gerado_em") or "") <= (d.get("gerado_em") or ""):
+            rem[conta][mlb] = d
+    _gravar(REMOTO_PATH, rem)
 
 
 def marcar_clip(conta: str, mlb: str, tem_clip):
@@ -190,6 +230,7 @@ def _analisar(conta: str, ml, mlbs: list):
         cache[conta] = out
         _gravar(CACHE_PATH, cache)
         _estado[conta].update(erro=None, etapa="concluído")
+        publicar(conta, {k: v for k, v in out.items() if k != "_meta"}, out["_meta"]["gerado_em"])
     except Exception as e:
         _estado[conta].update(erro=f"{type(e).__name__}: {str(e)[:200]}", etapa="falhou")
     finally:

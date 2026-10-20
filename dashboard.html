@@ -426,6 +426,62 @@ input.modal-date:focus{border-color:var(--gold);}
 .mx-hist{margin-top:8px;max-height:110px;overflow-y:auto;font-size:11px;}
 .mx-hist div{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid var(--border);}
 .kpi-badge-neu{color:var(--muted2);}
+/* ══ Novo layout dos modais: tabelas em colunas, rebot e PIVO ══ */
+.modal.modal-wide{width:1300px;max-width:96vw;}
+.mx-strip{grid-template-columns:repeat(var(--cols,6),minmax(0,1fr));}
+.mx-main{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;align-items:start;}
+.mx-left{display:flex;flex-direction:column;gap:14px;min-width:0;}
+.mx-card2{background:var(--bg3);border-radius:16px;padding:14px 16px;border:1px solid rgba(128,128,128,.10);box-shadow:0 1px 2px rgba(0,0,0,.04),0 12px 30px rgba(20,32,26,.06);min-width:0;}
+.mx-card2 > h4{margin:0 0 8px;font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+.mx-card2 > h4 small{font-weight:500;color:var(--muted2);font-size:11px;}
+.mxt{display:flex;flex-direction:column;gap:3px;overflow-x:auto;}
+.mxt-row{display:grid;grid-template-columns:112px repeat(var(--n),minmax(64px,1fr));align-items:center;border-radius:12px;}
+.mxt-row > div{padding:7px 8px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.mxt-row > .lab{text-align:left;display:flex;flex-direction:column;gap:1px;line-height:1.2;}
+.mxt-head > div{font-size:11px;font-weight:600;color:var(--muted2);padding-bottom:3px;}
+.mxt-row.sel{background:linear-gradient(90deg,rgba(22,101,52,.10),rgba(22,101,52,.03));}
+.mxt-row.sel > div:not(.lab){font-weight:800;font-size:14px;}
+.mxt-row.sel .lab b{font-size:12px;}
+.mxt-row.ant{color:var(--muted2);}
+.mxt-row.ant > div:not(.lab){font-weight:400;font-size:13px;}
+.mxt-row .lab small{font-size:10px;font-weight:400;color:var(--muted2);}
+.mxt-row.var > div:not(.lab){padding:4px 6px;}
+.mxt-pill{display:inline-flex;align-items:center;gap:3px;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;}
+.mxt-pill.up{background:rgba(34,197,94,.15);color:#15803d;}
+.mxt-pill.dn{background:rgba(239,68,68,.14);color:#b91c1c;}
+.mxt-pill.neu{background:rgba(120,120,120,.14);color:var(--muted2);}
+html:not([data-tema="claro"]) .mxt-pill.up{color:#4ade80;}html:not([data-tema="claro"]) .mxt-pill.dn{color:#f87171;}
+.mx-pos2{display:flex;gap:6px;align-items:center;margin-top:10px;font-size:12px;color:var(--muted2);}
+.mx-pos2 input{height:26px;font-size:11px;padding:2px 6px;background:var(--bg2);border:1px solid var(--border2);color:var(--text);border-radius:8px;}
+/* aviso de rebot */
+.mx-rebot{display:inline-flex;align-items:center;gap:11px;padding:5px 15px 5px 5px;border-radius:14px;background:linear-gradient(135deg,#047857,#10b981 62%,#34d399);color:#fff;box-shadow:0 6px 18px rgba(16,185,129,.32);max-width:100%;}
+.mx-rebot-v{background:rgba(255,255,255,.22);padding:7px 11px;border-radius:10px;font-weight:800;font-size:17px;line-height:1;white-space:nowrap;}
+.mx-rebot-v small{font-size:10px;font-weight:600;margin-left:2px;opacity:.9;}
+.mx-rebot-t{display:flex;flex-direction:column;line-height:1.25;font-size:11px;min-width:0;}
+.mx-rebot-t b{font-size:12.5px;}
+.mx-rebot-t span{opacity:.92;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+/* PIVO */
+.mx-pivo{display:inline-flex;align-items:center;gap:9px;padding:5px 12px;border-radius:14px;background:var(--bg3);border:1px solid var(--border);box-shadow:0 4px 14px rgba(20,32,26,.07);}
+.mx-pivo .t{font-weight:800;letter-spacing:.08em;font-size:11px;color:var(--muted2);}
+.mx-pivo .n{font-size:11px;font-weight:700;}
+.mx-pivo .n.ok{color:var(--green);}.mx-pivo .n.atencao{color:#b45309;}
+.pivo-l.lg{width:28px;height:28px;font-size:14px;border-radius:9px;margin-right:2px;}
+/* mapa de alterações */
+.mapa-form{display:flex;gap:8px;align-items:flex-start;margin-bottom:10px;}
+.mapa-form textarea{flex:1;min-width:0;height:44px;resize:none;background:var(--bg2);border:1px solid var(--border2);color:var(--text);border-radius:10px;padding:8px 10px;font:12.5px/1.4 var(--font);}
+.mapa-form textarea:focus{border-color:var(--gold);outline:none;}
+.mapa-lista{display:flex;flex-direction:column;gap:2px;max-height:230px;overflow-y:auto;}
+.mapa-item{display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;padding:9px 6px;border-bottom:1px solid rgba(128,128,128,.12);}
+.mapa-item:last-child{border-bottom:0;}
+.mapa-av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#475569,#94a3b8);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;}
+.mapa-top{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:12px;}
+.mapa-top b{font-size:12.5px;}.mapa-top span{color:var(--muted2);font-size:11px;}
+.mapa-txt{font-size:12.5px;line-height:1.45;margin-top:2px;white-space:pre-wrap;}
+.mapa-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;}
+.mapa-chip{font-size:10.5px;padding:2px 8px;border-radius:999px;background:rgba(120,120,120,.12);color:var(--muted2);white-space:nowrap;}
+.mapa-chip b{color:var(--text);font-weight:700;}
+@media (max-width:1100px){.mx-main{grid-template-columns:1fr;}}
+
 .mx-avisos{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px;min-height:0;}
 .mx-aviso{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid;cursor:default;}
 .mx-aviso.rebot{color:#166534;background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.55);box-shadow:0 0 0 3px rgba(34,197,94,.10);}
@@ -843,7 +899,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
     </div>
     <div class="mx-avisos" id="m-avisos"><span id="m-aviso-full"></span><span id="m-aviso-rebot"></span><span id="m-pivo"></span></div>
     <div class="mx-strip-wrap">
-      <div class="mx-strip-cap">Média por unidade, últimos 30 dias (fixa)</div>
+      <div class="mx-strip-cap">Últimos 30 dias (fixo)</div>
       <div class="mx-strip" id="mx-strip"></div>
     </div>
     <div class="modal-period-bar">
@@ -874,7 +930,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       </div>
     </div>
     <div class="mx-strip-wrap">
-      <div class="mx-strip-cap">Média por unidade, últimos 30 dias (fixa)</div>
+      <div class="mx-strip-cap">Últimos 30 dias (fixo)</div>
       <div class="mx-strip" id="amz-strip"></div>
     </div>
     <div class="modal-period-bar">
@@ -1337,20 +1393,14 @@ async function amzModalBuscar() {
   } catch(e) { document.getElementById('amz-body').innerHTML = `<div class="sac-mut">Erro: ${sacEsc(e.message)}</div>`; }
 }
 function amzDesenharModal(d) {
-  const a = d.atual, p = d.periodo_anterior, f = d.faixa_30d, conta = d.conta, sku = d.sku;
+  const a = d.atual, p = d.periodo_anterior, conta = d.conta, sku = d.sku;
   document.getElementById('amz-title').textContent = d.titulo || sku;
   document.getElementById('amz-sku').textContent = sku; document.getElementById('amz-asin').textContent = d.asin || '';
-  const u = v => f.disponivel && v != null ? brl2(v) : '—';
-  document.getElementById('amz-strip').innerHTML = [['CMV', u(f.cmv)], ['Imposto', u(f.imposto)], ['Comissão', u(f.comissao)], ['Taxa FBA', u(f.taxa_fba)], ['Outras taxas', u(f.outras_taxas)], ['Receita por unidade', u(f.receita)]]
-    .map(([l,v]) => `<div class="mx-kpi"><div class="mx-kpi-l">${l}</div><div class="mx-kpi-v">${v}</div></div>`).join('');
-  const dmy = x => x.split('-').reverse().join('/');
-  const cmp = (atual, ant, fmt, inverso=false) => {
-    if (ant == null || !ant || atual == null) return '';
-    const diff = atual - ant; if (Math.abs(diff) < 0.0001) return '';
-    const bom = inverso ? diff < 0 : diff > 0;
-    return `<span class="kpi-badge-var ${bom?'kpi-badge-up':'kpi-badge-dn'}" data-tip="Período anterior (${dmy(d.anterior.de)} a ${dmy(d.anterior.ate)}): ${fmt(ant)}">${diff>0?'▲':'▼'}${Math.abs(diff/ant*100).toFixed(1).replace('.',',')}%</span>`;
-  };
-  const row = (l, v, b) => `<div class="mx-row"><span class="mx-lbl">${l}</span><span class="mx-val">${v}${b||''}</span></div>`;
+  // Faixa fixa (30D): a Amazon não entrega Ads por SKU sem a Advertising API
+  const nd = '<span title="Indisponível: falta a Advertising API da Amazon">—</span>';
+  document.getElementById('amz-strip').style.setProperty('--cols', 7);
+  document.getElementById('amz-strip').innerHTML = ['Vendas por ADS', 'Vendas orgânicas', 'Receita por ADS', 'Investimento', 'ACOS', 'TACOS', 'ROAS']
+    .map(l => `<div class="mx-kpi"><div class="mx-kpi-l">${l}</div><div class="mx-kpi-v">${nd}</div></div>`).join('');
   if (!a) { document.getElementById('amz-body').innerHTML = '<div class="sac-mut">Sem vendas deste SKU no período selecionado.</div>'; return; }
   const un = a.un_liquidas || 0, rl = a.receita_liquida || 0;
   const c = d.custo || {}, al = d.aliquotas;
@@ -1359,9 +1409,16 @@ function amzDesenharModal(d) {
   const impPct = c.imposto_pct != null ? c.imposto_pct : al.com_st;
   const comPct = rl > 0 ? Math.abs(a.comissao) / rl : 0;
   const fld = (lbl, id, val) => `<div class="sim-field"><label>${lbl}</label><input type="number" id="${id}" value="${val}" step="0.01" oninput="amzCalc()"/></div>`;
-  document.getElementById('amz-body').innerHTML = `
-    <div class="mx-cols">
-      <div class="mx-col mx-sim"><div class="mx-col-t">Simulação do cenário</div>
+  const dec2 = v => Number(v||0).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  const prep = o => o ? {...o, preco_c: o.un_liquidas > 0 ? o.receita_liquida / o.un_liquidas : 0, mp: o.completo ? (o.margem_pct || 0) / 100 : null, m: o.completo ? o.margem : null} : null;
+  const A = prep(a), B = prep(p);
+  const cols = [
+    {k:'un_enviadas', l:'Enviadas', f:v=>r(v)}, {k:'un_devolvidas', l:'Devolvidas', f:v=>r(v), inv:true}, {k:'un_liquidas', l:'Líquidas', f:v=>r(v)},
+    {k:'receita', l:'Vendas (R$)', f:dec2}, {k:'receita_liquida', l:'Receita líquida (R$)', f:dec2}, {k:'preco_c', l:'Preço médio (R$)', f:dec2},
+    {k:'m', l:'Margem (R$)', f:dec2}, {k:'mp', l:'Margem %', f:pct1}
+  ];
+  const rotA = `${mxDmy(d.periodo.de)} a ${mxDmy(d.periodo.ate)}`, rotB = `${mxDmy(d.anterior.de)} a ${mxDmy(d.anterior.ate)}`;
+  const colSim = `<aside class="mx-card2 mx-sim"><h4>Simulação do cenário</h4>
         <div class="sim-grid">
           ${fld('Preço simulado (R$)','as-preco',preco.toFixed(2))}
           ${fld('CMV (R$)','as-cmv',(c.cmv_unit ?? 0).toFixed(2))}
@@ -1376,27 +1433,22 @@ function amzDesenharModal(d) {
         </div>
         <div id="amz-sim-out" class="mx-sim-out"></div>
         <div class="mx-sim-info" style="margin-top:8px">CMV ${c.origem==='base'?'da base central (arquivo do Grupo)':(c.cmv_unit!=null?'cadastrado para este SKU':'não encontrado: importe o CMV em Configurações')}. Os valores iniciais são as médias do período selecionado.</div>
+      </aside>`;
+  document.getElementById('amz-body').innerHTML = `
+    <div class="mx-main">
+      <div class="mx-left">
+        <section class="mx-card2"><h4>Dados de ADS<small>indisponível por SKU</small></h4>
+          <div class="sac-mut" style="font-size:12px;line-height:1.5">Falta a liberação da Advertising API da Amazon (credencial própria). A fatura de Ads da conta aparece nos cartões da tela principal, sem rateio.</div></section>
+        <section class="mx-card2"><h4>Dados de vendas<small>período selecionado e período anterior</small></h4>${mxTabela(cols, A, B, rotA, rotB)}
+          <div id="amz-trafego" style="margin-top:10px"><div class="sac-mut" style="font-size:11px">Buscando visitas e conversão no relatório da Amazon (30 a 60 s)…</div></div></section>
       </div>
-      <div class="mx-col"><div class="mx-col-t">Dados de ADS</div>
-        <div class="sac-mut" style="font-size:12px;line-height:1.5">Indisponível por SKU: falta a liberação da Advertising API da Amazon (credencial própria). A fatura de Ads da conta aparece nos cartões da tela principal, sem rateio.</div>
-      </div>
-      <div class="mx-col"><div class="mx-col-t">Dados de vendas</div>
-        ${row('Unidades enviadas', r(a.un_enviadas), cmp(a.un_enviadas, p?.un_enviadas, v=>r(v)))}
-        ${row('Devolvidas', r(a.un_devolvidas), cmp(a.un_devolvidas, p?.un_devolvidas, v=>r(v), true))}
-        ${row('Unidades líquidas', r(a.un_liquidas), cmp(a.un_liquidas, p?.un_liquidas, v=>r(v)))}
-        ${row('Vendas (R$)', brl2(a.receita), cmp(a.receita, p?.receita, brl2))}
-        ${row('Receita líquida', brl2(a.receita_liquida), cmp(a.receita_liquida, p?.receita_liquida, brl2))}
-        ${row('Margem de contribuição', a.completo ? brl2(a.margem) : '—', cmp(a.margem, p?.margem, brl2))}
-        ${row('Margem %', a.completo ? pct1((a.margem_pct||0)/100) : '—', '')}
-        <div id="amz-trafego" style="margin-top:6px"><div class="sac-mut" style="font-size:11px">Buscando visitas e conversão no relatório da Amazon (30 a 60 s)…</div></div>
-      </div>
+      ${colSim}
     </div>
-    <div class="mx-foot">
-      <label for="amz-cm">Comentários</label>
-      <textarea id="amz-cm" rows="2" placeholder="Comentário sobre este SKU"></textarea>
-      <div class="mx-foot-act"><button class="btn-sm" onclick="amzSalvarComentario()">Salvar comentário</button><span id="amz-cm-st"></span></div>
-    </div>`;
-  amzCalc(); amzCarregarComentario(); amzCarregarTrafego(d);
+    ${mapaHtml('Mapa de alterações')}`;
+  _mapa = {conta, chave: sku, snapshot: () => ({
+    periodo: d.periodo, preco_medio: preco, margem_pct: a.completo ? (a.margem_pct || 0) / 100 : null,
+    unidades: a.un_liquidas, receita: a.receita, visitas: _amz?.visitas ?? null, conversao: _amz?.conversao ?? null }) };
+  amzCalc(); mapaCarregar(); amzCarregarTrafego(d);
 }
 // Visitas e conversão: relatório Sales and Traffic (por ASIN e período), buscado em segundo plano e consultado até ficar pronto
 async function amzCarregarTrafego(d) {
@@ -1424,18 +1476,10 @@ function amzPreencherTrafego(d, t) {
   const box = document.getElementById('amz-trafego'); if (!box) return;
   const a = t.atual.dados, p = t.anterior.dados;
   if (!a) { box.innerHTML = '<div class="sac-mut" style="font-size:11px">A Amazon não trouxe visitas deste ASIN no período (sem tráfego ou ASIN fora do relatório).</div>'; return; }
-  const dmy = x => x.split('-').reverse().join('/');
-  const cmp = (atual, ant, fmt) => {
-    if (ant == null || !ant || atual == null) return '';
-    const diff = atual - ant; if (Math.abs(diff) < 0.0001) return '';
-    return `<span class="kpi-badge-var ${diff>0?'kpi-badge-up':'kpi-badge-dn'}" data-tip="Período anterior (${dmy(d.anterior.de)} a ${dmy(d.anterior.ate)}): ${fmt(ant)}">${diff>0?'▲':'▼'}${Math.abs(diff/ant*100).toFixed(1).replace('.',',')}%</span>`;
-  };
+  if (_amz) { _amz.visitas = a.sessoes; _amz.conversao = a.conversao_pct != null ? a.conversao_pct / 100 : null; }
   const pc = v => (v == null ? '—' : Number(v).toFixed(2).replace('.', ',') + '%');
-  const row = (l, v, b) => `<div class="mx-row"><span class="mx-lbl">${l}</span><span class="mx-val">${v}${b||''}</span></div>`;
-  box.innerHTML = row('Visitas (sessões)', r(a.sessoes), cmp(a.sessoes, p?.sessoes, v=>r(v))) +
-    row('Visualizações de página', r(a.visualizacoes), cmp(a.visualizacoes, p?.visualizacoes, v=>r(v))) +
-    row('Conversão (unidades por sessão)', pc(a.conversao_pct), cmp(a.conversao_pct, p?.conversao_pct, pc)) +
-    row('Buy Box', pc(a.buybox_pct), cmp(a.buybox_pct, p?.buybox_pct, pc)) +
+  const cols = [{k:'sessoes', l:'Visitas (sessões)', f:v=>r(v)}, {k:'visualizacoes', l:'Visualizações', f:v=>r(v)}, {k:'conversao_pct', l:'Conversão', f:pc}, {k:'buybox_pct', l:'Buy Box', f:pc}];
+  box.innerHTML = mxTabela(cols, a, p, `${mxDmy(d.periodo.de)} a ${mxDmy(d.periodo.ate)}`, `${mxDmy(d.anterior.de)} a ${mxDmy(d.anterior.ate)}`) +
     `<div class="sac-mut" style="font-size:11px;margin-top:4px">Dados por ASIN. Se o ASIN tem mais de um SKU (FBA e DBA), os números valem para o ASIN inteiro.</div>`;
 }
 
@@ -1445,11 +1489,9 @@ function amzCalc() {
   const res = preco - cmv - preco*imp - preco*com - fba - out - preco*tacos;
   const mp = preco > 0 ? res/preco : 0, cor = res < 0 ? 'var(--red)' : 'var(--green)';
   const el = document.getElementById('amz-sim-out'); if (!el) return;
-  const atual = _amz?.d?.atual, un = atual?.un_liquidas || 0;
-  const atualUn = atual && atual.completo && un > 0 ? atual.margem / un : null;
   el.innerHTML = `<div class="mx-row"><span class="mx-lbl">Resultado unitário</span><span class="mx-val" style="color:${cor}">${brl2(res)}</span></div>
     <div class="mx-row"><span class="mx-lbl">Margem simulada</span><span class="mx-val" style="color:${cor}">${pct1(mp)}</span></div>
-    ${atualUn!=null ? `<div class="mx-row"><span class="mx-lbl">Diferença vs. margem atual</span><span class="mx-val ${res-atualUn>=0?'vb-up':'vb-dn'}">${res-atualUn>=0?'+':''}${brl2(res-atualUn)}</span></div>` : ''}`;
+`;
 }
 async function amzTrocarSt() {
   if (!_amz?.d) return;
@@ -1461,24 +1503,6 @@ async function amzTrocarSt() {
     toast(r.ok ? `Imposto ${comSt?'COM ST':'SEM ST'} salvo para o SKU` : 'Erro ao salvar o imposto', r.ok ? undefined : 'error');
   } catch(e) { toast('Erro ao salvar o imposto', 'error'); }
 }
-function amzChaveComentario() { return encodeURIComponent(_amz.sku); }
-async function amzCarregarComentario() {
-  try {
-    const d = await (await fetch(`${API}/anotacoes/${_amz.conta}/${amzChaveComentario()}`)).json();
-    const ta = document.getElementById('amz-cm'); if (!ta) return;
-    ta.value = (d.anotacoes || [])[0]?.texto || ''; ta.dataset.orig = ta.value;
-  } catch(e) {}
-}
-async function amzSalvarComentario() {
-  const ta = document.getElementById('amz-cm'); const texto = ta.value.trim();
-  if (!texto) { toast('Escreva o comentário', 'error'); return; }
-  if (texto === (ta.dataset.orig || '').trim()) { toast('Comentário sem alterações'); return; }
-  try {
-    const r = await fetch(`${API}/anotacoes/${_amz.conta}/${amzChaveComentario()}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({texto, autor: user?.login || ''})});
-    if (!r.ok) throw new Error(r.status); toast('Comentário salvo'); ta.dataset.orig = texto;
-  } catch(e) { toast('Erro ao salvar o comentário', 'error'); }
-}
-
 // ── SHOPEE: esqueleto na mesma estrutura (lojas e autorização; dados nas próximas fases) ──
 async function shopeeAbrirAba() {
   const box = document.getElementById('painel-shopee');
@@ -2234,7 +2258,6 @@ function renderModalContent(mlb, conta) {
   if (!dbProd) return;
   const c = dbProd.custos || {};
 
-  // Sincroniza estado do botão arquivar
   const btnArqMC = document.getElementById('btn-arq-produto');
   if (btnArqMC) {
     const isArq = !!dbProd.arquivado;
@@ -2247,84 +2270,61 @@ function renderModalContent(mlb, conta) {
   const prev = dbProd.anterior || {};
   _modalPer = per;
 
-  // ── Faixa fixa: média por unidade dos últimos 30 dias fechados (não depende do seletor) ──
+  // ── Faixa fixa: ADS dos últimos 30 dias fechados (não depende do seletor) ──
   const agoraBRT = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Sao_Paulo"}));
   const ontem = new Date(agoraBRT - 86400000);
   const ate30 = ontem.toISOString().split('T')[0];
   const de30  = new Date(ontem - 29*86400000).toISOString().split('T')[0];
   const a30   = agregarPeriodoLocal(rawDB[conta]?.[mlb], de30, ate30) || {};
-  const un30  = a30.unidades || 0;
-  const u = v => un30 > 0 ? brl2(v / un30) : '—';
+  const rec30 = a30.receita || 0, ads30 = a30.ads_total || 0, recAds30 = a30.receita_publi || 0, un30 = a30.unidades || 0;
+  // unidades por ADS: valor exato quando o último sync foi de 30 dias; senão estimativa pela fatia da receita
+  let vAds30 = a30.vendas_com_ads || 0, aprox = false;
+  if (!vAds30 && un30 > 0 && rec30 > 0 && recAds30 > 0) { vAds30 = Math.round(un30 * Math.min(1, recAds30 / rec30)); aprox = true; }
+  const vOrg30 = Math.max(0, un30 - vAds30);
+  document.getElementById('mx-strip').style.setProperty('--cols', 7);
   document.getElementById('mx-strip').innerHTML = [
-    ['CMV', u(a30.cmv_total)], ['Imposto', u(a30.imposto_total)], ['Comissão', u(a30.comissao_total)],
-    ['Frete', u(a30.frete_total)], ['TACOS', a30.receita > 0 ? pct1(a30.ads_total / a30.receita) : '—'],
-    ['Receita por unidade', u(a30.receita)]
+    ['Vendas por ADS', un30 > 0 ? r(vAds30) + (aprox ? ' ~' : '') : '—'], ['Vendas orgânicas', un30 > 0 ? r(vOrg30) + (aprox ? ' ~' : '') : '—'],
+    ['Receita por ADS', brl2(recAds30)], ['Investimento', brl2(ads30)],
+    ['ACOS', recAds30 > 0 ? pct1(ads30 / recAds30) : '—'], ['TACOS', rec30 > 0 ? pct1(ads30 / rec30) : '—'],
+    ['ROAS', ads30 > 0 ? (recAds30 / ads30).toFixed(2).replace('.', ',') : '—']
   ].map(([l, v]) => `<div class="mx-kpi"><div class="mx-kpi-l">${l}</div><div class="mx-kpi-v">${v}</div></div>`).join('');
 
-  // ── Comparação com o período anterior (setas, percentual e dado anterior no tooltip) ──
+  // ── Períodos (selecionado e anterior) ──
   const diasPer = de && ate ? Math.round((new Date(ate)-new Date(de))/86400000)+1 : 0;
   const prevAte = de ? new Date(new Date(de)-86400000).toISOString().split('T')[0] : '';
   const prevDe  = prevAte && diasPer ? new Date(new Date(prevAte)-(diasPer-1)*86400000).toISOString().split('T')[0] : '';
-  const dmy = x => x ? x.split('-').reverse().join('/') : '';
-  const cmp = (atual, anterior, fmt, inverso=false, neutro=false) => {
-    const tip = `Período anterior (${dmy(prevDe)} a ${dmy(prevAte)}): ${fmt(anterior||0)}`;
-    if (!anterior || anterior === 0 || atual == null) return '';
-    const diff = atual - anterior;
-    if (Math.abs(diff) < 0.0001) return '';
-    const subiu = diff > 0, bom = inverso ? !subiu : subiu;
-    const cls = neutro ? 'kpi-badge-neu' : (bom ? 'kpi-badge-up' : 'kpi-badge-dn');
-    return `<span class="kpi-badge-var ${cls}" data-tip="${tip}">${subiu?'▲':'▼'}${Math.abs(diff/anterior*100).toFixed(1).replace('.',',')}%</span>`;
-  };
-  const rowv = (lbl, valTxt, badgeHtml) =>
-    `<div class="mx-row"><span class="mx-lbl">${lbl}</span><span class="mx-val">${valTxt}${badgeHtml||''}</span></div>`;
-
-  const conv = per.conversao > 0 ? per.conversao : (per.visitas > 0 ? per.qtd_vendas / per.visitas : 0);
-  const convP = prev.conversao > 0 ? prev.conversao : (prev.visitas > 0 ? prev.qtd_vendas / prev.visitas : 0);
-  const pos = getPosicao(mlb);
-  const posTxt = pos.posicao ? `p${pos.pagina||1} #${pos.posicao}` : 'Sem registro';
-
-  // CTR em %, CPC em R$: prefere o valor do backend (_ads_) e cai para o cálculo local
+  const rotA = `${mxDmy(de)} a ${mxDmy(ate)}`, rotB = `${mxDmy(prevDe)} a ${mxDmy(prevAte)}`;
   const ctrDe = o => (o.ctr||0) > 0 ? o.ctr : (o.impressoes > 0 ? o.cliques / o.impressoes * 100 : 0);
   const cpcDe = o => (o.cpc_medio||0) > 0 ? o.cpc_medio : (o.cliques > 0 ? (o.ads_total||0) / o.cliques : 0);
   const comAds = o => o.vendas_com_ads || ((o.vendas_publi||0) + (o.vendas_indiretas||0));
-  const pctTxt = v => Number(v||0).toFixed(2).replace('.', ',') + '%';
-  const colAds = `<div class="mx-col"><div class="mx-col-t">Dados de ADS</div>
-    ${rowv('ACOS', pct1(per.acos), cmp(per.acos, prev.acos, pct1, true))}
-    ${rowv('TACOS', pct1(per.tacos), cmp(per.tacos, prev.tacos, pct1, true))}
-    ${rowv('Venda ADS', brl2(per.receita_publi), cmp(per.receita_publi, prev.receita_publi, brl2))}
-    ${rowv('Investimento', brl2(per.ads_total), cmp(per.ads_total, prev.ads_total, brl2, false, true))}
-    ${rowv('Impressões', r(per.impressoes), cmp(per.impressoes, prev.impressoes, v=>r(v)))}
-    ${rowv('Cliques', r(per.cliques), cmp(per.cliques, prev.cliques, v=>r(v)))}
-    ${rowv('CTR', pctTxt(ctrDe(per)), cmp(ctrDe(per), ctrDe(prev), pctTxt))}
-    ${rowv('CPC', brl2(cpcDe(per)), cmp(cpcDe(per), cpcDe(prev), brl2, true))}
-    ${rowv('Vendas por ADS (un.)', r(comAds(per)), cmp(comAds(per), comAds(prev), v=>r(v)))}
-    ${rowv('Vendas sem ADS (un.)', r(per.vendas_sem_publi), cmp(per.vendas_sem_publi, prev.vendas_sem_publi, v=>r(v)))}
-  </div>`;
-  const colVendas = `<div class="mx-col"><div class="mx-col-t">Dados de vendas</div>
-    ${rowv('Unidades', r(per.unidades), cmp(per.unidades, prev.unidades, v=>r(v)))}
-    ${rowv('Visitas únicas', r(per.visitas), cmp(per.visitas, prev.visitas, v=>r(v)))}
-    ${rowv('Vendas (R$)', brl2(per.receita), cmp(per.receita, prev.receita, brl2))}
-    ${rowv('Conversão', pct1(conv), cmp(conv, convP, pct1))}
-    ${rowv('Posição do anúncio', `<span id="pos-txt">${posTxt}</span>`, '')}
-    <div class="mx-pos">
-      <input type="number" id="pos-pag" value="${pos.pagina||1}" min="1" max="99" style="width:42px" title="Página"/>
-      <input type="number" id="pos-num" value="${pos.posicao||''}" min="1" max="99" style="width:52px" placeholder="Posição" title="Posição"/>
-      <input type="text" id="pos-kw" value="${(pos.keyword||'').replace(/"/g,'&quot;')}" placeholder="Palavra-chave" style="flex:1;min-width:0"/>
-      <button class="btn-sm" onclick="salvarPosicao('${mlb}','${conta}')">Salvar</button>
-    </div>
-  </div>`;
+  const conv = o => o.conversao > 0 ? o.conversao : (o.visitas > 0 ? o.qtd_vendas / o.visitas : 0);
+  const preparar = o => ({...o, ctr_c: ctrDe(o)/100, cpc_c: cpcDe(o), vads: comAds(o), preco_c: o.unidades > 0 ? o.receita/o.unidades : 0, conv_c: conv(o)});
+  const A = preparar(per), B = preparar(prev);
+  const dec2 = v => Number(v||0).toFixed(2).replace('.', ',');
+  const colsAds = [
+    {k:'acos', l:'ACOS', f:pct1, inv:true}, {k:'tacos', l:'TACOS', f:pct1, inv:true}, {k:'roas', l:'ROAS', f:dec2},
+    {k:'receita_publi', l:'Venda ADS (R$)', f:v=>dec2(v).replace(/\B(?=(\d{3})+(?!\d))/g,'.')}, {k:'ads_total', l:'Investimento (R$)', f:v=>dec2(v).replace(/\B(?=(\d{3})+(?!\d))/g,'.'), neu:true},
+    {k:'impressoes', l:'Impressões', f:v=>r(v)}, {k:'cliques', l:'Cliques', f:v=>r(v)}, {k:'ctr_c', l:'CTR', f:v=>(v*100).toFixed(2).replace('.',',')+'%'},
+    {k:'cpc_c', l:'CPC (R$)', f:dec2, inv:true}, {k:'vads', l:'Vendas ADS (un.)', f:v=>r(v)}, {k:'vendas_sem_publi', l:'Vendas orgânicas (un.)', f:v=>r(v)}
+  ];
+  const colsVendas = [
+    {k:'unidades', l:'Unidades', f:v=>r(v)}, {k:'visitas', l:'Visitas únicas', f:v=>r(v)}, {k:'receita', l:'Vendas (R$)', f:v=>dec2(v).replace(/\B(?=(\d{3})+(?!\d))/g,'.')},
+    {k:'conv_c', l:'Conversão', f:pct1}, {k:'preco_c', l:'Preço médio (R$)', f:dec2}
+  ];
+  const pos = getPosicao(mlb);
+  const posTxt = pos.posicao ? `p${pos.pagina||1} #${pos.posicao}` : 'Sem registro';
 
-  // ── Simulação do cenário (campos compactos; ids preservados para calcSim/custos reais) ──
+  // ── Simulação do cenário (à direita; ids preservados para calcSim/custos reais) ──
   const sim = c.simulador || {};
   const precoUnit = per.unidades > 0 ? per.receita / per.unidades : 0;
   const fld = (lbl, id, val, step, ph='') =>
     `<div class="sim-field"><label>${lbl}</label><input type="number" id="${id}" value="${val}" step="${step}" ${ph?`placeholder="${ph}"`:''} oninput="simEdit('${mlb}','${conta}',this)"/></div>`;
-  const colSim = `<div class="mx-col mx-sim"><div class="mx-col-t">Simulação do cenário</div>
+  const colSim = `<aside class="mx-card2 mx-sim"><h4>Simulação do cenário</h4>
     <div class="sim-grid">
       ${fld('Preço simulado (R$)','s-preco',(sim.preco??precoUnit).toFixed(2),'0.01')}
       ${fld('CMV (R$)','s-cmv',(sim.cmv_unit??(c.cmv_unit||0)).toFixed(2),'0.01')}
       <div class="sim-field"><label>Imposto (%)</label><div style="display:flex;gap:4px">
-        <select id="s-st" title="Alíquota de imposto da conta" onchange="trocarSt('${mlb}','${conta}',this)" style="height:26px;font-size:11px;background:var(--bg3);color:var(--text);border:1px solid var(--border2);border-radius:6px;padding:0 4px;">
+        <select id="s-st" title="Alíquota de imposto da conta" onchange="trocarSt('${mlb}','${conta}',this)" style="height:26px;font-size:11px;background:var(--bg2);color:var(--text);border:1px solid var(--border2);border-radius:6px;padding:0 4px;">
           <option value="1" ${(dbProd.tem_st??true)?'selected':''}>COM ST</option><option value="0" ${(dbProd.tem_st??true)?'':'selected'}>SEM ST</option></select>
         <input type="number" id="s-imp" value="${((sim.imposto_pct??(c.imposto_pct||0.10))*100).toFixed(2)}" step="0.01" oninput="simEdit('${mlb}','${conta}',this)" style="min-width:0"/></div></div>
       ${fld('Comissão (%)','s-com',((sim.comissao_pct??(c.comissao_pct||0.11))*100).toFixed(2),'0.01')}
@@ -2337,23 +2337,29 @@ function renderModalContent(mlb, conta) {
     <div id="sim-out" class="mx-sim-out"></div>
     <div id="sim-real" class="mx-sim-info" style="margin-top:8px">Buscando custos reais no ML…</div>
     <div class="mx-sim-act"><a onclick="usarMediasDoPeriodo('${mlb}','${conta}')">Usar médias do período selecionado</a></div>
-  </div>`;
+  </aside>`;
 
   document.getElementById('modal-body').innerHTML = `
-    <div class="mx-cols">${colSim}${colAds}${colVendas}</div>
-    <div class="mx-foot">
-      <label for="cm-texto">Comentários</label>
-      <textarea id="cm-texto" rows="2" placeholder="Comentário sobre este anúncio"></textarea>
-      <div class="mx-foot-act">
-        <button class="btn-sm" onclick="salvarComentario('${mlb}','${conta}')">Salvar comentário</button>
-        <a onclick="alternarHistoricoComentarios()" id="cm-hist-link">Histórico</a>
-        <span id="cm-status"></span>
+    <div class="mx-main">
+      <div class="mx-left">
+        <section class="mx-card2"><h4>Dados de ADS<small>período selecionado e período anterior</small></h4>${mxTabela(colsAds, A, B, rotA, rotB)}</section>
+        <section class="mx-card2"><h4>Dados de vendas<small>período selecionado e período anterior</small></h4>${mxTabela(colsVendas, A, B, rotA, rotB)}
+          <div class="mx-pos2"><span>Posição do anúncio: <b id="pos-txt" style="color:var(--text)">${posTxt}</b></span>
+            <input type="number" id="pos-pag" value="${pos.pagina||1}" min="1" max="99" style="width:44px" title="Página"/>
+            <input type="number" id="pos-num" value="${pos.posicao||''}" min="1" max="99" style="width:56px" placeholder="Posição" title="Posição"/>
+            <input type="text" id="pos-kw" value="${(pos.keyword||'').replace(/"/g,'&quot;')}" placeholder="Palavra-chave" style="flex:1;min-width:0"/>
+            <button class="btn-sm" onclick="salvarPosicao('${mlb}','${conta}')">Salvar</button></div>
+        </section>
       </div>
-      <div class="mx-hist" id="cm-hist" style="display:none"></div>
-    </div>`;
+      ${colSim}
+    </div>
+    ${mapaHtml('Mapa de alterações')}`;
+  _mapa = {conta, chave: mlb, snapshot: () => ({
+    periodo: {de, ate}, preco_medio: A.preco_c, margem_pct: per.margem_pct, acos: per.acos, tacos: per.tacos,
+    roas: per.roas, unidades: per.unidades, visitas: per.visitas, conversao: A.conv_c, receita: per.receita })};
   calcSim(mlb, conta, false);
   carregarCustosML(mlb, conta);
-  carregarComentario(mlb, conta);
+  mapaCarregar();
 }
 
 // Seletor COM ST / SEM ST: aplica a alíquota da conta ao imposto e grava no produto
@@ -2412,11 +2418,12 @@ function mostrarAvisoRebot(o) {
   const box = document.getElementById('m-aviso-rebot'); if (!box) return;
   if (!o || o.empate || !(o.ganho_un > 0)) { box.innerHTML = ''; return; }
   const dt = x => x ? x.split('-').reverse().slice(0,2).join('/') : '';
-  const det = [`${brl2(o.atual_preco)} → ${brl2(o.preco)}`, `rebot ${brl2(o.atual_rebot)} → ${brl2(o.rebot)}`,
-    o.delta_preco > 0 ? `atenção: o preço sobe ${brl2(o.delta_preco)}, confira o buybox` : '',
-    (o.tipo === 'LIGHTNING' && o.estoque) ? `exige estoque de ${o.estoque.min} a ${o.estoque.max} un` : '',
-    o.fim ? `até ${dt(o.fim)}` : '', `em vez de «${o.atual_nome}»`].filter(Boolean).join(' · ');
-  box.innerHTML = `<span class="mx-aviso rebot" title="${sacEsc(det)}">Novo rebot disponível: +${brl2(o.ganho_un)}/un · ${sacEsc((o.nome||o.tipo||'').slice(0,40))}${o.delta_preco>0?' · preço sobe':''}</span>`;
+  const linha = [`${brl2(o.atual_preco)} → ${brl2(o.preco)}`, `rebot ${brl2(o.atual_rebot)} → ${brl2(o.rebot)}`,
+    o.fim ? `até ${dt(o.fim)}` : '', o.delta_preco > 0 ? `o preço sobe ${brl2(o.delta_preco)}` : '',
+    (o.tipo === 'LIGHTNING' && o.estoque) ? `estoque ${o.estoque.min} a ${o.estoque.max} un` : ''].filter(Boolean).join(' · ');
+  const tip = `Campanha: ${o.nome || o.tipo} (em vez de «${o.atual_nome}»)\n${linha}`;
+  box.innerHTML = `<span class="mx-rebot" title="${sacEsc(tip)}"><span class="mx-rebot-v">+${brl2(o.ganho_un)}<small>/un</small></span>
+    <span class="mx-rebot-t"><b>Novo rebot disponível</b><span>${sacEsc((o.nome || o.tipo || '').slice(0,38))} · ${sacEsc(linha)}</span></span></span>`;
 }
 
 // ── PIVO: análise de cada anúncio (título, imagens, clip, descrição, promoção, ADS) ──
@@ -2446,16 +2453,16 @@ function pivoAtualizarCelulas(conta) {
 function mostrarPivoModal(conta, mlb) {
   const box = document.getElementById('m-pivo'); if (!box) return;
   const it = _pivo[conta]?.itens?.[mlb];
-  if (!it || !it.grupos) { box.innerHTML = `<span class="mx-aviso pivo-atencao" style="cursor:pointer" onclick="pivoAnalisar('${conta}')" title="Clique para analisar os anúncios da conta">PIVO não analisado</span>`; return; }
+  if (!it || !it.grupos) { box.innerHTML = `<span class="mx-pivo" style="cursor:pointer" onclick="pivoAnalisar('${conta}')" title="Clique para analisar os anúncios da conta"><span class="t">PIVO</span><span class="n atencao">não analisado</span></span>`; return; }
   const letras = it.grupos.map(g => {
     const partes = g.partes.map(x => (x.ok === true ? '[ok] ' : x.ok === false ? '[falta] ' : '[?] ') + x.nome + ': ' + x.detalhe).join('\n');
     const clique = g.id === 'V' ? ` onclick="pivoAlternarClip('${conta}','${mlb}')"` : '';
     const dica = g.id === 'V' ? '\n(clique para alternar: tem clip, sem clip, não confirmado)' : '';
-    return `<span class="pivo-l ${g.ok === true ? 'on-' + g.id : ''}${g.id==='V' ? ' clicavel' : ''}"${clique} title="${sacEsc(g.nome + '\n' + partes + dica)}">${g.id}</span>`;
+    return `<span class="pivo-l lg ${g.ok === true ? 'on-' + g.id : ''}${g.id==='V' ? ' clicavel' : ''}"${clique} title="${sacEsc(g.nome + '\n' + partes + dica)}">${g.id}</span>`;
   }).join('');
-  const faltam = it.grupos.filter(g => g.ok !== true).map(g => g.id).join(', ');
-  const resumo = it.passa ? '' : `<span class="mx-aviso pivo-atencao" title="${sacEsc(it.atencao.join('\n'))}">Atenção PIVO ${it.pontos}/${it.total}: ${faltam}</span> `;
-  box.innerHTML = resumo + `<span style="display:inline-flex;align-items:center">${letras}</span>`;
+  const faltam = it.grupos.filter(g => g.ok !== true).map(g => g.nome.split(':')[0]);
+  box.innerHTML = `<span class="mx-pivo" title="${sacEsc(it.passa ? 'Passa no PIVO' : 'Atenção: ' + it.atencao.join('\n'))}"><span class="t">PIVO</span>${letras}
+    <span class="n ${it.passa ? 'ok' : 'atencao'}">${it.passa ? 'completo' : 'atenção · ' + it.pontos + '/' + it.total}</span></span>`;
 }
 async function pivoAlternarClip(conta, mlb) {
   const it = _pivo[conta]?.itens?.[mlb]; if (!it) return;
@@ -2517,13 +2524,12 @@ function calcSim(mlb, conta, persistir=true) {
   // As taxas do ML são a comissão (%) e o frete (que já inclui a tarifa fixa): não há campo separado.
   const margSim = preco - cmv - preco*imp - preco*com - frete - preco*tacos + rebotSim;
   const mpSim   = preco>0 ? margSim/preco : 0;
-  const diff    = margSim - (per.margem_unit||0);
 
   const outEl=document.getElementById('sim-out'); if(!outEl) return;
   outEl.innerHTML=`
     <div class="mx-row"><span class="mx-lbl">Resultado unitário</span><span class="mx-val" style="color:${margSim<0?'var(--red)':'var(--green)'}">${brl2(margSim)}</span></div>
     <div class="mx-row"><span class="mx-lbl">Margem simulada</span><span class="mx-val" style="color:${margSim<0?'var(--red)':'var(--green)'}">${pct1(mpSim)}</span></div>
-    ${(per.margem_unit||0)!==0?`<div class="mx-row"><span class="mx-lbl">Diferença vs. margem atual</span><span class="mx-val ${diff>=0?'vb-up':'vb-dn'}">${diff>=0?'+':''}${brl2(diff)}</span></div>`:''}`;
+`;
 
   if(!persistir) return;   // só grava quando o usuário altera algo
   const simPayload = {
@@ -2622,49 +2628,86 @@ async function carregarCustosML(mlb, conta) {
   }
 }
 
-// ── COMENTÁRIOS DO ANÚNCIO (por MLB; o histórico fica no servidor) ──────────────
-let _cmLista = [];
-async function carregarComentario(mlb, conta) {
-  const ta = document.getElementById('cm-texto'); if (!ta) return;
+// ── Tabela em colunas: período selecionado (negrito), período anterior (normal) e variação ──
+function mxVar(atual, ant, inverso, neutro) {
+  if (ant == null || !ant || atual == null) return '<span class="mxt-pill neu">—</span>';
+  const diff = atual - ant;
+  if (Math.abs(diff) < 0.0001) return '<span class="mxt-pill neu">0,0%</span>';
+  const bom = inverso ? diff < 0 : diff > 0;
+  const cls = neutro ? 'neu' : (bom ? 'up' : 'dn');
+  return `<span class="mxt-pill ${cls}">${diff > 0 ? '▲' : '▼'} ${Math.abs(diff / ant * 100).toFixed(1).replace('.', ',')}%</span>`;
+}
+function mxTabela(cols, atual, ant, rotAtual, rotAnt) {
+  const g = `style="--n:${cols.length}"`;
+  const cel = (o, c) => `<div>${o && o[c.k] != null ? c.f(o[c.k]) : '—'}</div>`;
+  return `<div class="mxt" ${g}>
+    <div class="mxt-row mxt-head" ${g}><div></div>${cols.map(c => `<div>${c.l}</div>`).join('')}</div>
+    <div class="mxt-row sel" ${g}><div class="lab"><b>Selecionado</b><small>${rotAtual}</small></div>${cols.map(c => cel(atual, c)).join('')}</div>
+    <div class="mxt-row ant" ${g}><div class="lab"><b>Anterior</b><small>${rotAnt}</small></div>${cols.map(c => cel(ant, c)).join('')}</div>
+    <div class="mxt-row var" ${g}><div class="lab"><b>Variação</b></div>${cols.map(c => `<div>${mxVar(atual?.[c.k], ant?.[c.k], c.inv, c.neu)}</div>`).join('')}</div>
+  </div>`;
+}
+const mxDmy = x => x ? x.split('-').reverse().join('/') : '';
+
+// ── Mapa de alterações: comentário com usuário, data e a foto dos indicadores do momento ──
+let _mapa = null;   // {conta, chave, snapshot: () => objeto}
+function mapaIniciais(nome) { return String(nome || '?').trim().split(/\s+/).slice(0, 2).map(x => x[0]).join('').toUpperCase(); }
+function mapaFmtData(a) {
+  const d = new Date(a.criado_ts || ''); if (!isNaN(d)) return d.toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', timeZone:'America/Sao_Paulo'}).replace(',', '');
+  return a.criado_em || '';
+}
+function mapaChips(d) {
+  if (!d) return '';
+  const it = [];
+  const add = (l, v) => { if (v != null && v !== '') it.push(`<span class="mapa-chip">${l} <b>${v}</b></span>`); };
+  if (d.periodo) add('Período', `${mxDmy(d.periodo.de)} a ${mxDmy(d.periodo.ate)}`);
+  add('Preço médio', d.preco_medio != null ? brl2(d.preco_medio) : null);
+  add('Margem', d.margem_pct != null ? pct1(d.margem_pct) : null);
+  add('ACOS', d.acos != null ? pct1(d.acos) : null);
+  add('TACOS', d.tacos != null ? pct1(d.tacos) : null);
+  add('ROAS', d.roas != null ? Number(d.roas).toFixed(2).replace('.', ',') : null);
+  add('Unidades', d.unidades != null ? r(d.unidades) : null);
+  add('Visitas', d.visitas != null ? r(d.visitas) : null);
+  add('Conversão', d.conversao != null ? pct1(d.conversao) : null);
+  add('Receita', d.receita != null ? brl2(d.receita) : null);
+  return it.length ? `<div class="mapa-chips">${it.join('')}</div>` : '';
+}
+function mapaHtml(titulo) {
+  return `<section class="mx-card2" style="margin-top:14px"><h4>${titulo}<small id="mapa-st"></small></h4>
+    <div class="mapa-form"><textarea id="mapa-texto" placeholder="Descreva a alteração feita (título, imagens, preço, campanha, ADS...)"></textarea>
+      <button class="btn-sm" onclick="mapaSalvar()">Registrar alteração</button></div>
+    <div class="mapa-lista" id="mapa-lista"><div class="sac-mut">Carregando…</div></div></section>`;
+}
+async function mapaCarregar() {
+  if (!_mapa) return;
+  const box = document.getElementById('mapa-lista'); if (!box) return;
+  const m = _mapa;
   try {
-    const res = await fetch(`${API}/anotacoes/${conta}/${mlb}`);
-    const data = await res.json();
-    if (_modalMlb !== mlb) return;
-    _cmLista = data.anotacoes || [];
-    ta.value = _cmLista[0]?.texto || '';
-    ta.dataset.orig = ta.value;
-    document.getElementById('cm-hist-link').textContent = `Histórico (${_cmLista.length})`;
-    desenharHistoricoComentarios(mlb, conta);
-  } catch(e) { document.getElementById('cm-status').textContent = 'Comentários indisponíveis'; }
+    const d = await (await fetch(`${API}/anotacoes/${m.conta}/${encodeURIComponent(m.chave)}`)).json();
+    if (_mapa !== m) return;
+    const lista = d.anotacoes || [];
+    box.innerHTML = lista.map(a => `<div class="mapa-item"><div class="mapa-av" title="${sacEsc(a.autor_nome || a.autor || '')}">${sacEsc(mapaIniciais(a.autor_nome || a.autor))}</div>
+      <div><div class="mapa-top"><b>${sacEsc(a.autor_nome || a.autor || 'Usuário não identificado')}</b><span>${sacEsc(mapaFmtData(a))}</span></div>
+      <div class="mapa-txt">${sacEsc(a.texto)}</div>${mapaChips(a.dados)}</div></div>`).join('') || '<div class="sac-mut">Nenhuma alteração registrada ainda.</div>';
+    const st = document.getElementById('mapa-st'); if (st) st.textContent = `${lista.length} registro(s)`;
+  } catch(e) { box.innerHTML = '<div class="sac-mut">Mapa de alterações indisponível.</div>'; }
 }
-function desenharHistoricoComentarios(mlb, conta) {
-  const box = document.getElementById('cm-hist'); if (!box) return;
-  const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  box.innerHTML = _cmLista.map(a => `<div><span>${esc(a.texto)}</span><span class="sac-mut">${esc(a.criado_em)} <a onclick="deletarComentario('${mlb}','${conta}','${a.id}')">excluir</a></span></div>`).join('')
-    || '<div class="sac-mut">Sem comentários anteriores.</div>';
-}
-function alternarHistoricoComentarios() {
-  const box = document.getElementById('cm-hist'); if (box) box.style.display = box.style.display === 'none' ? 'block' : 'none';
-}
-async function salvarComentario(mlb, conta) {
-  const ta = document.getElementById('cm-texto'); const texto = ta.value.trim();
-  if (!texto) { toast('Escreva o comentário', 'error'); return; }
-  if (texto === (ta.dataset.orig || '').trim()) { toast('Comentário sem alterações'); return; }
+async function mapaSalvar() {
+  if (!_mapa) return;
+  const ta = document.getElementById('mapa-texto'); const texto = ta.value.trim();
+  if (!texto) { toast('Descreva a alteração', 'error'); return; }
   try {
-    const res = await fetch(`${API}/anotacoes/${conta}/${mlb}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({texto, autor: user?.login || ''})});
+    const res = await fetch(`${API}/anotacoes/${_mapa.conta}/${encodeURIComponent(_mapa.chave)}`, {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({texto, autor: user?.login || '', autor_nome: user?.nome || '', dados: _mapa.snapshot()})});
     if (!res.ok) throw new Error(res.status);
-    toast('Comentário salvo');
-    carregarComentario(mlb, conta);
-  } catch(e) { toast('Erro ao salvar o comentário', 'error'); }
-}
-async function deletarComentario(mlb, conta, id) {
-  await fetch(`${API}/anotacoes/${conta}/${mlb}/${id}`, {method:'DELETE'});
-  carregarComentario(mlb, conta);
+    ta.value = ''; toast('Alteração registrada'); mapaCarregar();
+  } catch(e) { toast('Erro ao registrar a alteração', 'error'); }
 }
 
+// ── (comentários antigos substituídos pelo mapa de alterações) ──
 function closeModal() {
   document.getElementById('modal-prod').classList.remove('open');
-  _modalMlb = null; _modalConta = null;
+  _modalMlb = null; _modalConta = null; _mapa = null;
 }
 document.getElementById('modal-prod').addEventListener('click', function(e){if(e.target===this)closeModal();});
 

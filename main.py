@@ -32,6 +32,10 @@ except ImportError:
             return None
 
         @staticmethod
+        def enviar_lote_async(*a, **k):
+            return None
+
+        @staticmethod
         def agora_iso():
             from datetime import timezone
             return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
@@ -414,7 +418,10 @@ def pivo_clip(conta: str, mlb: str, payload: dict):
     if novo:
         novo.pop("_entrada", None)
     tem = payload.get("tem_clip")
-    shared_store.enviar_async("clips", f"{conta}|{mlb}", {"clip": tem}, str(payload.get("autor", ""))[:40], removido=tem is None)
+    autor = str(payload.get("autor", ""))[:40]
+    shared_store.enviar_async("clips", f"{conta}|{mlb}", {"clip": tem}, autor, removido=tem is None)
+    if novo:   # o resultado do PIVO recalculado também sobe, para os outros computadores verem o V atualizado
+        pivo_ml.publicar(conta, {mlb: novo}, shared_store.agora_iso(), autor)
     return {"success": True, "item": novo}
 
 
@@ -898,7 +905,8 @@ def _aplicar_comentarios(registros: list):
                 lista.remove(existente)
         elif existente is None and d.get("texto"):
             lista.append({"id": cid, "texto": d["texto"], "criado_em": d.get("criado_em", ""),
-                          "criado_ts": d.get("criado_ts", r.get("atualizado_em", "")), "autor": d.get("autor", r.get("autor", ""))})
+                          "criado_ts": d.get("criado_ts", r.get("atualizado_em", "")), "autor": d.get("autor", r.get("autor", "")),
+                          "autor_nome": d.get("autor_nome", ""), "dados": d.get("dados")})
     _save_anotacoes(db)
 
 
@@ -931,7 +939,41 @@ def _aplicar_clips(registros: list):
         pivo_ml.marcar_clip(conta, mlb, None if r.get("removido") else clip)
 
 
-_APLICADORES_COMPARTILHADOS = {"comentarios": _aplicar_comentarios, "posicoes": _aplicar_posicoes, "clips": _aplicar_clips}
+def _aplicar_pivo(registros: list):
+    _modulo("pivo_ml").aplicar_remoto(registros)
+
+
+CONTESTACOES_PATH = os.path.join(BASE_DIR, "contestacoes_compartilhadas.json")
+
+
+def _aplicar_contestacoes(registros: list):
+    db = _ler_json(CONTESTACOES_PATH)
+    for r in registros:
+        try:
+            conta, cid = r["chave"].split("|", 1)
+            d = json.loads(r["dados"])
+        except (ValueError, KeyError):
+            continue
+        atual = db.setdefault(conta, {}).get(cid)
+        if r.get("removido"):
+            db[conta].pop(cid, None)
+        elif not atual or (atual.get("_atualizado_em") or "") <= (r.get("atualizado_em") or ""):
+            d["_atualizado_em"] = r.get("atualizado_em", "")
+            db[conta][cid] = d
+    with open(CONTESTACOES_PATH, "w", encoding="utf-8") as f:
+        json.dump(db, f, ensure_ascii=False)
+
+
+def _ler_json(path: str) -> dict:
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, ValueError):
+        return {}
+
+
+_APLICADORES_COMPARTILHADOS = {"comentarios": _aplicar_comentarios, "posicoes": _aplicar_posicoes, "clips": _aplicar_clips,
+                               "pivo": _aplicar_pivo, "contestacoes": _aplicar_contestacoes}
 
 
 POSICOES_PATH = os.path.join(BASE_DIR, "posicoes.json")
@@ -1000,7 +1042,10 @@ async def salvar_anotacao(conta: str, mlb: str, payload: dict):
         "criado_em": _dt.now().strftime("%d/%m/%Y %H:%M"),
         "criado_ts": _dt.now().isoformat(),
         "autor":     str(payload.get("autor", ""))[:40],
+        "autor_nome": str(payload.get("autor_nome", ""))[:60],
     }
+    if isinstance(payload.get("dados"), dict):
+        anotacao["dados"] = payload["dados"]
     db[conta][mlb].append(anotacao)
     _save_anotacoes(db)
     shared_store.enviar_async("comentarios", f"{conta}|{mlb}|{anotacao['id']}", anotacao, anotacao["autor"])
@@ -1204,4 +1249,13 @@ async def sac_contestacoes(conta: str, limite: int = 30, abertas: bool = True,
     res = await ml_api.sac_contestacoes(conta, limite, abertas, de, ate)
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("error", "erro"))
+    shared_store.enviar_lote_async("contestacoes", [(f"{conta}|{i['claim_id']}", i) for i in res.get("itens", []) if i.get("claim_id")])
     return res
+
+
+@app.get("/sac/{conta}/contestacoes/compartilhadas")
+def sac_contestacoes_compartilhadas(conta: str):
+    """Contestações consultadas por qualquer computador da equipe (banco compartilhado), mais recentes primeiro."""
+    itens = list((_ler_json(CONTESTACOES_PATH).get(conta) or {}).values())
+    itens.sort(key=lambda i: i.get("atualizada_em") or "", reverse=True)
+    return {"success": True, "conta": conta, "itens": itens}

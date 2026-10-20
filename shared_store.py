@@ -27,7 +27,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE_DIR, "shared_config.json")
 FILA_PATH = os.path.join(BASE_DIR, "shared_fila.json")
 ESTADO_PATH = os.path.join(BASE_DIR, "shared_estado.json")
-COLECOES = ("comentarios", "posicoes", "clips")
+COLECOES = ("comentarios", "posicoes", "clips", "pivo", "contestacoes")
 _trava = threading.Lock()
 
 
@@ -120,6 +120,22 @@ def enviar(colecao: str, chave: str, dados, autor: str = "", removido: bool = Fa
         _gravar(FILA_PATH, fila)
     esvaziar_fila()
     return not _ler(FILA_PATH, [])
+
+
+def enviar_lote(colecao: str, itens: list, autor: str = "") -> bool:
+    """Vários registros de uma vez ([(chave, dados)]): uma gravação na fila e um único envio."""
+    if colecao not in COLECOES or not configurado() or not itens:
+        return False
+    with _trava:
+        fila = _ler(FILA_PATH, [])
+        fila += [{"colecao": colecao, "registro": registro(k, d, autor)} for k, d in itens]
+        _gravar(FILA_PATH, fila)
+    esvaziar_fila()
+    return not _ler(FILA_PATH, [])
+
+
+def enviar_lote_async(*args, **kwargs):
+    threading.Thread(target=lambda: enviar_lote(*args, **kwargs), daemon=True).start()
 
 
 def enviar_async(*args, **kwargs):
