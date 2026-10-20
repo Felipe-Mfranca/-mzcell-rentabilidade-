@@ -445,7 +445,7 @@ input.modal-date:focus{border-color:var(--gold);}
 .mxt-row.ant{color:var(--muted2);}
 .mxt-row.ant > div:not(.lab){font-weight:400;font-size:11px;}
 .mxt-row .lab small{font-size:10px;font-weight:400;color:var(--muted2);}
-.mxt-row.var > div:not(.lab){padding:1px 0;}.mxt-row.var .lab b{font-weight:500;font-size:10.5px;color:var(--muted2);}
+.mxt-row.var > div:not(.lab){padding:1px 0;}.mxt-row.p34{opacity:.8;}.mxt-row.p34 > div:not(.lab){font-size:11px;}.mxt-row.p3{margin-top:8px;padding-top:6px;border-top:1px dashed rgba(128,128,128,.25);border-radius:0;}.mxt-row.var .lab b{font-weight:500;font-size:10.5px;color:var(--muted2);}
 .mxt-pill{display:inline-flex;align-items:center;gap:2px;padding:1px 5px;border-radius:999px;font-size:9.5px;font-weight:400;}
 .mxt-pill.up{background:rgba(34,197,94,.15);color:#15803d;}
 .mxt-pill.dn{background:rgba(239,68,68,.14);color:#b91c1c;}
@@ -2310,10 +2310,24 @@ function renderModalContent(mlb, conta) {
   const preparar = o => ({...o, ctr_c: ctrDe(o)/100, cpc_c: cpcDe(o), vads: comAds(o), preco_c: o.unidades > 0 ? o.receita/o.unidades : 0, conv_c: conv(o)});
   const A = preparar(per), B = preparar(prev);
   const dec2 = v => Number(v||0).toFixed(2).replace('.', ',');
+  // P3 e P4: os dois períodos anteriores ao P2, agregados dos dias já sincronizados (sem dados -> traço)
+  const iso = d => d.toISOString().split('T')[0];
+  const faixa = (fimIso) => { const f = new Date(fimIso); return [iso(new Date(f - ((diasPer||1)-1)*86400000)), fimIso]; };
+  const p3Ate = prevDe ? iso(new Date(new Date(prevDe) - 86400000)) : '', p4Ate = p3Ate ? iso(new Date(new Date(faixa(p3Ate)[0]) - 86400000)) : '';
+  const periodoExtra = (ateIso) => {
+    if (!ateIso) return {o: null, rot: ''};
+    const [d0, d1] = faixa(ateIso);
+    const o = agregarPeriodoLocal(rawDB[conta]?.[mlb], d0, d1);
+    const temDados = o && (o.unidades > 0 || o.visitas > 0 || o.ads_total > 0 || o.receita > 0);
+    const q = temDados ? preparar(o) : null;
+    if (q) { q.media_dia = diasPer ? (q.unidades || 0) / diasPer : 0; q.cvr_ads = q.cliques > 0 ? (q.vads || 0) / q.cliques : 0; }
+    return {o: q, rot: `${mxDmy(d0)} a ${mxDmy(d1)}`};
+  };
+  const e3 = periodoExtra(p3Ate), e4 = periodoExtra(p4Ate), P3 = e3.o, P4 = e4.o, rotC = e3.rot, rotD = e4.rot;
   const mil = v => dec2(v).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   const diasB = diasPer || 1;
   A.media_dia = diasPer ? (A.unidades || 0) / diasPer : 0; B.media_dia = diasPer ? (B.unidades || 0) / diasB : 0;
-  _adsCtx = {A, B, rotA, rotB, todas: [
+  _adsCtx = {A, B, rotA, rotB, extras: [{o: P3, rot: rotC}, {o: P4, rot: rotD}], todas: [
     {k:'tacos', l:'TACOS', f:pct2, inv:true}, {k:'acos', l:'ACOS', f:pct2, inv:true}, {k:'roas', l:'ROAS', f:dec2},
     {k:'ads_total', l:'Investimento (R$)', f:mil, neu:true}, {k:'receita_publi', l:'Receita por ADS (R$)', f:mil},
     {k:'vads', l:'Vendas por ADS (un.)', f:v=>r(v)}, {k:'vendas_sem_publi', l:'Vendas sem ADS (un.)', f:v=>r(v)},
@@ -2356,7 +2370,7 @@ function renderModalContent(mlb, conta) {
     <div class="mx-main">
       <div class="mx-left">
         <section class="mx-card2"><h4>Dados de ADS</h4><div id="ads-tab">${adsTabela()}</div></section>
-        <section class="mx-card2"><h4>Dados de vendas</h4>${mxTabela(colsVendas, A, B, rotA, rotB)}
+        <section class="mx-card2"><h4>Dados de vendas</h4>${mxTabela(colsVendas, A, B, rotA, rotB, null, [{o: P3, rot: rotC}, {o: P4, rot: rotD}])}
           <div class="mx-pos2"><span>Posição do anúncio: <b id="pos-txt" style="color:var(--text)">${posTxt}</b></span>
             <input type="number" id="pos-pag" value="${pos.pagina||1}" min="1" max="99" style="width:44px" title="Página"/>
             <input type="number" id="pos-num" value="${pos.posicao||''}" min="1" max="99" style="width:56px" placeholder="Posição" title="Posição"/>
@@ -2662,7 +2676,7 @@ function adsTabela() {
   const esc = adsEscolha();
   const cols = esc.map(k => x.todas.find(c => c.k === k) || x.todas[0]);
   const hdr = (c, i) => `<div class="sel-h"><select class="mxt-sel" title="Trocar este indicador" onchange="adsTrocar(${i},this.value)">${x.todas.map(t => `<option value="${t.k}" ${t.k === c.k ? 'selected' : ''}>${t.l}</option>`).join('')}</select></div>`;
-  return mxTabela(cols, x.A, x.B, x.rotA, x.rotB, hdr);
+  return mxTabela(cols, x.A, x.B, x.rotA, x.rotB, hdr, x.extras);
 }
 function adsTrocar(i, k) {
   const esc = adsEscolha(); esc[i] = k;
@@ -2671,14 +2685,15 @@ function adsTrocar(i, k) {
 }
 const pct2 = v => (Number(v||0) * 100).toFixed(2).replace('.', ',') + '%';
 const fmt2 = e => { const v = parseFloat(e.value); if (!isNaN(v)) e.value = v.toFixed(2); };
-function mxTabela(cols, atual, ant, rotAtual, rotAnt, hdr) {
+function mxTabela(cols, atual, ant, rotAtual, rotAnt, hdr, extras) {
   const g = `style="--n:${cols.length}"`;
   const cel = (o, c) => `<div>${o && o[c.k] != null ? c.f(o[c.k]) : '—'}</div>`;
+  const ex = (extras || []).map((e, n) => `<div class="mxt-row ant p34${n === 0 ? ' p3' : ''}" ${g}><div class="lab" title="${e.rot}"><b>P${n + 3}</b></div>${cols.map(c => cel(e.o, c)).join('')}</div>`).join('');
   return `<div class="mxt" ${g}>
     <div class="mxt-row mxt-head" ${g}><div></div>${cols.map((c, i) => hdr ? hdr(c, i) : `<div>${c.l}</div>`).join('')}</div>
-    <div class="mxt-row sel" ${g}><div class="lab"><b>Selecionado</b></div>${cols.map(c => cel(atual, c)).join('')}</div>
-    <div class="mxt-row ant" ${g}><div class="lab"><b>Anterior</b></div>${cols.map(c => cel(ant, c)).join('')}</div>
-    <div class="mxt-row var" ${g}><div class="lab"><b>Variação</b></div>${cols.map(c => `<div>${mxVar(atual?.[c.k], ant?.[c.k], c.inv, c.neu)}</div>`).join('')}</div>
+    <div class="mxt-row sel" ${g}><div class="lab" title="${rotAtual}"><b>P1</b></div>${cols.map(c => cel(atual, c)).join('')}</div>
+    <div class="mxt-row ant" ${g}><div class="lab" title="${rotAnt}"><b>P2</b></div>${cols.map(c => cel(ant, c)).join('')}</div>
+    <div class="mxt-row var" ${g}><div class="lab"><b>Variação P1 × P2</b></div>${cols.map(c => `<div>${mxVar(atual?.[c.k], ant?.[c.k], c.inv, c.neu)}</div>`).join('')}</div>${ex}
   </div>`;
 }
 const mxDmy = x => x ? x.split('-').reverse().join('/') : '';
