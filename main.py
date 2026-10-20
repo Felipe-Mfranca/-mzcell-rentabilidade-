@@ -425,6 +425,43 @@ def pivo_clip(conta: str, mlb: str, payload: dict):
     return {"success": True, "item": novo}
 
 
+# ─── Foto de capa dos anúncios (ML): busca os que faltam e guarda em fotos_cache.json ───
+FOTOS_PATH = os.path.join(BASE_DIR, "fotos_cache.json")
+
+
+@app.get("/fotos/{conta}")
+def fotos_conta(conta: str):
+    """{mlb: url} da imagem de capa. Só consulta o ML para anúncios ainda sem foto no cache."""
+    if conta not in ("meli01", "meli02", "meli03"):
+        raise HTTPException(status_code=404, detail="conta inválida")
+    cache = _ler_json(FOTOS_PATH)
+    da_conta = cache.setdefault(conta, {})
+    try:
+        with open(os.path.join(BASE_DIR, "produtos.json"), encoding="utf-8") as f:
+            todos = [m for m, p in json.load(f).items() if p.get("conta") == conta]
+    except (OSError, ValueError):
+        todos = []
+    faltam = [m for m in todos if m not in da_conta]
+    if faltam:
+        try:
+            from reposicao_full import ML
+            ml = ML(conta)
+            for i in range(0, len(faltam), 20):
+                st, corpo = ml.get("/items", ids=",".join(faltam[i:i + 20]), attributes="id,thumbnail,secure_thumbnail,pictures")
+                for e in (corpo or []) if st == 200 else []:
+                    if e.get("code") == 200:
+                        b = e["body"]
+                        pics = b.get("pictures") or []
+                        url = (pics[0].get("secure_url") if pics else None) or b.get("secure_thumbnail") or b.get("thumbnail")
+                        if url:
+                            da_conta[b["id"]] = url
+            with open(FOTOS_PATH, "w", encoding="utf-8") as f:
+                json.dump(cache, f, ensure_ascii=False)
+        except Exception:
+            pass          # sem foto por enquanto: a tela funciona sem elas
+    return {"conta": conta, "fotos": {m: da_conta[m] for m in todos if m in da_conta}}
+
+
 # ─── Base central de CMV (um arquivo para todas as plataformas) ──────────────────
 @app.post("/cmv/importar")
 async def cmv_importar(file: UploadFile = File(...)):
