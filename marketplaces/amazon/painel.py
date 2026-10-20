@@ -17,7 +17,7 @@ import os
 import threading
 from datetime import date, datetime, timedelta, timezone
 
-from marketplaces.amazon import api, custos_xlsx, financeiro, rentabilidade
+from marketplaces.amazon import api, custos_xlsx, financeiro, relatorios, rentabilidade
 
 JANELA_DIAS = 62
 BRT = timezone(timedelta(hours=-3))
@@ -181,3 +181,98 @@ def sku_detalhe(conta: str, sku: str, de: str = None, ate: str = None) -> dict:
             "faixa_30d": _por_unidade(l30) if l30 else {"disponivel": False},
             "atual": atual, "periodo_anterior": linha(pa_de, pa_ate), "custo": custo,
             "aliquotas": {"com_st": com_st, "sem_st": sem_st}, "gerado_em": cache["gerado_em"]}
+
+
+# ─── Visitas e conversão (relatório Sales and Traffic, por ASIN e por período) ────────────────────────
+# O relatório devolve uma linha por ASIN para o período pedido (não por dia). Cada período leva de 30 a 60 s, então
+# é buscado sob demanda (e para o período anterior, das setas) e guardado em amazon_trafego_<conta>.json.
+TRAFEGO_MAX_DIAS = 31
+TRAFEGO_VALIDADE_H = 12
+_trafego_estado = {}
+
+
+def _arq_trafego(conta: str) -> str:
+    return os.path.join(api.BASE_DIR, f"amazon_trafego_{conta}.json")
+
+
+def _ler_trafego(conta: str) -> dict:
+    try:
+        with open(_arq_trafego(conta), encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, ValueError):
+        return {"periodos": {}}
+
+
+def extrair_trafego(relatorio: dict) -> dict:
+    """{ASIN: {sessoes, visualizacoes, conversao_pct, buybox_pct, unidades_pedidas, vendas_pedidas}} do JSON do relatório."""
+    saida = {}
+    for x in relatorio.get("salesAndTrafficByAsin", []):
+        t, v = x.get("trafficByAsin") or {}, x.get("salesByAsin") or {}
+        saida[x.get("childAsin")] = {
+            "sessoes": t.get("sessions", 0), "visualizacoes": t.get("pageViews", 0),
+            "conversao_pct": t.get("unitSessionPercentage"), "buybox_pct": t.get("buyBoxPercentage"),
+            "unidades_pedidas": v.get("unitsOrdered", 0),
+            "vendas_pedidas": ((v.get("orderedProductSales") or {}).get("amount")) or 0.0}
+    return saida
+
+
+def _baixar_trafego(conta: str, de: str, ate: str):
+    chave = f"{de}|{ate}"
+    try:
+        ini = f"{de}T00:00:00Z"
+        fim = (date.fromisoformat(ate) + timedelta(days=1)).isoformat() + "T00:00:00Z"
+        rid = relatorios.criar(conta, "GET_SALES_AND_TRAFFIC_REPORT", ini, fim,
+                               {"asinGranularity": "CHILD", "dateGranularity": "DAY"})
+        doc = relatorios.aguardar(conta, rid, intervalo=8)
+        dados = extrair_trafego(json.loads(relatorios.baixar_texto(conta, doc)))
+        arq = _ler_trafego(conta)
+        arq["periodos"][chave] = {"gerado_em": datetime.now(BRT).isoformat(timespec="seconds"), "asins": dados}
+        tmp = _arq_trafego(conta) + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(arq, f, ensure_ascii=False)
+        os.replace(tmp, _arq_trafego(conta))
+        _trafego_estado[(conta, chave)] = {"rodando": False, "erro": None}
+    except Exception as e:
+        _trafego_estado[(conta, chave)] = {"rodando": False, "erro": api.mascarar(f"{type(e).__name__}: {e}")[:200]}
+
+
+def trafego(conta: str, de: str, ate: str) -> dict:
+    """Situação e dados de visitas do período: {disponivel, rodando, erro, asins}."""
+    chave = f"{de}|{ate}"
+    p = _ler_trafego(conta)["periodos"].get(chave)
+    e = _trafego_estado.get((conta, chave), {})
+    vencido = False
+    if p and ate >= (datetime.now(BRT).date() - timedelta(days=2)).isoformat():   # período recente muda: renova
+        vencido = (datetime.now(BRT) - datetime.fromisoformat(p["gerado_em"])).total_seconds() > TRAFEGO_VALIDADE_H * 3600
+    return {"disponivel": bool(p) and not vencido, "rodando": bool(e.get("rodando")), "erro": e.get("erro"),
+            "gerado_em": (p or {}).get("gerado_em"), "asins": (p or {}).get("asins", {})}
+
+
+def iniciar_trafego(conta: str, de: str, ate: str) -> dict:
+    api.conta_cfg(conta)
+    _validar_trafego(de, ate)
+    chave = f"{de}|{ate}"
+    with _trava:
+        atual = trafego(conta, de, ate)
+        if atual["disponivel"] or atual["rodando"]:
+            return atual
+        _trafego_estado[(conta, chave)] = {"rodando": True, "erro": None}
+        threading.Thread(target=_baixar_trafego, args=(conta, de, ate), daemon=True).start()
+    return trafego(conta, de, ate)
+
+
+def _validar_trafego(de, ate):
+    _validar(de, ate)
+    if (date.fromisoformat(ate) - date.fromisoformat(de)).days + 1 > TRAFEGO_MAX_DIAS:
+        raise api.ErroAmazon(f"visitas e conversão aceitam períodos de até {TRAFEGO_MAX_DIAS} dias", 400)
+
+
+def trafego_do_sku(conta: str, asin: str, de: str, ate: str) -> dict:
+    """Visitas do ASIN no período e no anterior (cada um pode estar disponível ou não)."""
+    pa_de, pa_ate = _anterior(de, ate)
+    out = {}
+    for nome, (a, b) in (("atual", (de, ate)), ("anterior", (pa_de, pa_ate))):
+        t = trafego(conta, a, b)
+        out[nome] = {"disponivel": t["disponivel"], "rodando": t["rodando"], "erro": t["erro"],
+                     "dados": t["asins"].get(asin) if t["disponivel"] else None}
+    return out

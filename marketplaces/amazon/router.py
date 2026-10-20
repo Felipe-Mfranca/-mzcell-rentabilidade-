@@ -170,3 +170,26 @@ def definir_custo(conta: str, corpo: dict):
         raise _http(e)
     except (TypeError, ValueError):
         raise HTTPException(status_code=400, detail="cmv_unit inválido")
+
+
+@router.post("/trafego/{conta}")
+def trafego_iniciar(conta: str, de: str, ate: str):
+    """Pede ao relatório Sales and Traffic as visitas do período e do período anterior (30 a 60 s cada), em segundo plano."""
+    try:
+        painel.iniciar_trafego(conta, de, ate)
+        pa_de, pa_ate = painel._anterior(de, ate)
+        painel.iniciar_trafego(conta, pa_de, pa_ate)
+        return {"conta": conta, "atual": {"de": de, "ate": ate}, "anterior": {"de": pa_de, "ate": pa_ate}}
+    except api.ErroAmazon as e:
+        raise _http(e)
+
+
+@router.get("/trafego/{conta}")
+def trafego_do_sku(conta: str, asin: str, de: str, ate: str):
+    """Visitas, conversão e Buy Box do ASIN no período e no anterior, se já estiverem em cache."""
+    try:
+        api.conta_cfg(conta)
+        painel._validar_trafego(de, ate)
+        return painel.trafego_do_sku(conta, asin, de, ate)
+    except api.ErroAmazon as e:
+        raise _http(e)

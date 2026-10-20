@@ -83,3 +83,4 @@ cmv_base.json
 
 # Cache local do painel Amazon
 amazon_cache_*.json
+amazon_trafego_*.json

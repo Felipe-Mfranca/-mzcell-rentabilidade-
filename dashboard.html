@@ -1361,7 +1361,7 @@ function amzDesenharModal(d) {
         ${row('Receita líquida', brl2(a.receita_liquida), cmp(a.receita_liquida, p?.receita_liquida, brl2))}
         ${row('Margem de contribuição', a.completo ? brl2(a.margem) : '—', cmp(a.margem, p?.margem, brl2))}
         ${row('Margem %', a.completo ? pct1((a.margem_pct||0)/100) : '—', '')}
-        <div class="sac-mut" style="font-size:11px;margin-top:8px">Visitas e conversão ainda não estão disponíveis para a Amazon (dependem do relatório Sales and Traffic).</div>
+        <div id="amz-trafego" style="margin-top:6px"><div class="sac-mut" style="font-size:11px">Buscando visitas e conversão no relatório da Amazon (30 a 60 s)…</div></div>
       </div>
     </div>
     <div class="mx-foot">
@@ -1369,8 +1369,49 @@ function amzDesenharModal(d) {
       <textarea id="amz-cm" rows="2" placeholder="Comentário sobre este SKU"></textarea>
       <div class="mx-foot-act"><button class="btn-sm" onclick="amzSalvarComentario()">Salvar comentário</button><span id="amz-cm-st"></span></div>
     </div>`;
-  amzCalc(); amzCarregarComentario();
+  amzCalc(); amzCarregarComentario(); amzCarregarTrafego(d);
 }
+// Visitas e conversão: relatório Sales and Traffic (por ASIN e período), buscado em segundo plano e consultado até ficar pronto
+async function amzCarregarTrafego(d) {
+  const box = () => document.getElementById('amz-trafego');
+  if (!d.asin) { box().innerHTML = '<div class="sac-mut" style="font-size:11px">Sem ASIN conhecido para este SKU (não está no estoque FBA atual).</div>'; return; }
+  const token = {}; _amz.tok = token;
+  const qs = `de=${d.periodo.de}&ate=${d.periodo.ate}`;
+  try {
+    const ini = await fetch(`${API}/amazon/trafego/${d.conta}?${qs}`, {method:'POST'});
+    if (!ini.ok) { const e = await ini.json(); box().innerHTML = `<div class="sac-mut" style="font-size:11px">${sacEsc(e.detail||'Visitas indisponíveis')}</div>`; return; }
+  } catch(e) { return; }
+  for (let i = 0; i < 40; i++) {
+    if (!_amz || _amz.tok !== token) return;      // modal fechou ou o período mudou
+    try {
+      const t = await (await fetch(`${API}/amazon/trafego/${d.conta}?asin=${encodeURIComponent(d.asin)}&${qs}`)).json();
+      const pronto = t.atual.disponivel && (t.anterior.disponivel || t.anterior.erro);
+      if (t.atual.erro && !t.atual.rodando) { box().innerHTML = `<div class="sac-mut" style="font-size:11px">Não consegui obter as visitas: ${sacEsc(t.atual.erro)}</div>`; return; }
+      if (pronto) { amzPreencherTrafego(d, t); return; }
+    } catch(e) {}
+    await new Promise(r => setTimeout(r, 8000));
+  }
+  if (_amz && _amz.tok === token) box().innerHTML = '<div class="sac-mut" style="font-size:11px">A Amazon demorou para gerar o relatório. Reabra o modal em instantes.</div>';
+}
+function amzPreencherTrafego(d, t) {
+  const box = document.getElementById('amz-trafego'); if (!box) return;
+  const a = t.atual.dados, p = t.anterior.dados;
+  if (!a) { box.innerHTML = '<div class="sac-mut" style="font-size:11px">A Amazon não trouxe visitas deste ASIN no período (sem tráfego ou ASIN fora do relatório).</div>'; return; }
+  const dmy = x => x.split('-').reverse().join('/');
+  const cmp = (atual, ant, fmt) => {
+    if (ant == null || !ant || atual == null) return '';
+    const diff = atual - ant; if (Math.abs(diff) < 0.0001) return '';
+    return `<span class="kpi-badge-var ${diff>0?'kpi-badge-up':'kpi-badge-dn'}" data-tip="Período anterior (${dmy(d.anterior.de)} a ${dmy(d.anterior.ate)}): ${fmt(ant)}">${diff>0?'▲':'▼'}${Math.abs(diff/ant*100).toFixed(1).replace('.',',')}%</span>`;
+  };
+  const pc = v => (v == null ? '—' : Number(v).toFixed(2).replace('.', ',') + '%');
+  const row = (l, v, b) => `<div class="mx-row"><span class="mx-lbl">${l}</span><span class="mx-val">${v}${b||''}</span></div>`;
+  box.innerHTML = row('Visitas (sessões)', r(a.sessoes), cmp(a.sessoes, p?.sessoes, v=>r(v))) +
+    row('Visualizações de página', r(a.visualizacoes), cmp(a.visualizacoes, p?.visualizacoes, v=>r(v))) +
+    row('Conversão (unidades por sessão)', pc(a.conversao_pct), cmp(a.conversao_pct, p?.conversao_pct, pc)) +
+    row('Buy Box', pc(a.buybox_pct), cmp(a.buybox_pct, p?.buybox_pct, pc)) +
+    `<div class="sac-mut" style="font-size:11px;margin-top:4px">Dados por ASIN. Se o ASIN tem mais de um SKU (FBA e DBA), os números valem para o ASIN inteiro.</div>`;
+}
+
 function amzCalc() {
   const n = (id) => { const v = parseFloat(document.getElementById(id)?.value); return isNaN(v) ? 0 : v; };
   const preco = n('as-preco'), cmv = n('as-cmv'), imp = n('as-imp')/100, com = n('as-com')/100, fba = n('as-fba'), out = n('as-out'), tacos = n('as-tacos')/100;
