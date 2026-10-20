@@ -14,11 +14,11 @@ class Regra(unittest.TestCase):
         self.assertEqual(f.classificar(0, 0, ativo=False, vendeu_30d=False), (None, None))
         self.assertEqual(f.classificar(0, 0, ativo=False, vendeu_30d=True), ("zerado", 0.0))
 
-    def test_cobertura_ate_10_dias_e_atencao_ate_5_e_critico(self):
-        self.assertEqual(f.classificar(50, 10), ("critico", 5.0))      # 5 dias
-        self.assertEqual(f.classificar(51, 10), ("atencao", 5.1))
-        self.assertEqual(f.classificar(100, 10), ("atencao", 10.0))    # exatamente 10 dias ainda não cobre MAIS de 10
-        self.assertEqual(f.classificar(101, 10), (None, 10.1))
+    def test_critico_abaixo_de_10_dias_e_atencao_de_10_a_15(self):
+        self.assertEqual(f.classificar(99, 10), ("critico", 9.9))
+        self.assertEqual(f.classificar(100, 10), ("atencao", 10.0))     # 10 dias exatos já é atenção
+        self.assertEqual(f.classificar(150, 10), ("atencao", 15.0))     # 15 dias ainda é atenção
+        self.assertEqual(f.classificar(151, 10), (None, 15.1))
 
     def test_anuncio_pausado_nao_alerta_ruptura(self):
         self.assertEqual(f.classificar(3, 4.4, ativo=False), (None, None))
@@ -55,7 +55,7 @@ class Calculo(unittest.TestCase):
         self.assertEqual(set(r), {"MLB1", "MLB2"})
         self.assertEqual(r["MLB1"]["saldo"], 34)            # disponível 30 + transferência 4
         self.assertEqual(r["MLB1"]["media_7d"], 4.0)        # 2 anúncios x 2 un/dia
-        self.assertEqual((r["MLB1"]["nivel"], r["MLB1"]["dias_cobertura"]), ("atencao", 8.5))
+        self.assertEqual((r["MLB1"]["nivel"], r["MLB1"]["dias_cobertura"]), ("critico", 8.5))
 
 
 if __name__ == "__main__":

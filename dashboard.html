@@ -2364,7 +2364,7 @@ function textoFull(a) {
 }
 function detalheFull(a) {
   return `Saldo no Full: ${a.saldo} un (disponível + em transferência) · média dos últimos 7 dias: ${String(a.media_7d).replace('.', ',')} un/dia` +
-    (a.anuncios_no_inventario > 1 ? ` (soma de ${a.anuncios_no_inventario} anúncios que dividem o mesmo estoque)` : '') + ' · o saldo não cobre mais de 10 dias';
+    (a.anuncios_no_inventario > 1 ? ` (soma de ${a.anuncios_no_inventario} anúncios que dividem o mesmo estoque)` : '') + ' · crítico: cobertura menor que 10 dias; atenção: de 10 a 15 dias';
 }
 function renderFullTag(conta, mlb) {
   const a = _fullAl[conta]?.itens?.[mlb];

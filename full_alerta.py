@@ -5,8 +5,8 @@ MZCell Rentabilidade
 Regra: média diária de vendas dos últimos 7 dias fechados, somando todos os anúncios que dividem o mesmo
 inventory_id, contra o saldo do Full (disponível + em transferência, que já é apto e volta a ficar disponível).
   saldo 0                         -> "zerado"  (só se o anúncio está ativo ou vendeu nos últimos 30 dias)
-  cobertura de até 5 dias         -> "critico"
-  cobertura de 6 a 10 dias        -> "atencao" (saldo não cobre mais de 10 dias)
+  cobertura menor que 10 dias     -> "critico"
+  cobertura de 10 a 15 dias       -> "atencao"
 Anúncio sem Full (sem inventory_id) não entra. As vendas vêm do produtos.json (última sincronização).
 """
 
@@ -19,8 +19,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PRODUTOS_PATH = os.path.join(BASE_DIR, "produtos.json")
 CACHE_PATH = os.path.join(BASE_DIR, "full_alertas_cache.json")
 DIAS_MEDIA = 7
-LIMITE_DIAS = 10
-LIMITE_CRITICO = 5
+LIMITE_CRITICO = 10      # cobertura menor que 10 dias: crítico
+LIMITE_ATENCAO = 15      # de 10 a 15 dias: atenção
 VALIDADE_MIN = 30
 
 
@@ -31,9 +31,9 @@ def classificar(saldo: float, media_7d: float, ativo: bool = True, vendeu_30d: b
     if media_7d <= 0 or not ativo:      # anúncio pausado não está vendendo: sem aviso de ruptura
         return None, None
     dias = round(saldo / media_7d, 1)
-    if dias <= LIMITE_CRITICO:
+    if dias < LIMITE_CRITICO:
         return "critico", dias
-    if dias <= LIMITE_DIAS:
+    if dias <= LIMITE_ATENCAO:
         return "atencao", dias
     return None, dias
 
