@@ -17,6 +17,11 @@ o Claude não participa do funcionamento.
 
 A URL sozinha não dá acesso: sem o `TOKEN` o script recusa qualquer pedido.
 
+**Se Extensões > Apps Script der erro** ("Não foi possível abrir o arquivo": costuma ser duas contas Google logadas ou
+Apps Script bloqueado na conta): abra **script.google.com** em janela anônima, crie um **Novo projeto**, cole o `Code.gs`
+e, além do `TOKEN`, adicione a propriedade `PLANILHA_ID` (o trecho da URL da planilha entre `/d/` e `/edit`). Depois siga
+o passo 4 normalmente. A planilha precisa ser uma **Planilha Google nativa** (Novo > Planilhas Google), não um `.xlsx`.
+
 ## 2. Configurar em cada computador
 1. Copie `shared_config.exemplo.json` para `shared_config.json` (na pasta do app) e preencha:
    ```json

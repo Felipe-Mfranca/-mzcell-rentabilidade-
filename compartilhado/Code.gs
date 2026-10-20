@@ -3,6 +3,8 @@
  *
  * Cole este arquivo em: planilha > Extensões > Apps Script. Depois siga o compartilhado/LEIA-ME.md.
  * O código de acesso NÃO fica aqui: fica em Configurações do projeto > Propriedades do script > TOKEN.
+ * Se o script for um projeto avulso (script.google.com), defina também a propriedade PLANILHA_ID (o trecho da URL
+ * da planilha entre /d/ e /edit); presa à planilha (Extensões > Apps Script), ela é opcional.
  *
  * Cada coleção vira uma aba (criada sozinha): comentarios, posicoes, clips.
  * Colunas: chave | dados (JSON) | atualizado_em (ISO) | autor | removido
@@ -35,8 +37,13 @@ function saida(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 
+function planilha() {
+  var id = PropertiesService.getScriptProperties().getProperty('PLANILHA_ID');
+  return id ? SpreadsheetApp.openById(id) : SpreadsheetApp.getActiveSpreadsheet();
+}
+
 function abaDe(nome) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = planilha();
   var aba = ss.getSheetByName(nome);
   if (!aba) {
     aba = ss.insertSheet(nome);
