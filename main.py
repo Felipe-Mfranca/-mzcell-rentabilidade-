@@ -21,6 +21,36 @@ import sync_service
 import auth_service
 from refresh_ml_token import loop_refresh, loop_sync_diario
 
+# Módulos novos (podem faltar em instalações antigas que só receberam parte dos arquivos pelo auto-update)
+try:
+    import shared_store
+except ImportError:
+    class _SemCompartilhado:
+        """Sem shared_store.py: os comentários continuam só locais."""
+        @staticmethod
+        def enviar_async(*a, **k):
+            return None
+
+        @staticmethod
+        def agora_iso():
+            from datetime import timezone
+            return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+        @staticmethod
+        def iniciar_sincronizacao(*a, **k):
+            return None
+    shared_store = _SemCompartilhado()
+
+
+def _modulo(nome: str):
+    """Importa um módulo opcional; sem ele, a rota responde 503 em vez de quebrar."""
+    import importlib
+    try:
+        return importlib.import_module(nome)
+    except ImportError:
+        raise HTTPException(status_code=503, detail=f"recurso indisponível nesta instalação ({nome}); reinstale o app")
+
+
 # ─── PATHS ───────────────────────────────────────────────────────────────────
 BASE_DIR        = os.path.dirname(__file__)
 CONFIG_PATH     = os.path.join(BASE_DIR, "config.json")
@@ -90,7 +120,6 @@ async def startup():
         print(f"[startup] Aviso token: {e}")
     # Banco compartilhado (Google Sheets): só liga se shared_config.json estiver preenchido
     try:
-        import shared_store
         if shared_store.iniciar_sincronizacao(_APLICADORES_COMPARTILHADOS):
             print("[startup] Sincronização com a planilha compartilhada ligada")
     except Exception as e:
@@ -347,7 +376,7 @@ class CustosPayload(BaseModel):
 @app.get("/full/{conta}/alertas")
 def full_alertas(conta: str, atualizar: bool = False):
     """Saldo do Full contra a média diária dos últimos 7 dias: zerado, crítico (até 5 dias) ou atenção (até 10 dias)."""
-    import full_alerta
+    full_alerta = _modulo("full_alerta")
     from reposicao_full import ML
     if conta not in ("meli01", "meli02", "meli03"):
         raise HTTPException(status_code=404, detail="conta inválida")
@@ -361,7 +390,7 @@ def full_alertas(conta: str, atualizar: bool = False):
 @app.post("/pivo/{conta}/analisar")
 def pivo_analisar(conta: str):
     """Analisa em segundo plano todos os anúncios da conta (título, imagens, clip, descrição, promoção, ADS)."""
-    import pivo_ml
+    pivo_ml = _modulo("pivo_ml")
     from reposicao_full import ML
     if conta not in ("meli01", "meli02", "meli03"):
         raise HTTPException(status_code=404, detail="conta inválida")
@@ -370,7 +399,7 @@ def pivo_analisar(conta: str):
 
 @app.get("/pivo/{conta}")
 def pivo_resultado(conta: str):
-    import pivo_ml
+    pivo_ml = _modulo("pivo_ml")
     r = pivo_ml.resultado(conta)
     for v in r["itens"].values():
         v.pop("_entrada", None)
@@ -380,11 +409,10 @@ def pivo_resultado(conta: str):
 @app.post("/pivo/{conta}/{mlb}/clip")
 def pivo_clip(conta: str, mlb: str, payload: dict):
     """Marcação manual de clip: {"tem_clip": true|false|null}. A API do ML não expõe os clips."""
-    import pivo_ml
+    pivo_ml = _modulo("pivo_ml")
     novo = pivo_ml.marcar_clip(conta, mlb, payload.get("tem_clip"))
     if novo:
         novo.pop("_entrada", None)
-    import shared_store
     tem = payload.get("tem_clip")
     shared_store.enviar_async("clips", f"{conta}|{mlb}", {"clip": tem}, str(payload.get("autor", ""))[:40], removido=tem is None)
     return {"success": True, "item": novo}
@@ -394,7 +422,7 @@ def pivo_clip(conta: str, mlb: str, payload: dict):
 @app.post("/cmv/importar")
 async def cmv_importar(file: UploadFile = File(...)):
     """Importa o arquivo de CMV do Grupo (abas com colunas SKU e CMV/Custo) para a base central cmv_base.json."""
-    import cmv_base
+    cmv_base = _modulo("cmv_base")
     conteudo = await file.read()
     try:
         return cmv_base.importar(conteudo, file.filename or "")
@@ -406,7 +434,7 @@ async def cmv_importar(file: UploadFile = File(...)):
 
 @app.get("/cmv/base")
 async def cmv_resumo():
-    import cmv_base
+    cmv_base = _modulo("cmv_base")
     b = cmv_base.carregar()
     return {"skus": len(b["itens"]), "atualizado_em": b.get("_atualizado_em"), "arquivo": b.get("_arquivo")}
 
@@ -415,7 +443,7 @@ async def cmv_resumo():
 def cmv_aplicar(conta: str, confirmar: bool = False, tem_st_padrao: Optional[bool] = None, imposto: bool = False):
     """Aplica a base de CMV aos produtos da conta (ml: produtos.json; amazon: amazon_custos.json).
     Simula por padrão; só grava com confirmar=true. Amazon: SKU sem imposto cadastrado precisa de tem_st_padrao."""
-    import cmv_base
+    cmv_base = _modulo("cmv_base")
     if conta.startswith("meli"):
         return cmv_base.aplicar_ml(conta, confirmar, imposto=imposto)
     if conta.startswith("amazon"):
@@ -893,7 +921,7 @@ def _aplicar_posicoes(registros: list):
 
 
 def _aplicar_clips(registros: list):
-    import pivo_ml
+    pivo_ml = _modulo("pivo_ml")
     for r in registros:
         try:
             conta, mlb = r["chave"].split("|", 1)
@@ -936,7 +964,6 @@ async def salvar_posicao_anuncio(conta: str, mlb: str, payload: dict):
                  "keyword": str(payload.get("keyword", "")).strip()[:80]})
     novo = {"pagina": pagina, "posicao": posicao, "keyword": str(payload.get("keyword", "")).strip()[:80],
             "historico": hist[-20:]}
-    import shared_store
     novo["atualizado_em"] = shared_store.agora_iso()
     db[conta][mlb] = novo
     with open(POSICOES_PATH, "w", encoding="utf-8") as f:
@@ -976,7 +1003,6 @@ async def salvar_anotacao(conta: str, mlb: str, payload: dict):
     }
     db[conta][mlb].append(anotacao)
     _save_anotacoes(db)
-    import shared_store
     shared_store.enviar_async("comentarios", f"{conta}|{mlb}|{anotacao['id']}", anotacao, anotacao["autor"])
     log_atividade(f"Anotação: {mlb} ({conta}) {anotacao['criado_em']}")
     return {"success": True, "anotacao": anotacao}
@@ -992,7 +1018,6 @@ async def deletar_anotacao(conta: str, mlb: str, anotacao_id: str):
         raise HTTPException(status_code=404, detail="Anotação não encontrada")
     db[conta][mlb] = nova
     _save_anotacoes(db)
-    import shared_store
     shared_store.enviar_async("comentarios", f"{conta}|{mlb}|{anotacao_id}", {"id": anotacao_id}, removido=True)
     return {"success": True}
 

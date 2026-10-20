@@ -15,7 +15,41 @@ const GITHUB_RAW = 'https://raw.githubusercontent.com/Felipe-Mfranca/-mzcell-ren
 const ARQUIVOS_ONLINE = [
   'dashboard.html','main.py','ml_api.py','sync_produto.py',
   'parser_rentabilidade.py','sync_service.py','refresh_ml_token.py','ranking_ml.py',
-  'auth_service.py'
+  'auth_service.py',
+  'reposicao_full.py',
+  'cmv_base.py',
+  'pivo_ml.py',
+  'full_alerta.py',
+  'shared_store.py',
+  'marketplaces/__init__.py',
+  'marketplaces/amazon/__init__.py',
+  'marketplaces/amazon/api.py',
+  'marketplaces/amazon/calculos.py',
+  'marketplaces/amazon/conferencia.py',
+  'marketplaces/amazon/custos_xlsx.py',
+  'marketplaces/amazon/diagnostico.py',
+  'marketplaces/amazon/financeiro.py',
+  'marketplaces/amazon/marketplace.py',
+  'marketplaces/amazon/painel.py',
+  'marketplaces/amazon/relatorios.py',
+  'marketplaces/amazon/rentabilidade.py',
+  'marketplaces/amazon/reposicao.py',
+  'marketplaces/amazon/router.py',
+  'marketplaces/amazon/validar.py',
+  'marketplaces/base.py',
+  'marketplaces/bling/__init__.py',
+  'marketplaces/bling/api.py',
+  'marketplaces/bling/auth.py',
+  'marketplaces/expedicao/__init__.py',
+  'marketplaces/expedicao/ml.py',
+  'marketplaces/expedicao/pagina.html',
+  'marketplaces/expedicao/router.py',
+  'marketplaces/shopee/__init__.py',
+  'marketplaces/shopee/api.py',
+  'marketplaces/shopee/lojas.py',
+  'marketplaces/shopee/marketplace.py',
+  'marketplaces/shopee/router.py',
+  'marketplaces/shopee/validar.py'
 ];
 
 let mainWindow = null;
@@ -57,6 +91,7 @@ function setProgress(pct, msg) {
 
 function downloadArquivo(url, destPath) {
   return new Promise((resolve, reject) => {
+    try { fs.mkdirSync(path.dirname(destPath), { recursive: true }); } catch (e) {}
     const tmp = destPath + '.tmp';
     const file = fs.createWriteStream(tmp);
     https.get(url, { rejectUnauthorized: false }, res => {
