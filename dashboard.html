@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>MZ-app</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
-<script>try{if(localStorage.getItem('mz_tema')==='claro')document.documentElement.dataset.tema='claro';}catch(e){}</script>
+<script>/* Tema claro é o padrão. Só fica escuro se a pessoa escolher (chave nova para reiniciar escolhas antigas). */var _t=null;try{_t=localStorage.getItem('mz_tema_v2');}catch(e){}if(_t!=='escuro')document.documentElement.dataset.tema='claro';</script>
 <style>
 :root {
   --bg:       #0a0a0f;
@@ -1100,7 +1100,7 @@ function alternarTema() {
   const claro = document.documentElement.dataset.tema !== 'claro';
   if (claro) document.documentElement.dataset.tema = 'claro';
   else delete document.documentElement.dataset.tema;
-  try { localStorage.setItem('mz_tema', claro ? 'claro' : 'escuro'); } catch(e) {}
+  try { localStorage.setItem('mz_tema_v2', claro ? 'claro' : 'escuro'); } catch(e) {}
   atualizarBtnTema();
 }
 function atualizarBtnTema() {
