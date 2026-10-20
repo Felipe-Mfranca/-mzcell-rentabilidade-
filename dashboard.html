@@ -967,6 +967,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
 <script>
 const API = 'http://127.0.0.1:8001';
 let user = null, db = {}, rawDB = {}, prevDB = {}, marginFilter = {}, contaAtiva = 'meli01';
+let _tacos30 = 0;
 let _modalMlb = null, _modalConta = null, _modalPer = null;
 
 const safeFmt = v => (v == null || isNaN(v) || !isFinite(v)) ? '—' : v;
@@ -1519,7 +1520,7 @@ function amzPreencherTrafego(d, t) {
     if (tab.B && p) { tab.B.visitas = p.sessoes; tab.B.conv_c = p.conversao_pct != null ? p.conversao_pct / 100 : null; }
     amzRenderTabelas();
   }
-  box.innerHTML = '<div class="sac-mut" style="font-size:11px">Visitas e conversão por ASIN (P1 e P2). Se o ASIN tem mais de um SKU (FBA e DBA), os números valem para o ASIN inteiro.</div>';
+  box.innerHTML = '<div class="sac-mut" style="font-size:11px">Visitas e conversão por ASIN (Atual e P2). Se o ASIN tem mais de um SKU (FBA e DBA), os números valem para o ASIN inteiro.</div>';
 }
 
 function amzCalc() {
@@ -2327,7 +2328,7 @@ function renderModalContent(mlb, conta) {
 
   const per  = dbProd.periodo || {};
   const prev = dbProd.anterior || {};
-  _modalPer = per;
+  _modalPer = per; _tacos30 = 0;
 
   // ── Faixa fixa: ADS dos últimos 30 dias fechados (não depende do seletor) ──
   const agoraBRT = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Sao_Paulo"}));
@@ -2340,6 +2341,7 @@ function renderModalContent(mlb, conta) {
   let vAds30 = a30.vendas_com_ads || 0, aprox = false;
   if (!vAds30 && un30 > 0 && rec30 > 0 && recAds30 > 0) { vAds30 = Math.round(un30 * Math.min(1, recAds30 / rec30)); aprox = true; }
   const vOrg30 = Math.max(0, un30 - vAds30);
+  _tacos30 = rec30 > 0 ? ads30 / rec30 : 0;
   document.getElementById('mx-strip').style.setProperty('--cols', 7);
   document.getElementById('mx-strip').innerHTML = [
     ['Vendas por ADS', un30 > 0 ? r(vAds30) + (aprox ? ' ~' : '') : '—'], ['Vendas orgânicas', un30 > 0 ? r(vOrg30) + (aprox ? ' ~' : '') : '—'],
@@ -2398,10 +2400,10 @@ function renderModalContent(mlb, conta) {
       <div class="sim-field"><label>Imposto (%)</label><div style="display:flex;gap:4px">
         <select id="s-st" title="Alíquota de imposto da conta" onchange="trocarSt('${mlb}','${conta}',this)" style="height:26px;font-size:11px;background:var(--bg2);color:var(--text);border:1px solid var(--border2);border-radius:6px;padding:0 4px;">
           <option value="1" ${(dbProd.tem_st??true)?'selected':''}>COM ST</option><option value="0" ${(dbProd.tem_st??true)?'':'selected'}>SEM ST</option></select>
-        <input type="number" id="s-imp" value="${((sim.imposto_pct??(c.imposto_pct||0.10))*100).toFixed(2)}" step="0.01" oninput="simEdit('${mlb}','${conta}',this)" onblur="fmt2(this)" style="min-width:0"/></div></div>
+        <input type="number" id="s-imp" value="${((c.imposto_pct||0.10)*100).toFixed(2)}" step="0.01" oninput="simEdit('${mlb}','${conta}',this)" onblur="fmt2(this)" style="min-width:0"/></div></div>
       ${fld('Comissão (%)','s-com',((sim.comissao_pct??(c.comissao_pct||0.11))*100).toFixed(2),'0.01')}
       ${fld('Frete (R$)','s-frete',(sim.frete_unit??(c.frete_unit||0)).toFixed(2),'0.01','0,00')}
-      ${fld('TACOS 30 dias (%)','s-tacos',((sim.tacos??(rec30 > 0 ? ads30 / rec30 : 0))*100).toFixed(2),'0.01')}
+      ${fld('TACOS 30 dias (%)','s-tacos',((rec30 > 0 ? ads30 / rec30 : 0)*100).toFixed(2),'0.01')}
       ${fld('Rebot (R$/un)','s-rebot',(sim.rebot_unit??(per.rebot_unit||c.rebot_unit||0)).toFixed(2),'0.01','0,00')}
       <div class="sim-field"><label>Rebot início</label><input type="date" id="s-rebot-ini" value="${sim.rebot_inicio??(per.rebot_inicio||'')}" oninput="simEdit('${mlb}','${conta}',this)"/></div>
       <div class="sim-field"><label>Rebot fim</label><input type="date" id="s-rebot-fim" value="${sim.rebot_fim??(per.rebot_fim||'')}" oninput="simEdit('${mlb}','${conta}',this)"/></div>
@@ -2559,7 +2561,7 @@ function usarMediasDoPeriodo(mlb, conta) {
   set('s-imp', ((per.imposto_total||0) / rec * 100).toFixed(2));
   set('s-com', ((per.comissao_total||0) / rec * 100).toFixed(2));
   set('s-frete', ((per.frete_total||0) / un).toFixed(2));
-  set('s-tacos', ((per.tacos||0) * 100).toFixed(2));
+  set('s-tacos', (_tacos30 * 100).toFixed(2));
   const f = document.getElementById('s-frete'); if (f) f.dataset.manual = '1';
   calcSim(mlb, conta, true);
 }
@@ -2743,7 +2745,7 @@ function mxTabela(cols, atual, ant, rotAtual, rotAnt, hdr, extras) {
   const ex = (extras || []).map((e, n) => `<div class="mxt-row ant p34${n === 0 ? ' p3' : ''}" ${g}><div class="lab" title="${e.rot}"><b>P${n + 3}</b></div>${cols.map(c => cel(e.o, c)).join('')}</div>`).join('');
   return `<div class="mxt" ${g}>
     <div class="mxt-row mxt-head" ${g}><div></div>${cols.map((c, i) => hdr ? hdr(c, i) : `<div>${c.l}</div>`).join('')}</div>
-    <div class="mxt-row sel" ${g}><div class="lab" title="${rotAtual}"><b>P1</b></div>${cols.map(c => cel(atual, c)).join('')}</div>
+    <div class="mxt-row sel" ${g}><div class="lab" title="${rotAtual}"><b>Atual</b></div>${cols.map(c => cel(atual, c)).join('')}</div>
     <div class="mxt-row ant" ${g}><div class="lab" title="${rotAnt}"><b>P2</b></div>${cols.map(c => cel(ant, c)).join('')}</div>
     <div class="mxt-row var" ${g}><div class="lab"><b>Variação</b></div>${cols.map(c => `<div>${mxVar(atual?.[c.k], ant?.[c.k], c.inv, c.neu)}</div>`).join('')}</div>${ex}
   </div>`;
