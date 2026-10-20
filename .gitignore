@@ -74,3 +74,6 @@ produtos.json.antes*
 amazon_config.json.*
 
 shopee.env
+
+# Modelos de custos gerados (locais)
+modelo_custos_*.xlsx

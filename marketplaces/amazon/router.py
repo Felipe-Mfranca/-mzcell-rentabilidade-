@@ -10,9 +10,12 @@ Nenhuma rota devolve credencial. Hoje o backend não aplica o role do usuário
 (master/adminplus/viewer) a nenhum endpoint — isso vale para estas rotas também.
 """
 
-from fastapi import APIRouter, HTTPException
+import io
 
-from marketplaces.amazon import api, diagnostico, rentabilidade, reposicao
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
+
+from marketplaces.amazon import api, custos_xlsx, diagnostico, rentabilidade, reposicao
 
 router = APIRouter(prefix="/amazon", tags=["amazon"])
 
@@ -74,5 +77,27 @@ def reposicao_conta(conta: str, meta_dias: float = None, comparar_amazon: bool =
         raise HTTPException(status_code=400, detail="meta_dias deve estar entre 1 e 120")
     try:
         return reposicao.apurar(conta, meta_dias, comparar_amazon)
+    except api.ErroAmazon as e:
+        raise _http(e)
+
+
+@router.get("/modelo-custos/{conta}")
+def modelo_custos(conta: str):
+    """Modelo .xlsx de importação de CMV e imposto por SKU, pré-preenchido (mesmo fluxo do ML)."""
+    try:
+        conteudo = custos_xlsx.gerar_modelo(conta)
+    except api.ErroAmazon as e:
+        raise _http(e)
+    return StreamingResponse(io.BytesIO(conteudo),
+                             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                             headers={"Content-Disposition": f"attachment; filename=modelo_custos_{conta}.xlsx"})
+
+
+@router.post("/importar-custos/{conta}")
+def importar_custos(conta: str, file: UploadFile = File(...)):
+    """Importa o modelo preenchido e grava CMV e imposto por SKU em amazon_custos.json."""
+    try:
+        api.conta_cfg(conta)
+        return custos_xlsx.importar(conta, file.file.read())
     except api.ErroAmazon as e:
         raise _http(e)
