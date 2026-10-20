@@ -35,6 +35,28 @@ def carregar_custos(conta_id: str) -> dict:
         raise api.ErroAmazon(f"amazon_custos.json inválido: {e}", 500)
 
 
+def custos_com_base(conta_id: str, skus) -> dict:
+    """Custos por SKU: o que está em amazon_custos.json (tem prioridade) e, para os demais, o CMV da base central
+    (cmv_base.json, um arquivo para todas as plataformas) com a alíquota COM ST da conta. SKU sem CMV em nenhum
+    dos dois fica sem custo (margem incompleta)."""
+    custos = dict(carregar_custos(conta_id))
+    indice = {k.upper(): k for k in custos}
+    try:
+        import cmv_base
+    except ImportError:
+        return custos
+    base = cmv_base.carregar()
+    com_st, _ = cmv_base.aliquotas_da_conta(conta_id)
+    for sku in skus:
+        if sku.upper() in indice:
+            custos.setdefault(sku, custos[indice[sku.upper()]])
+            continue
+        cmv = cmv_base.cmv_de(sku, base)
+        if cmv is not None:
+            custos[sku] = {"cmv_unit": cmv, "imposto_pct": com_st, "tem_st": True, "origem": "base"}
+    return custos
+
+
 def margem_sku(a: dict, custo: dict = None) -> dict:
     """a = agregado do SKU (financeiro.agregar). custo = {"cmv_unit":..., "imposto_pct":...} ou None."""
     receita_liquida = a["receita"] + a["receita_estornada"] + a["promocoes"] + a["promocoes_estornadas"]
@@ -94,7 +116,7 @@ def apurar(conta_id: str, dias: int = 30) -> dict:
     ini, fim = agora - timedelta(days=dias), agora - timedelta(hours=1)
     iso = lambda d: d.strftime("%Y-%m-%dT%H:%M:%SZ")
     agregado = financeiro.agregar(financeiro.buscar(conta_id, iso(ini), iso(fim)))
-    r = dre(agregado, carregar_custos(conta_id))
+    r = dre(agregado, custos_com_base(conta_id, agregado["skus"].keys()))
     r.update(conta=conta_id, periodo={"de": iso(ini), "ate": iso(fim)}, dias=dias)
     return r
 

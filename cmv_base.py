@@ -119,16 +119,36 @@ def importar(conteudo: bytes, arquivo: str = "") -> dict:
 
 # ─── aplicação às plataformas ────────────────────────────────────────────────
 
-def aplicar_ml(conta: str, confirmar: bool = False, produtos_path: str = None) -> dict:
-    """Atualiza cmv_unit dos produtos ML da conta cujo SKU está na base. Simula se confirmar=False."""
+def aliquotas_da_conta(conta: str) -> tuple:
+    """(COM ST, SEM ST) em fração, de config.json > impostos (a mesma fonte do ML e da Amazon)."""
+    try:
+        with open(os.path.join(BASE_DIR, "config.json"), encoding="utf-8") as f:
+            imp = json.load(f).get("impostos", {})
+    except (FileNotFoundError, ValueError):
+        imp = {}
+    return imp.get(f"{conta}_com_st", {}).get("aliquota", 0.10), imp.get(f"{conta}_sem_st", {}).get("aliquota", 0.08)
+
+
+def aplicar_ml(conta: str, confirmar: bool = False, produtos_path: str = None, imposto: bool = False,
+               aliquotas: tuple = None) -> dict:
+    """Atualiza cmv_unit dos produtos ML da conta cujo SKU está na base. Com imposto=True aplica também a alíquota
+    da conta conforme o produto seja COM ST (padrão) ou SEM ST. Simula se confirmar=False."""
     path = produtos_path or PRODUTOS_PATH
     with open(path, encoding="utf-8") as f:
         produtos = json.load(f)
     base = carregar()
-    muda, igual, sem_sku, sem_cmv = [], 0, 0, []
+    com, sem = aliquotas or aliquotas_da_conta(conta)
+    muda, igual, sem_sku, sem_cmv, imp_muda = [], 0, 0, [], 0
     for mlb, p in produtos.items():
         if p.get("conta") != conta:
             continue
+        if imposto:
+            tem = p.get("tem_st", True)
+            pct = round(com if tem else sem, 6)
+            if abs((p.get("imposto_pct") or 0) - pct) > 1e-9 or "tem_st" not in p:
+                imp_muda += 1
+                if confirmar:
+                    p["imposto_pct"], p["tem_st"] = pct, tem
         if not p.get("sku"):
             sem_sku += 1
             continue
@@ -141,12 +161,13 @@ def aplicar_ml(conta: str, confirmar: bool = False, produtos_path: str = None) -
             muda.append({"mlb": mlb, "sku": p["sku"], "de": p.get("cmv_unit") or 0, "para": novo})
             if confirmar:
                 p["cmv_unit"] = round(novo, 4)
-    if confirmar and muda:
+    if confirmar and (muda or imp_muda):
         tmp = path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(produtos, f, indent=2, ensure_ascii=False)
         os.replace(tmp, path)
-    return {"conta": conta, "plataforma": "ml", "aplicado": bool(confirmar and muda), "mudariam": len(muda), "ja_iguais": igual,
+    return {"conta": conta, "plataforma": "ml", "aplicado": bool(confirmar and (muda or imp_muda)), "mudariam": len(muda),
+            "imposto_mudaria": imp_muda, "ja_iguais": igual,
             "sem_sku": sem_sku, "sem_cmv_na_base": len(sem_cmv), "alteracoes": muda[:200], "pendentes_sem_cmv": sem_cmv[:200]}
 
 

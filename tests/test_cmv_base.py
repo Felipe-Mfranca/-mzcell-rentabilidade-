@@ -94,5 +94,19 @@ class Aplicacao(unittest.TestCase):
         self.assertEqual((c["kit-a"]["cmv_unit"], c["kit-a"]["imposto_pct"]), (49.0, 0.115))
 
 
+class AmazonUsaABase(unittest.TestCase):
+    def test_custos_com_base_completa_so_o_que_falta(self):
+        from marketplaces.amazon import rentabilidade
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        with mock.patch.object(cmv_base, "PATH", os.path.join(d.name, "base.json")),              mock.patch.object(rentabilidade, "CUSTOS_PATH", os.path.join(d.name, "custos.json")),              mock.patch.object(cmv_base, "aliquotas_da_conta", return_value=(0.1072, 0.1487)):
+            cmv_base.importar(ARQ, "t.xlsx")
+            json.dump({"amazon02": {"KIT-A": {"cmv_unit": 1.0, "imposto_pct": 0.5}}}, open(os.path.join(d.name, "custos.json"), "w"))
+            c = rentabilidade.custos_com_base("amazon02", ["kit-a", "KIT-B", "NAO-TEM"])
+        self.assertEqual(c["kit-a"]["cmv_unit"], 1.0)            # o arquivo explícito tem prioridade
+        self.assertEqual((c["KIT-B"]["cmv_unit"], c["KIT-B"]["imposto_pct"]), (11.6, 0.1072))
+        self.assertNotIn("NAO-TEM", c)
+
+
 if __name__ == "__main__":
     unittest.main()

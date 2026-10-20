@@ -724,6 +724,21 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
         <div id="sac-corpo"></div>
       </div>
       <div class="tab" id="tab-config">
+        <div class="config-card" style="max-width:760px;margin-bottom:24px">
+          <div class="config-card-title">CMV e imposto</div>
+          <div class="config-card-sub">Um único arquivo de CMV do Grupo vale para todas as plataformas (Mercado Livre, Amazon e, depois, Shopee). O imposto usa a alíquota de cada conta.</div>
+          <div id="cmv-status" class="sac-mut" style="margin:8px 0">Carregando…</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0">
+            <button class="btn-save" style="margin:0" onclick="document.getElementById('cmv-arquivo').click()">Importar CMV (arquivo do Grupo)</button>
+            <input type="file" id="cmv-arquivo" accept=".xlsx" style="display:none" onchange="cmvImportar(this)"/>
+            <button class="btn-sync-produto" style="height:34px" onclick="cmvAplicar(false)">Simular aplicação nos produtos</button>
+            <button class="btn-sync-produto" style="height:34px;border-color:var(--gold);color:var(--gold)" onclick="cmvAplicar(true)">Aplicar CMV e imposto</button>
+          </div>
+          <div id="cmv-resultado" class="sac-lin"></div>
+          <div class="sac-lin" style="margin-top:10px"><b>Alíquotas por conta</b> (COM ST / SEM ST):</div>
+          <div id="cmv-aliquotas" class="sac-lin"></div>
+          <div class="sac-lin" style="margin-top:8px">Amazon: o CMV da base é usado direto na rentabilidade, sem precisar aplicar. No Mercado Livre, a aplicação atualiza o custo e o imposto de cada anúncio; as margens passam a refletir na próxima sincronização.</div>
+        </div>
         <div class="config-grid" id="config-contas"></div>
         <div class="config-card" style="margin-top:24px;max-width:420px">
           <div class="config-card-title">Alterar senha</div>
@@ -1060,9 +1075,56 @@ function switchTab(tab, btn) {
   contaAtiva = tab;
   const titles = {meli01:'Meli01 — Rentabilidade',meli02:'Meli02 — Rentabilidade',meli03:'Meli03 — Rentabilidade',config:'Configurações',expedicao:'Expedição — Galpão',sac:'SAC — Pendências e contestações'};
   document.getElementById('topbar-title').textContent = titles[tab] || tab;
-  if(tab==='config') loadConfig();
+  if(tab==='config'){ loadConfig(); cmvCarregarStatus(); }
   if(tab==='expedicao'){ const f=document.getElementById('frame-expedicao'); if(!f.getAttribute('src')) f.setAttribute('src',`${API}/expedicao`); }
   if(tab==='sac' && !window._sacIniciado){ window._sacIniciado=true; sacIr('geral'); }
+}
+
+// ── CMV E IMPOSTO: base central (um arquivo para todas as plataformas) ─────────
+const CMV_CONTAS_ML = ['meli01','meli02','meli03'];
+const CMV_CONTAS_AMAZON = ['amazon01','amazon02'];
+async function cmvCarregarStatus() {
+  const st = document.getElementById('cmv-status'); if (!st) return;
+  try {
+    const b = await (await fetch(`${API}/cmv/base`)).json();
+    st.textContent = b.skus ? `Base atual: ${b.skus} SKUs · atualizada em ${(b.atualizado_em||'').replace('T',' ')} · arquivo: ${b.arquivo||'-'}` : 'Nenhum arquivo de CMV importado ainda.';
+  } catch(e) { st.textContent = 'Base de CMV indisponível.'; }
+  const box = document.getElementById('cmv-aliquotas'); if (!box) return;
+  const linhas = [];
+  for (const c of [...CMV_CONTAS_ML, ...CMV_CONTAS_AMAZON]) {
+    try { const a = await (await fetch(`${API}/impostos/${c}`)).json(); linhas.push(`${c}: ${(a.com_st*100).toFixed(2).replace('.',',')}% / ${(a.sem_st*100).toFixed(2).replace('.',',')}%`); } catch(e) {}
+  }
+  box.textContent = linhas.join('  ·  ');
+}
+async function cmvImportar(input) {
+  const f = input.files[0]; if (!f) return;
+  const fd = new FormData(); fd.append('file', f);
+  const out = document.getElementById('cmv-resultado'); out.textContent = 'Importando…';
+  try {
+    const r = await fetch(`${API}/cmv/importar`, {method:'POST', body: fd}); const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || r.status);
+    out.innerHTML = `Importado: <b>${d.skus}</b> SKUs (${d.abas.map(a=>sacEsc(a.aba)+': '+a.skus_lidos).join(' · ')})` +
+      (d.conflitos.length ? ` · <span style="color:var(--gold)">${d.conflitos.length} conflito(s): valia a primeira aba</span>` : '') +
+      (d.ignorados.length ? ` · ${d.ignorados.length} linha(s) sem CMV válido ignorada(s)` : '');
+    toast('CMV importado');
+    cmvCarregarStatus();
+  } catch(e) { out.textContent = 'Erro ao importar: ' + e.message; toast('Erro ao importar o CMV', 'error'); }
+  input.value = '';
+}
+async function cmvAplicar(confirmar) {
+  const out = document.getElementById('cmv-resultado');
+  if (confirmar && !confirm('Aplicar o CMV da base e a alíquota de imposto da conta a TODOS os anúncios do Mercado Livre cujo SKU está na base? Isso altera os custos cadastrados.')) return;
+  out.textContent = confirmar ? 'Aplicando…' : 'Simulando…';
+  const linhas = []; let falhou = false;
+  for (const c of CMV_CONTAS_ML) {
+    try {
+      const r = await fetch(`${API}/cmv/aplicar/${c}?confirmar=${confirmar}&imposto=true`, {method:'POST'}); const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || r.status);
+      linhas.push(`<div><b>${c}</b>: CMV ${confirmar ? 'atualizado em' : 'mudaria em'} <b>${d.mudariam}</b> anúncio(s) · imposto ${confirmar ? 'ajustado em' : 'mudaria em'} <b>${d.imposto_mudaria}</b> · já iguais ${d.ja_iguais} · sem CMV na base ${d.sem_cmv_na_base} · sem SKU ${d.sem_sku}</div>`);
+    } catch(e) { falhou = true; linhas.push(`<div><b>${c}</b>: erro (${sacEsc(e.message)})</div>`); }
+  }
+  out.innerHTML = (confirmar ? '<b>Aplicado.</b> Sincronize as contas para atualizar as margens.' : '<b>Simulação</b> (nada foi gravado):') + linhas.join('');
+  if (confirmar) toast(falhou ? 'Aplicado com erros' : 'CMV e imposto aplicados', falhou ? 'error' : undefined);
 }
 
 // ── SAC: pendências e contestações (somente leitura) ──────────────────────

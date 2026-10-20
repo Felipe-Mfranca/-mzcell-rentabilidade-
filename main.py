@@ -357,12 +357,12 @@ async def cmv_resumo():
 
 
 @app.post("/cmv/aplicar/{conta}")
-def cmv_aplicar(conta: str, confirmar: bool = False, tem_st_padrao: Optional[bool] = None):
+def cmv_aplicar(conta: str, confirmar: bool = False, tem_st_padrao: Optional[bool] = None, imposto: bool = False):
     """Aplica a base de CMV aos produtos da conta (ml: produtos.json; amazon: amazon_custos.json).
     Simula por padrão; só grava com confirmar=true. Amazon: SKU sem imposto cadastrado precisa de tem_st_padrao."""
     import cmv_base
     if conta.startswith("meli"):
-        return cmv_base.aplicar_ml(conta, confirmar)
+        return cmv_base.aplicar_ml(conta, confirmar, imposto=imposto)
     if conta.startswith("amazon"):
         try:
             return cmv_base.aplicar_amazon(conta, tem_st_padrao, confirmar)
