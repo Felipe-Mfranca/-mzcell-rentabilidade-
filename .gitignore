@@ -77,3 +77,6 @@ shopee.env
 
 # Modelos de custos gerados (locais)
 modelo_custos_*.xlsx
+
+# Base central de CMV (local)
+cmv_base.json

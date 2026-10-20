@@ -37,7 +37,8 @@ class Base(unittest.TestCase):
 
 class Modelo(Base):
     def test_modelo_tem_cabecalho_aliquotas_e_skus(self):
-        wb = openpyxl.load_workbook(io.BytesIO(custos_xlsx.gerar_modelo("amazon01", SKUS)))
+        with mock.patch.object(custos_xlsx, "aliquotas_da_conta", return_value=(0.10, 0.08)):
+            wb = openpyxl.load_workbook(io.BytesIO(custos_xlsx.gerar_modelo("amazon01", SKUS)))
         ws = wb.active
         self.assertEqual([c.value for c in ws[4]][:5], custos_xlsx.HEADERS)
         self.assertEqual((ws["B2"].value, ws["D2"].value), (10.0, 8.0))
@@ -46,8 +47,15 @@ class Modelo(Base):
     def test_modelo_traz_custos_atuais(self):
         with open(rentabilidade.CUSTOS_PATH, "w", encoding="utf-8") as f:
             json.dump({"amazon01": {"KIT-A": {"cmv_unit": 20.5, "imposto_pct": 0.10, "tem_st": True}}}, f)
-        ws = openpyxl.load_workbook(io.BytesIO(custos_xlsx.gerar_modelo("amazon01", SKUS))).active
+        with mock.patch.object(custos_xlsx, "aliquotas_da_conta", return_value=(0.10, 0.08)):
+            ws = openpyxl.load_workbook(io.BytesIO(custos_xlsx.gerar_modelo("amazon01", SKUS))).active
         self.assertEqual((ws["D5"].value, ws["E5"].value), (20.5, "COM ST"))
+
+
+class Aliquotas(unittest.TestCase):
+    def test_vem_do_config_json_com_padrao(self):
+        self.assertEqual(custos_xlsx.aliquotas_da_conta("conta_que_nao_existe"), (0.10, 0.08))
+        self.assertEqual(custos_xlsx.aliquotas_da_conta("amazon01"), (0.115, 0.115))
 
 
 class Importar(Base):

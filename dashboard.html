@@ -1861,7 +1861,10 @@ function renderModalContent(mlb, conta) {
     <div class="sim-grid">
       ${fld('Preço simulado (R$)','s-preco',(sim.preco??precoUnit).toFixed(2),'0.01')}
       ${fld('CMV (R$)','s-cmv',(sim.cmv_unit??(c.cmv_unit||0)).toFixed(2),'0.01')}
-      ${fld('Imposto (%)','s-imp',((sim.imposto_pct??(c.imposto_pct||0.10))*100).toFixed(2),'0.01')}
+      <div class="sim-field"><label>Imposto (%)</label><div style="display:flex;gap:4px">
+        <select id="s-st" title="Alíquota de imposto da conta" onchange="trocarSt('${mlb}','${conta}',this)" style="height:26px;font-size:11px;background:var(--bg3);color:var(--text);border:1px solid var(--border2);border-radius:6px;padding:0 4px;">
+          <option value="1" ${(dbProd.tem_st??true)?'selected':''}>COM ST</option><option value="0" ${(dbProd.tem_st??true)?'':'selected'}>SEM ST</option></select>
+        <input type="number" id="s-imp" value="${((sim.imposto_pct??(c.imposto_pct||0.10))*100).toFixed(2)}" step="0.01" oninput="simEdit('${mlb}','${conta}',this)" style="min-width:0"/></div></div>
       ${fld('Comissão (%)','s-com',((sim.comissao_pct??(c.comissao_pct||0.11))*100).toFixed(2),'0.01')}
       ${fld('Frete (R$)','s-frete',(sim.frete_unit??(c.frete_unit||0)).toFixed(2),'0.01','0,00')}
       ${fld('TACOS (%)','s-tacos',((sim.tacos??(per.tacos>0?per.tacos:0))*100).toFixed(2),'0.01')}
@@ -1889,6 +1892,25 @@ function renderModalContent(mlb, conta) {
   calcSim(mlb, conta, false);
   carregarCustosML(mlb, conta);
   carregarComentario(mlb, conta);
+}
+
+// Seletor COM ST / SEM ST: aplica a alíquota da conta ao imposto e grava no produto
+const _aliqConta = {};
+async function aliquotasDaConta(conta) {
+  if (_aliqConta[conta]) return _aliqConta[conta];
+  try { _aliqConta[conta] = await (await fetch(`${API}/impostos/${conta}`)).json(); } catch(e) { return null; }
+  return _aliqConta[conta];
+}
+async function trocarSt(mlb, conta, sel) {
+  const al = await aliquotasDaConta(conta); if (!al) { toast('Alíquotas indisponíveis', 'error'); return; }
+  const comSt = sel.value === '1', pct = comSt ? al.com_st : al.sem_st;
+  const imp = document.getElementById('s-imp'); if (imp) imp.value = (pct * 100).toFixed(2);
+  const p = db[conta]?.produtos?.find(x => x.mlb === mlb);
+  if (p) { p.tem_st = comSt; if (p.custos) p.custos.imposto_pct = pct; }
+  calcSim(mlb, conta, true);
+  fetch(`${API}/produtos/custos`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mlb, tem_st: comSt, imposto_pct: pct})})
+    .then(r => r.json()).then(d => toast(d.success ? `Imposto ${comSt?'COM ST':'SEM ST'}: ${(pct*100).toFixed(2).replace('.',',')}%` : 'Erro ao salvar o imposto', d.success?undefined:'error'))
+    .catch(() => toast('Erro ao salvar o imposto', 'error'));
 }
 
 // Preenche o simulador com as médias do período selecionado (alternativa ao pré-preenchimento pela última venda)

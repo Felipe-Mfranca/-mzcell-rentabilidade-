@@ -36,6 +36,17 @@ def _gravar_custos_arquivo(dados: dict):
     os.replace(tmp, rentabilidade.CUSTOS_PATH)
 
 
+def aliquotas_da_conta(conta: str) -> tuple:
+    """(COM ST, SEM ST) em fração, de config.json > impostos > <conta>_com_st / <conta>_sem_st (mesma fonte do ML)."""
+    try:
+        with open(os.path.join(api.BASE_DIR, "config.json"), encoding="utf-8") as f:
+            imp = json.load(f).get("impostos", {})
+    except (FileNotFoundError, ValueError):
+        imp = {}
+    return (imp.get(f"{conta}_com_st", {}).get("aliquota", ALIQ_COM_ST_PADRAO),
+            imp.get(f"{conta}_sem_st", {}).get("aliquota", ALIQ_SEM_ST_PADRAO))
+
+
 def skus_da_conta(conta: str) -> list:
     """[{sku, asin, titulo}] do estoque FBA (um por SKU) mais os SKUs que já têm custo cadastrado."""
     c = api.conta_cfg(conta)
@@ -69,8 +80,7 @@ def gerar_modelo(conta: str, skus: list = None) -> bytes:
 
     skus = skus if skus is not None else skus_da_conta(conta)
     atuais = rentabilidade.carregar_custos(conta)
-    com_st = (_ler_custos_arquivo().get("_aliquotas", {}).get(conta, {}) or {}).get("com_st", ALIQ_COM_ST_PADRAO)
-    sem_st = (_ler_custos_arquivo().get("_aliquotas", {}).get(conta, {}) or {}).get("sem_st", ALIQ_SEM_ST_PADRAO)
+    com_st, sem_st = aliquotas_da_conta(conta)
 
     wb = openpyxl.Workbook()
     ws = wb.active

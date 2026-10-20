@@ -327,12 +327,58 @@ class CustosPayload(BaseModel):
     cmv_unit: float = 0.0
     frete_unit: float = 0.0
     imposto_pct: Optional[float] = None
+    tem_st: Optional[bool] = None
     comissao_pct: Optional[float] = None
     roas_objetivo: float = 0.0
     rebot_unit: float = 0.0
     rebot_inicio: str = ""
     rebot_fim: str = ""
     simulador: Optional[dict] = None
+
+# ─── Base central de CMV (um arquivo para todas as plataformas) ──────────────────
+@app.post("/cmv/importar")
+async def cmv_importar(file: UploadFile = File(...)):
+    """Importa o arquivo de CMV do Grupo (abas com colunas SKU e CMV/Custo) para a base central cmv_base.json."""
+    import cmv_base
+    conteudo = await file.read()
+    try:
+        return cmv_base.importar(conteudo, file.filename or "")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro ao ler o arquivo: {e}")
+
+
+@app.get("/cmv/base")
+async def cmv_resumo():
+    import cmv_base
+    b = cmv_base.carregar()
+    return {"skus": len(b["itens"]), "atualizado_em": b.get("_atualizado_em"), "arquivo": b.get("_arquivo")}
+
+
+@app.post("/cmv/aplicar/{conta}")
+def cmv_aplicar(conta: str, confirmar: bool = False, tem_st_padrao: Optional[bool] = None):
+    """Aplica a base de CMV aos produtos da conta (ml: produtos.json; amazon: amazon_custos.json).
+    Simula por padrão; só grava com confirmar=true. Amazon: SKU sem imposto cadastrado precisa de tem_st_padrao."""
+    import cmv_base
+    if conta.startswith("meli"):
+        return cmv_base.aplicar_ml(conta, confirmar)
+    if conta.startswith("amazon"):
+        try:
+            return cmv_base.aplicar_amazon(conta, tem_st_padrao, confirmar)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=str(e))
+    raise HTTPException(status_code=404, detail="conta desconhecida")
+
+
+@app.get("/impostos/{conta}")
+async def aliquotas_da_conta(conta: str):
+    """Alíquotas COM ST e SEM ST da conta (config.json > impostos), em fração (0.1072 = 10,72%)."""
+    imp = parser.load_config().get("impostos", {})
+    return {"conta": conta,
+            "com_st": imp.get(f"{conta}_com_st", {}).get("aliquota", 0.10),
+            "sem_st": imp.get(f"{conta}_sem_st", {}).get("aliquota", 0.08)}
+
 
 @app.post("/produtos/custos")
 async def salvar_custos(payload: CustosPayload):
@@ -348,6 +394,7 @@ async def salvar_custos(payload: CustosPayload):
     if payload.rebot_inicio  != "":  p["rebot_inicio"]  = payload.rebot_inicio
     if payload.rebot_fim     != "":  p["rebot_fim"]     = payload.rebot_fim
     if payload.imposto_pct   is not None: p["imposto_pct"]  = payload.imposto_pct
+    if payload.tem_st        is not None: p["tem_st"]       = payload.tem_st
     if payload.comissao_pct  is not None: p["comissao_pct"] = payload.comissao_pct
     if payload.simulador     is not None: p["simulador"]    = payload.simulador
     save_json(PRODUTOS_PATH, produtos)
