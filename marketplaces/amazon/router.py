@@ -15,7 +15,7 @@ import io
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
-from marketplaces.amazon import api, custos_xlsx, diagnostico, rentabilidade, reposicao
+from marketplaces.amazon import api, custos_xlsx, diagnostico, painel, rentabilidade, reposicao
 
 router = APIRouter(prefix="/amazon", tags=["amazon"])
 
@@ -101,3 +101,72 @@ def importar_custos(conta: str, file: UploadFile = File(...)):
         return custos_xlsx.importar(conta, file.file.read())
     except api.ErroAmazon as e:
         raise _http(e)
+
+
+@router.get("/painel/{conta}")
+def painel_conta(conta: str, de: str = None, ate: str = None):
+    """Tabela por SKU e DRE do período (e do período anterior), sobre o cache local. Instantâneo."""
+    try:
+        api.conta_cfg(conta)
+        return {**painel.painel(conta, de, ate), "estado": painel.estado(conta)}
+    except api.ErroAmazon as e:
+        raise _http(e)
+
+
+@router.get("/painel/{conta}/estado")
+def painel_estado(conta: str):
+    try:
+        api.conta_cfg(conta)
+        return painel.estado(conta)
+    except api.ErroAmazon as e:
+        raise _http(e)
+
+
+@router.post("/painel/{conta}/atualizar")
+def painel_atualizar(conta: str):
+    """Busca os últimos 62 dias no Finances em segundo plano (alguns minutos) e regrava o cache local."""
+    try:
+        return painel.iniciar_atualizacao(conta)
+    except api.ErroAmazon as e:
+        raise _http(e)
+
+
+@router.get("/sku/{conta}")
+def sku_conta(conta: str, sku: str, de: str = None, ate: str = None):
+    """Dados do modal de um SKU: período, período anterior, faixa fixa de 30 dias, custo e alíquotas."""
+    try:
+        api.conta_cfg(conta)
+        return painel.sku_detalhe(conta, sku, de, ate)
+    except api.ErroAmazon as e:
+        raise _http(e)
+
+
+@router.post("/custo/{conta}")
+def definir_custo(conta: str, corpo: dict):
+    """Ajusta o custo de um SKU em amazon_custos.json: {"sku":..., "tem_st": true|false, "cmv_unit": opcional}.
+    O ST grava a alíquota da conta no SKU; o CMV, se não vier, continua vindo da base central."""
+    try:
+        api.conta_cfg(conta)
+        sku = str(corpo.get("sku") or "").strip()
+        if not sku:
+            raise api.ErroAmazon("informe o sku", 400)
+        dados = custos_xlsx._ler_custos_arquivo()
+        mine = dados.setdefault(conta, {})
+        chave = next((k for k in mine if k.upper() == sku.upper()), sku)
+        e = dict(mine.get(chave, {}))
+        if corpo.get("tem_st") is not None:
+            com, sem = custos_xlsx.aliquotas_da_conta(conta)
+            e["tem_st"] = bool(corpo["tem_st"])
+            e["imposto_pct"] = round(com if e["tem_st"] else sem, 6)
+        if corpo.get("cmv_unit") is not None:
+            v = float(corpo["cmv_unit"])
+            if v < 0:
+                raise api.ErroAmazon("cmv_unit negativo", 400)
+            e["cmv_unit"] = round(v, 4)
+        mine[chave] = e
+        custos_xlsx._gravar_custos_arquivo(dados)
+        return {"success": True, "sku": chave, "custo": e}
+    except (api.ErroAmazon,) as e:
+        raise _http(e)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="cmv_unit inválido")

@@ -119,3 +119,68 @@ def agregar(paginas: list) -> dict:
 
     conta["servico"], conta["ajustes"] = dict(conta["servico"]), dict(conta["ajustes"])
     return {"skus": {k: dict(v) for k, v in skus.items()}, "conta": conta, "nao_tratadas": dict(nao_tratadas)}
+
+
+# ─── Agregação por dia (base do painel de rentabilidade) ─────────────────────
+from datetime import datetime, timedelta, timezone
+
+BRT = timezone(timedelta(hours=-3))
+_LISTAS_COM_DATA = ("ShipmentEventList", "RefundEventList", "ServiceFeeEventList", "AdjustmentEventList",
+                    "ProductAdsPaymentEventList")
+
+
+def _dia(ev: dict, padrao: str = None) -> str:
+    """Dia (AAAA-MM-DD, horário de Brasília) em que o evento foi postado."""
+    bruto = ev.get("PostedDate") or ev.get("postedDate")
+    try:
+        return datetime.fromisoformat(bruto.replace("Z", "+00:00")).astimezone(BRT).date().isoformat()
+    except Exception:
+        return padrao or "sem-data"
+
+
+def agregar_por_dia(paginas: list, dia_padrao: str = None) -> dict:
+    """
+    {"skus": {sku: {dia: {campo: valor}}}, "conta": {dia: {"ads": x, "servico": {...}, "ajustes": {...}}}}
+    Mesma matemática de `agregar`, repartida pelo dia do evento (sem eventos soltos de lista não tratada).
+    """
+    skus, conta = {}, {}
+    for fe in paginas:
+        for lista in _LISTAS_COM_DATA:
+            for ev in fe.get(lista, []):
+                dia = _dia(ev, dia_padrao)
+                parcial = agregar([{lista: [ev]}])
+                for sku, campos in parcial["skus"].items():
+                    alvo = skus.setdefault(sku, {}).setdefault(dia, dict.fromkeys(CAMPOS_SKU, 0.0))
+                    for k, v in campos.items():
+                        alvo[k] += v
+                c = parcial["conta"]
+                if c["ads"] or c["servico"] or c["ajustes"]:
+                    d = conta.setdefault(dia, {"ads": 0.0, "servico": {}, "ajustes": {}})
+                    d["ads"] += c["ads"]
+                    for grupo in ("servico", "ajustes"):
+                        for k, v in c[grupo].items():
+                            d[grupo][k] = d[grupo].get(k, 0.0) + v
+    return {"skus": skus, "conta": conta}
+
+
+def somar_periodo(por_dia: dict, de: str, ate: str) -> dict:
+    """Soma os dias [de, ate] (inclusive) no formato de `agregar`: {"skus": {sku: campos}, "conta": {...}, "nao_tratadas": {}}."""
+    skus = {}
+    for sku, dias in por_dia["skus"].items():
+        tot = dict.fromkeys(CAMPOS_SKU, 0.0)
+        achou = False
+        for dia, campos in dias.items():
+            if de <= dia <= ate:
+                achou = True
+                for k, v in campos.items():
+                    tot[k] += v
+        if achou:
+            skus[sku] = tot
+    conta = {"servico": {}, "ajustes": {}, "ads": 0.0, "ads_faturas": 0}
+    for dia, c in por_dia["conta"].items():
+        if de <= dia <= ate:
+            conta["ads"] += c["ads"]
+            for grupo in ("servico", "ajustes"):
+                for k, v in c[grupo].items():
+                    conta[grupo][k] = conta[grupo].get(k, 0.0) + v
+    return {"skus": skus, "conta": conta, "nao_tratadas": {}}

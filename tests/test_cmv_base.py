@@ -105,6 +105,11 @@ class AmazonUsaABase(unittest.TestCase):
             c = rentabilidade.custos_com_base("amazon02", ["kit-a", "KIT-B", "NAO-TEM"])
         self.assertEqual(c["kit-a"]["cmv_unit"], 1.0)            # o arquivo explícito tem prioridade
         self.assertEqual((c["KIT-B"]["cmv_unit"], c["KIT-B"]["imposto_pct"]), (11.6, 0.1072))
+        # entrada explícita só com ST: o CMV continua vindo da base
+        json.dump({"amazon02": {"kit-b": {"tem_st": False, "imposto_pct": 0.1487}}}, open(os.path.join(d.name, "custos.json"), "w"))
+        with mock.patch.object(cmv_base, "PATH", os.path.join(d.name, "base.json")),              mock.patch.object(rentabilidade, "CUSTOS_PATH", os.path.join(d.name, "custos.json")),              mock.patch.object(cmv_base, "aliquotas_da_conta", return_value=(0.1072, 0.1487)):
+            c2 = rentabilidade.custos_com_base("amazon02", ["KIT-B"])
+        self.assertEqual((c2["KIT-B"]["cmv_unit"], c2["KIT-B"]["imposto_pct"]), (11.6, 0.1487))
         self.assertNotIn("NAO-TEM", c)
 
 

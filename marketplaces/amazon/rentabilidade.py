@@ -36,25 +36,30 @@ def carregar_custos(conta_id: str) -> dict:
 
 
 def custos_com_base(conta_id: str, skus) -> dict:
-    """Custos por SKU: o que está em amazon_custos.json (tem prioridade) e, para os demais, o CMV da base central
-    (cmv_base.json, um arquivo para todas as plataformas) com a alíquota COM ST da conta. SKU sem CMV em nenhum
-    dos dois fica sem custo (margem incompleta)."""
-    custos = dict(carregar_custos(conta_id))
-    indice = {k.upper(): k for k in custos}
+    """Custos por SKU, campo a campo: o que está em amazon_custos.json (tem prioridade) e, no que faltar, o CMV da base
+    central (cmv_base.json, um arquivo para todas as plataformas) e a alíquota COM ST da conta. SKU sem CMV em nenhum
+    dos dois fica incompleto (margem não calculada)."""
+    explicitos = carregar_custos(conta_id)
+    indice = {k.upper(): k for k in explicitos}
     try:
         import cmv_base
+        base = cmv_base.carregar()
+        com_st, _ = cmv_base.aliquotas_da_conta(conta_id)
     except ImportError:
-        return custos
-    base = cmv_base.carregar()
-    com_st, _ = cmv_base.aliquotas_da_conta(conta_id)
+        cmv_base, base, com_st = None, None, None
+    saida = dict(explicitos)
     for sku in skus:
-        if sku.upper() in indice:
-            custos.setdefault(sku, custos[indice[sku.upper()]])
-            continue
-        cmv = cmv_base.cmv_de(sku, base)
-        if cmv is not None:
-            custos[sku] = {"cmv_unit": cmv, "imposto_pct": com_st, "tem_st": True, "origem": "base"}
-    return custos
+        ex = dict(explicitos.get(indice.get(sku.upper(), ""), {}))
+        if cmv_base is not None:
+            cmv = cmv_base.cmv_de(sku, base)
+            if ex.get("cmv_unit") is None and cmv is not None:
+                ex["cmv_unit"] = cmv
+                ex.setdefault("origem", "base")
+            if ex.get("imposto_pct") is None and ex.get("cmv_unit") is not None:
+                ex["imposto_pct"], ex["tem_st"] = com_st, True
+        if ex:
+            saida[sku] = ex
+    return saida
 
 
 def margem_sku(a: dict, custo: dict = None) -> dict:

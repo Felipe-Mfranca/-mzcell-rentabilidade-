@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>MZCell — Rentabilidade</title>
+<title>MZ-app</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
 <script>try{if(localStorage.getItem('mz_tema')==='claro')document.documentElement.dataset.tema='claro';}catch(e){}</script>
 <style>
@@ -596,8 +596,8 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
 <div id="tela-login" style="display:flex;align-items:center;justify-content:center;min-height:100vh;position:relative;z-index:10;">
   <div class="login-box">
     <div class="login-logo">
-      <span style="color:var(--gold);font-size:28px;font-weight:800">MZCell</span>
-      <span style="color:var(--muted2);font-size:13px;display:block;margin-top:4px">Rentabilidade · Mercado Livre</span>
+      <span style="color:var(--gold);font-size:28px;font-weight:800">MZ-app</span>
+      <span style="color:var(--muted2);font-size:13px;display:block;margin-top:4px">Marketplaces e operação</span>
     </div>
     <div id="login-erro" class="login-erro" style="display:none"></div>
     <div class="login-field"><label>Usuário</label><input type="text" id="login-user" placeholder="seu login" autocomplete="username"/></div>
@@ -664,8 +664,8 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
 <div id="app">
   <div class="sidebar">
     <div class="sidebar-logo">
-      <div class="logo-mark">MZ<span>Cell</span></div>
-      <div class="logo-sub">Rentabilidade ML</div>
+      <div class="logo-mark">MZ<span>-app</span></div>
+      <div class="logo-sub">Marketplaces e operação</div>
       <div class="logo-versao" id="logo-versao">v—</div>
     </div>
     <div class="sidebar-user">
@@ -677,6 +677,11 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       <button class="nav-item active" onclick="switchTab('meli01',this)"><span class="icon">◈</span> Meli01</button>
       <button class="nav-item" onclick="switchTab('meli02',this)"><span class="icon">◈</span> Meli02</button>
       <button class="nav-item" onclick="switchTab('meli03',this)"><span class="icon">◈</span> Meli03</button>
+      <div class="nav-section">Amazon</div>
+      <button class="nav-item" onclick="switchTab('amazon01',this)"><span class="icon">◈</span> Amazon 01</button>
+      <button class="nav-item" onclick="switchTab('amazon02',this)"><span class="icon">◈</span> Amazon 02</button>
+      <div class="nav-section">Shopee</div>
+      <button class="nav-item" onclick="switchTab('shopee',this)"><span class="icon">◈</span> Shopee</button>
       <div class="nav-section">Módulos</div>
       <button class="nav-item" onclick="switchTab('expedicao',this)"><span class="icon">▤</span> Expedição</button>
       <button class="nav-item" onclick="switchTab('sac',this)"><span class="icon">✉</span> SAC</button>
@@ -723,6 +728,9 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
         </div>
         <div id="sac-corpo"></div>
       </div>
+      <div class="tab" id="tab-amazon01"><div id="painel-amazon01"></div></div>
+      <div class="tab" id="tab-amazon02"><div id="painel-amazon02"></div></div>
+      <div class="tab" id="tab-shopee"><div id="painel-shopee"></div></div>
       <div class="tab" id="tab-config">
         <div class="config-card" style="max-width:760px;margin-bottom:24px">
           <div class="config-card-title">CMV e imposto</div>
@@ -828,6 +836,35 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       <span class="mx-cap-per">O período vale para as três colunas abaixo</span>
     </div>
     <div id="modal-body"></div>
+  </div>
+</div>
+
+<!-- MODAL SKU AMAZON -->
+<div class="overlay" id="modal-amz">
+  <div class="modal modal-wide">
+    <button class="modal-close" onclick="amzFechar()">✕</button>
+    <div class="modal-header">
+      <div class="modal-header-info">
+        <div class="modal-prod" id="amz-title"></div>
+        <div class="modal-meta"><span class="modal-sku" id="amz-sku"></span><span style="color:var(--border2)">·</span><span class="modal-mlb" id="amz-asin"></span></div>
+      </div>
+    </div>
+    <div class="mx-strip-wrap">
+      <div class="mx-strip-cap">Média por unidade, últimos 30 dias (fixa)</div>
+      <div class="mx-strip" id="amz-strip"></div>
+    </div>
+    <div class="modal-period-bar">
+      <button class="modal-preset active" id="amzp-7" onclick="amzModalPeriodo(7,this)">7D</button>
+      <button class="modal-preset" id="amzp-15" onclick="amzModalPeriodo(15,this)">15D</button>
+      <button class="modal-preset" id="amzp-30" onclick="amzModalPeriodo(30,this)">30D</button>
+      <button class="modal-preset" id="amzp-c" onclick="amzModalPeriodo(0,this)">Personalizado</button>
+      <span id="amz-datas" style="display:none;align-items:center;gap:6px">
+        <input type="date" id="amz-de" class="modal-date"/> <span class="modal-date-sep">até</span> <input type="date" id="amz-ate" class="modal-date"/>
+        <button class="btn-sync-produto" onclick="amzModalBuscar()" style="height:30px;padding:0 12px;font-size:11px">Buscar</button>
+      </span>
+      <span class="mx-cap-per">O período vale para as três colunas abaixo</span>
+    </div>
+    <div id="amz-body"></div>
   </div>
 </div>
 
@@ -1073,9 +1110,11 @@ function switchTab(tab, btn) {
   document.getElementById(`tab-${tab}`).classList.add('active');
   btn.classList.add('active');
   contaAtiva = tab;
-  const titles = {meli01:'Meli01 — Rentabilidade',meli02:'Meli02 — Rentabilidade',meli03:'Meli03 — Rentabilidade',config:'Configurações',expedicao:'Expedição — Galpão',sac:'SAC — Pendências e contestações'};
+  const titles = {meli01:'Meli01 — Rentabilidade',meli02:'Meli02 — Rentabilidade',meli03:'Meli03 — Rentabilidade',config:'Configurações',expedicao:'Expedição — Galpão',amazon01:'Amazon 01 — Rentabilidade',amazon02:'Amazon 02 — Rentabilidade',shopee:'Shopee',sac:'SAC — Pendências e contestações'};
   document.getElementById('topbar-title').textContent = titles[tab] || tab;
   if(tab==='config'){ loadConfig(); cmvCarregarStatus(); }
+  if(tab==='amazon01'||tab==='amazon02') amzAbrirAba(tab);
+  if(tab==='shopee') shopeeAbrirAba();
   if(tab==='expedicao'){ const f=document.getElementById('frame-expedicao'); if(!f.getAttribute('src')) f.setAttribute('src',`${API}/expedicao`); }
   if(tab==='sac' && !window._sacIniciado){ window._sacIniciado=true; sacIr('geral'); }
 }
@@ -1125,6 +1164,266 @@ async function cmvAplicar(confirmar) {
   }
   out.innerHTML = (confirmar ? '<b>Aplicado.</b> Sincronize as contas para atualizar as margens.' : '<b>Simulação</b> (nada foi gravado):') + linhas.join('');
   if (confirmar) toast(falhou ? 'Aplicado com erros' : 'CMV e imposto aplicados', falhou ? 'error' : undefined);
+}
+
+// ── AMAZON: rentabilidade por SKU com modal (dados do Finances em cache local) ──
+const AMZ = {};
+const amzBrl = v => (v == null ? '—' : brl2(v));
+const amzPct = v => (v == null ? '—' : pct1(v));
+function amzYmd(d) { return d.toISOString().split('T')[0]; }
+function amzFechado(dias) {
+  const agora = new Date(new Date().toLocaleString('en-US',{timeZone:'America/Sao_Paulo'}));
+  const ate = new Date(agora - 86400000);
+  return {de: amzYmd(new Date(ate - (dias-1)*86400000)), ate: amzYmd(ate)};
+}
+function amzAbrirAba(conta) {
+  if (!AMZ[conta]) {
+    AMZ[conta] = {dias: 30, dados: null};
+    document.getElementById(`painel-${conta}`).innerHTML = `
+      <div class="periodo-card">
+        <span class="periodo-label">Período</span>
+        <div class="modal-period-bar" style="padding:0;margin:0;border:0">
+          <button class="modal-preset" onclick="amzPeriodo('${conta}',7,this)">7D</button>
+          <button class="modal-preset" onclick="amzPeriodo('${conta}',15,this)">15D</button>
+          <button class="modal-preset active" onclick="amzPeriodo('${conta}',30,this)">30D</button>
+          <button class="modal-preset" onclick="amzPeriodo('${conta}',60,this)">60D</button>
+          <button class="modal-preset" onclick="amzPeriodo('${conta}',0,this)">Personalizado</button>
+          <span id="amzd-${conta}" style="display:none;align-items:center;gap:6px">
+            <input type="date" id="amzde-${conta}" class="modal-date"/> <span class="modal-date-sep">até</span> <input type="date" id="amzate-${conta}" class="modal-date"/>
+            <button class="btn-sync-produto" onclick="amzCarregar('${conta}')" style="height:30px;padding:0 12px;font-size:11px">Buscar</button>
+          </span>
+        </div>
+        <button class="btn-sync-produto" style="margin-left:auto" onclick="amzAtualizar('${conta}')"><span id="amzi-${conta}">↻</span> Atualizar dados</button>
+        <span id="amzs-${conta}" class="sac-mut"></span>
+      </div>
+      <div class="kpis" id="amzk-${conta}"></div>
+      <div class="table-card"><div id="amzt-${conta}"><div class="empty"><div class="empty-text">Carregando…</div></div></div></div>`;
+  }
+  amzCarregar(conta);
+}
+function amzPeriodo(conta, dias, btn) {
+  document.querySelectorAll(`#painel-${conta} .modal-preset`).forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(`amzd-${conta}`).style.display = dias === 0 ? 'inline-flex' : 'none';
+  if (dias === 0) return;
+  AMZ[conta].dias = dias; amzCarregar(conta);
+}
+function amzDatas(conta) {
+  const custom = document.getElementById(`amzd-${conta}`).style.display !== 'none';
+  if (custom) return {de: document.getElementById(`amzde-${conta}`).value, ate: document.getElementById(`amzate-${conta}`).value};
+  return amzFechado(AMZ[conta].dias);
+}
+async function amzCarregar(conta) {
+  const st = document.getElementById(`amzs-${conta}`), tb = document.getElementById(`amzt-${conta}`);
+  const {de, ate} = amzDatas(conta);
+  if (!de || !ate) { st.textContent = 'Informe as duas datas'; return; }
+  st.textContent = 'carregando…';
+  try {
+    const r = await fetch(`${API}/amazon/painel/${conta}?de=${de}&ate=${ate}`);
+    const d = await r.json();
+    if (r.status === 409) { tb.innerHTML = `<div class="empty"><div class="empty-text">${sacEsc(d.detail)}</div></div>`; document.getElementById(`amzk-${conta}`).innerHTML=''; st.textContent = ''; amzAcompanhar(conta); return; }
+    if (!r.ok) throw new Error(d.detail || r.status);
+    AMZ[conta].dados = d; amzDesenhar(conta, d);
+    st.textContent = `dados de ${(d.gerado_em||'').replace('T',' ')}${d.estado?.rodando ? ' · atualizando…' : ''}`;
+    if (d.estado?.rodando) amzAcompanhar(conta);
+  } catch(e) { st.textContent = 'erro: ' + e.message; }
+}
+function amzSeta(atual, ant, inverso) {
+  if (ant == null || !ant || atual == null) return '';
+  const diff = atual - ant; if (Math.abs(diff) < 0.0001) return '';
+  const bom = inverso ? diff < 0 : diff > 0;
+  return `<span class="kpi-badge-var ${bom?'kpi-badge-up':'kpi-badge-dn'}">${diff>0?'▲':'▼'}${Math.abs(diff/ant*100).toFixed(1).replace('.',',')}%</span>`;
+}
+function amzDesenhar(conta, d) {
+  const x = d.dre, a = d.dre_anterior;
+  const pctMc = x.receita_liquida > 0 && x.skus_com_custo === x.skus_total ? x.margem_contribuicao / x.receita_liquida : null;
+  const cards = [
+    {l:'Receita líquida', v:amzBrl(x.receita_liquida), s:'após reembolsos e promoções', va:amzSeta(x.receita_liquida,a.receita_liquida), c:'var(--blue)'},
+    {l:'Margem após taxas', v:amzBrl(x.margem_apos_taxas), s:'comissão, FBA e outras taxas', va:amzSeta(x.margem_apos_taxas,a.margem_apos_taxas), c:'var(--green)'},
+    {l:'Margem de contribuição', v:x.skus_com_custo ? amzBrl(x.margem_contribuicao) : '—', s:`${x.skus_com_custo} de ${x.skus_total} SKUs com custo${pctMc!=null?' · '+amzPct(pctMc):''}`, va:amzSeta(x.margem_contribuicao,a.margem_contribuicao), c:'var(--gold)'},
+    {l:'Ads (faturas da conta)', v:amzBrl(x.conta.ads), s:'sem rateio por SKU', va:'', c:'var(--purple)'},
+    {l:'Outros custos da conta', v:amzBrl(x.conta.total - x.conta.ads), s:'armazenagem, assinatura, ajustes', va:'', c:'var(--muted2)'},
+    {l:'SKUs vendidos', v:x.skus_total, s:'no período', va:'', c:'var(--text)'},
+  ];
+  document.getElementById(`amzk-${conta}`).innerHTML = cards.map(k => `<div class="kpi" style="--kpi-color:${k.c}"><div class="kpi-label">${k.l}</div><div class="kpi-val">${k.v}</div><div class="kpi-footer"><span class="kpi-sub">${k.s}</span><span class="kpi-var">${k.va}</span></div></div>`).join('');
+  const linhas = d.skus.map(s => {
+    const mc = s.margem_pct == null ? 'var(--muted2)' : (s.margem_pct < 0 ? 'var(--red)' : s.margem_pct < 10 ? 'var(--gold)' : 'var(--green)');
+    return `<tr onclick="amzAbrir('${conta}',decodeURIComponent('${encodeURIComponent(s.sku)}'))">
+      <td><div style="font-weight:600;line-height:1.3">${sacEsc((s.titulo||s.sku).slice(0,70))}</div><div class="modal-sku">${sacEsc(s.sku)}${s.asin?' · '+sacEsc(s.asin):''}</div></td>
+      <td>${r(s.un_liquidas)}</td><td>${amzBrl(s.receita_liquida)}${amzSeta(s.receita_liquida,s.receita_liquida_anterior)}</td>
+      <td>${amzBrl(s.comissao)}</td><td>${amzBrl(s.taxa_fba)}</td><td>${amzBrl(s.outras_taxas)}</td>
+      <td>${s.completo ? amzBrl(s.imposto) : '—'}</td><td>${s.completo ? amzBrl(s.cmv) : '<span class="pos-badge none">sem CMV</span>'}</td>
+      <td style="color:${mc}">${s.completo ? amzBrl(s.margem) : amzBrl(s.margem_apos_taxas)}</td>
+      <td style="color:${mc}">${s.completo ? amzPct((s.margem_pct||0)/100) : '—'}</td></tr>`;
+  }).join('');
+  document.getElementById(`amzt-${conta}`).innerHTML = `<table class="tbl"><thead><tr><th>Produto</th><th>Un. líq.</th><th>Receita líq.</th><th>Comissão</th><th>Taxa FBA</th><th>Outras taxas</th><th>Imposto</th><th>CMV</th><th>Margem</th><th>Margem %</th></tr></thead><tbody>${linhas}</tbody></table>
+    <div class="sac-lin" style="padding:10px 16px">SKU sem CMV mostra a margem após taxas Amazon. Importe o CMV em Configurações. O Ads por SKU depende da Advertising API (a fatura da conta aparece nos cartões, sem rateio).</div>`;
+}
+async function amzAtualizar(conta) {
+  try { await fetch(`${API}/amazon/painel/${conta}/atualizar`, {method:'POST'}); } catch(e) { toast('Erro ao iniciar a atualização', 'error'); return; }
+  toast('Atualização iniciada: leva alguns minutos'); amzAcompanhar(conta);
+}
+function amzAcompanhar(conta) {
+  if (AMZ[conta]?.timer) return;
+  const ic = document.getElementById(`amzi-${conta}`);
+  AMZ[conta].timer = setInterval(async () => {
+    try {
+      const e = await (await fetch(`${API}/amazon/painel/${conta}/estado`)).json();
+      const st = document.getElementById(`amzs-${conta}`);
+      if (e.rodando) { if (ic) ic.className = 'spin'; if (st) st.textContent = e.etapa || 'atualizando…'; return; }
+      clearInterval(AMZ[conta].timer); AMZ[conta].timer = null; if (ic) { ic.className = ''; ic.textContent = '↻'; }
+      if (e.erro) { if (st) st.textContent = 'falhou: ' + e.erro; toast('Falha ao atualizar a Amazon', 'error'); } else { toast('Dados da Amazon atualizados'); amzCarregar(conta); }
+    } catch(x) {}
+  }, 5000);
+}
+
+// ── Modal do SKU (mesmo layout do anúncio do ML) ──
+let _amz = null;
+function amzFechar() { document.getElementById('modal-amz').classList.remove('open'); _amz = null; }
+document.getElementById('modal-amz').addEventListener('click', function(e){ if (e.target === this) amzFechar(); });
+async function amzAbrir(conta, sku) {
+  _amz = {conta, sku, dias: 7, d: null};
+  document.getElementById('amz-title').textContent = sku;
+  document.getElementById('amz-sku').textContent = sku; document.getElementById('amz-asin').textContent = '';
+  document.getElementById('amz-body').innerHTML = '<div class="sac-mut">Carregando…</div>';
+  document.getElementById('amz-strip').innerHTML = '';
+  document.getElementById('modal-amz').classList.add('open');
+  amzModalPeriodo(7, document.getElementById('amzp-7'));
+}
+function amzModalPeriodo(dias, btn) {
+  document.querySelectorAll('#modal-amz .modal-preset').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('amz-datas').style.display = dias === 0 ? 'inline-flex' : 'none';
+  if (dias === 0) return;
+  const f = amzFechado(dias);
+  document.getElementById('amz-de').value = f.de; document.getElementById('amz-ate').value = f.ate;
+  amzModalBuscar();
+}
+async function amzModalBuscar() {
+  if (!_amz) return;
+  const de = document.getElementById('amz-de').value, ate = document.getElementById('amz-ate').value;
+  if (!de || !ate) { toast('Informe as duas datas', 'error'); return; }
+  try {
+    const r = await fetch(`${API}/amazon/sku/${_amz.conta}?sku=${encodeURIComponent(_amz.sku)}&de=${de}&ate=${ate}`);
+    const d = await r.json(); if (!r.ok) throw new Error(d.detail || r.status);
+    _amz.d = d; amzDesenharModal(d);
+  } catch(e) { document.getElementById('amz-body').innerHTML = `<div class="sac-mut">Erro: ${sacEsc(e.message)}</div>`; }
+}
+function amzDesenharModal(d) {
+  const a = d.atual, p = d.periodo_anterior, f = d.faixa_30d, conta = d.conta, sku = d.sku;
+  document.getElementById('amz-title').textContent = d.titulo || sku;
+  document.getElementById('amz-sku').textContent = sku; document.getElementById('amz-asin').textContent = d.asin || '';
+  const u = v => f.disponivel && v != null ? brl2(v) : '—';
+  document.getElementById('amz-strip').innerHTML = [['CMV', u(f.cmv)], ['Imposto', u(f.imposto)], ['Comissão', u(f.comissao)], ['Taxa FBA', u(f.taxa_fba)], ['Outras taxas', u(f.outras_taxas)], ['Receita por unidade', u(f.receita)]]
+    .map(([l,v]) => `<div class="mx-kpi"><div class="mx-kpi-l">${l}</div><div class="mx-kpi-v">${v}</div></div>`).join('');
+  const dmy = x => x.split('-').reverse().join('/');
+  const cmp = (atual, ant, fmt, inverso=false) => {
+    if (ant == null || !ant || atual == null) return '';
+    const diff = atual - ant; if (Math.abs(diff) < 0.0001) return '';
+    const bom = inverso ? diff < 0 : diff > 0;
+    return `<span class="kpi-badge-var ${bom?'kpi-badge-up':'kpi-badge-dn'}" data-tip="Período anterior (${dmy(d.anterior.de)} a ${dmy(d.anterior.ate)}): ${fmt(ant)}">${diff>0?'▲':'▼'}${Math.abs(diff/ant*100).toFixed(1).replace('.',',')}%</span>`;
+  };
+  const row = (l, v, b) => `<div class="mx-row"><span class="mx-lbl">${l}</span><span class="mx-val">${v}${b||''}</span></div>`;
+  if (!a) { document.getElementById('amz-body').innerHTML = '<div class="sac-mut">Sem vendas deste SKU no período selecionado.</div>'; return; }
+  const un = a.un_liquidas || 0, rl = a.receita_liquida || 0;
+  const c = d.custo || {}, al = d.aliquotas;
+  const preco = un > 0 ? rl / un : 0;
+  const temSt = c.tem_st ?? true;
+  const impPct = c.imposto_pct != null ? c.imposto_pct : al.com_st;
+  const comPct = rl > 0 ? Math.abs(a.comissao) / rl : 0;
+  const fld = (lbl, id, val) => `<div class="sim-field"><label>${lbl}</label><input type="number" id="${id}" value="${val}" step="0.01" oninput="amzCalc()"/></div>`;
+  document.getElementById('amz-body').innerHTML = `
+    <div class="mx-cols">
+      <div class="mx-col mx-sim"><div class="mx-col-t">Simulação do cenário</div>
+        <div class="sim-grid">
+          ${fld('Preço simulado (R$)','as-preco',preco.toFixed(2))}
+          ${fld('CMV (R$)','as-cmv',(c.cmv_unit ?? 0).toFixed(2))}
+          <div class="sim-field"><label>Imposto (%)</label><div style="display:flex;gap:4px">
+            <select id="as-st" onchange="amzTrocarSt()" style="height:26px;font-size:11px;background:var(--bg3);color:var(--text);border:1px solid var(--border2);border-radius:6px;padding:0 4px;">
+              <option value="1" ${temSt?'selected':''}>COM ST</option><option value="0" ${temSt?'':'selected'}>SEM ST</option></select>
+            <input type="number" id="as-imp" value="${(impPct*100).toFixed(2)}" step="0.01" oninput="amzCalc()" style="min-width:0"/></div></div>
+          ${fld('Comissão (%)','as-com',(comPct*100).toFixed(2))}
+          ${fld('Taxa FBA (R$)','as-fba',un>0?(Math.abs(a.taxa_fba)/un).toFixed(2):'0.00')}
+          ${fld('Outras taxas (R$)','as-out',un>0?(Math.abs(a.outras_taxas)/un).toFixed(2):'0.00')}
+          ${fld('TACOS (%)','as-tacos','0.00')}
+        </div>
+        <div id="amz-sim-out" class="mx-sim-out"></div>
+        <div class="mx-sim-info" style="margin-top:8px">CMV ${c.origem==='base'?'da base central (arquivo do Grupo)':(c.cmv_unit!=null?'cadastrado para este SKU':'não encontrado: importe o CMV em Configurações')}. Os valores iniciais são as médias do período selecionado.</div>
+      </div>
+      <div class="mx-col"><div class="mx-col-t">Dados de ADS</div>
+        <div class="sac-mut" style="font-size:12px;line-height:1.5">Indisponível por SKU: falta a liberação da Advertising API da Amazon (credencial própria). A fatura de Ads da conta aparece nos cartões da tela principal, sem rateio.</div>
+      </div>
+      <div class="mx-col"><div class="mx-col-t">Dados de vendas</div>
+        ${row('Unidades enviadas', r(a.un_enviadas), cmp(a.un_enviadas, p?.un_enviadas, v=>r(v)))}
+        ${row('Devolvidas', r(a.un_devolvidas), cmp(a.un_devolvidas, p?.un_devolvidas, v=>r(v), true))}
+        ${row('Unidades líquidas', r(a.un_liquidas), cmp(a.un_liquidas, p?.un_liquidas, v=>r(v)))}
+        ${row('Vendas (R$)', brl2(a.receita), cmp(a.receita, p?.receita, brl2))}
+        ${row('Receita líquida', brl2(a.receita_liquida), cmp(a.receita_liquida, p?.receita_liquida, brl2))}
+        ${row('Margem de contribuição', a.completo ? brl2(a.margem) : '—', cmp(a.margem, p?.margem, brl2))}
+        ${row('Margem %', a.completo ? pct1((a.margem_pct||0)/100) : '—', '')}
+        <div class="sac-mut" style="font-size:11px;margin-top:8px">Visitas e conversão ainda não estão disponíveis para a Amazon (dependem do relatório Sales and Traffic).</div>
+      </div>
+    </div>
+    <div class="mx-foot">
+      <label for="amz-cm">Comentários</label>
+      <textarea id="amz-cm" rows="2" placeholder="Comentário sobre este SKU"></textarea>
+      <div class="mx-foot-act"><button class="btn-sm" onclick="amzSalvarComentario()">Salvar comentário</button><span id="amz-cm-st"></span></div>
+    </div>`;
+  amzCalc(); amzCarregarComentario();
+}
+function amzCalc() {
+  const n = (id) => { const v = parseFloat(document.getElementById(id)?.value); return isNaN(v) ? 0 : v; };
+  const preco = n('as-preco'), cmv = n('as-cmv'), imp = n('as-imp')/100, com = n('as-com')/100, fba = n('as-fba'), out = n('as-out'), tacos = n('as-tacos')/100;
+  const res = preco - cmv - preco*imp - preco*com - fba - out - preco*tacos;
+  const mp = preco > 0 ? res/preco : 0, cor = res < 0 ? 'var(--red)' : 'var(--green)';
+  const el = document.getElementById('amz-sim-out'); if (!el) return;
+  const atual = _amz?.d?.atual, un = atual?.un_liquidas || 0;
+  const atualUn = atual && atual.completo && un > 0 ? atual.margem / un : null;
+  el.innerHTML = `<div class="mx-row"><span class="mx-lbl">Resultado unitário</span><span class="mx-val" style="color:${cor}">${brl2(res)}</span></div>
+    <div class="mx-row"><span class="mx-lbl">Margem simulada</span><span class="mx-val" style="color:${cor}">${pct1(mp)}</span></div>
+    ${atualUn!=null ? `<div class="mx-row"><span class="mx-lbl">Diferença vs. margem atual</span><span class="mx-val ${res-atualUn>=0?'vb-up':'vb-dn'}">${res-atualUn>=0?'+':''}${brl2(res-atualUn)}</span></div>` : ''}`;
+}
+async function amzTrocarSt() {
+  if (!_amz?.d) return;
+  const sel = document.getElementById('as-st'), comSt = sel.value === '1', al = _amz.d.aliquotas;
+  document.getElementById('as-imp').value = ((comSt ? al.com_st : al.sem_st) * 100).toFixed(2);
+  amzCalc();
+  try {
+    const r = await fetch(`${API}/amazon/custo/${_amz.conta}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({sku: _amz.sku, tem_st: comSt})});
+    toast(r.ok ? `Imposto ${comSt?'COM ST':'SEM ST'} salvo para o SKU` : 'Erro ao salvar o imposto', r.ok ? undefined : 'error');
+  } catch(e) { toast('Erro ao salvar o imposto', 'error'); }
+}
+function amzChaveComentario() { return encodeURIComponent(_amz.sku); }
+async function amzCarregarComentario() {
+  try {
+    const d = await (await fetch(`${API}/anotacoes/${_amz.conta}/${amzChaveComentario()}`)).json();
+    const ta = document.getElementById('amz-cm'); if (!ta) return;
+    ta.value = (d.anotacoes || [])[0]?.texto || ''; ta.dataset.orig = ta.value;
+  } catch(e) {}
+}
+async function amzSalvarComentario() {
+  const ta = document.getElementById('amz-cm'); const texto = ta.value.trim();
+  if (!texto) { toast('Escreva o comentário', 'error'); return; }
+  if (texto === (ta.dataset.orig || '').trim()) { toast('Comentário sem alterações'); return; }
+  try {
+    const r = await fetch(`${API}/anotacoes/${_amz.conta}/${amzChaveComentario()}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({texto})});
+    if (!r.ok) throw new Error(r.status); toast('Comentário salvo'); ta.dataset.orig = texto;
+  } catch(e) { toast('Erro ao salvar o comentário', 'error'); }
+}
+
+// ── SHOPEE: esqueleto na mesma estrutura (lojas e autorização; dados nas próximas fases) ──
+async function shopeeAbrirAba() {
+  const box = document.getElementById('painel-shopee');
+  box.innerHTML = '<div class="periodo-card"><span class="periodo-label">Shopee</span><span class="sac-mut">carregando…</span></div>';
+  let lojas = null, alertas = null;
+  try { lojas = await (await fetch(`${API}/shopee/lojas`)).json(); alertas = await (await fetch(`${API}/shopee/alertas`)).json(); } catch(e) {}
+  const linhas = (lojas?.lojas || []).map(l => `<tr><td><b>${sacEsc(l.nome)}</b><div class="modal-sku">${sacEsc(l.loja)} · ${sacEsc(l.shop_id)}</div></td><td>${l.autorizada ? 'autorizada' : 'sem autorização'}</td><td>${sacEsc(l.mensagem||'')}</td></tr>`).join('');
+  box.innerHTML = `
+    <div class="periodo-card"><span class="periodo-label">Ambiente</span><b>${sacEsc(lojas?.ambiente || '—')}</b><span class="sac-mut">${lojas?.app_configurado ? 'app configurado' : 'app ainda não configurado (faltam as credenciais do sandbox)'}</span></div>
+    ${(alertas?.alertas||[]).map(a => `<div class="sac-linha alerta"><span><b>${sacEsc(a.nome)}</b>: ${sacEsc(a.mensagem)}</span></div>`).join('')}
+    <div class="table-card">${linhas ? `<table class="tbl"><thead><tr><th>Loja</th><th>Autorização</th><th>Situação</th></tr></thead><tbody>${linhas}</tbody></table>`
+      : '<div class="empty"><div class="empty-text">Nenhuma loja cadastrada. Use o formulário shopee_env_form.html e o validador para configurar o sandbox.</div></div>'}</div>
+    <div class="sac-lin" style="margin-top:12px">Quando as lojas estiverem autorizadas, esta aba terá a mesma estrutura da Amazon e do Mercado Livre: cartões do período, tabela por SKU, modal com simulação e o seletor COM ST / SEM ST (alíquotas por loja).</div>`;
 }
 
 // ── SAC: pendências e contestações (somente leitura) ──────────────────────

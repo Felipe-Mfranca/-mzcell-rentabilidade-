@@ -80,3 +80,6 @@ modelo_custos_*.xlsx
 
 # Base central de CMV (local)
 cmv_base.json
+
+# Cache local do painel Amazon
+amazon_cache_*.json
