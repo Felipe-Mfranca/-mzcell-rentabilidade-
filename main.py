@@ -335,6 +335,36 @@ class CustosPayload(BaseModel):
     rebot_fim: str = ""
     simulador: Optional[dict] = None
 
+# ─── PIVO: análise dos anúncios do ML (somente leitura) ──────────────────────────
+@app.post("/pivo/{conta}/analisar")
+def pivo_analisar(conta: str):
+    """Analisa em segundo plano todos os anúncios da conta (título, imagens, clip, descrição, promoção, ADS)."""
+    import pivo_ml
+    from reposicao_full import ML
+    if conta not in ("meli01", "meli02", "meli03"):
+        raise HTTPException(status_code=404, detail="conta inválida")
+    return pivo_ml.iniciar(conta, ML(conta))
+
+
+@app.get("/pivo/{conta}")
+def pivo_resultado(conta: str):
+    import pivo_ml
+    r = pivo_ml.resultado(conta)
+    for v in r["itens"].values():
+        v.pop("_entrada", None)
+    return r
+
+
+@app.post("/pivo/{conta}/{mlb}/clip")
+def pivo_clip(conta: str, mlb: str, payload: dict):
+    """Marcação manual de clip: {"tem_clip": true|false|null}. A API do ML não expõe os clips."""
+    import pivo_ml
+    novo = pivo_ml.marcar_clip(conta, mlb, payload.get("tem_clip"))
+    if novo:
+        novo.pop("_entrada", None)
+    return {"success": True, "item": novo}
+
+
 # ─── Base central de CMV (um arquivo para todas as plataformas) ──────────────────
 @app.post("/cmv/importar")
 async def cmv_importar(file: UploadFile = File(...)):
@@ -902,6 +932,7 @@ async def rentabilidade(conta: str, date_from: str, date_to: str):
             "sku":       produto.get("sku"),
             "variacao":  produto.get("variacao"),
             "arquivado": produto.get("arquivado", False),
+            "tem_st":    produto.get("tem_st", True),
             "custos": {
                 "cmv_unit":    produto.get("cmv_unit"),
                 "frete_unit":  produto.get("frete_unit"),

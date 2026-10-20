@@ -84,3 +84,7 @@ cmv_base.json
 # Cache local do painel Amazon
 amazon_cache_*.json
 amazon_trafego_*.json
+
+# PIVO (cache e marcacoes locais)
+pivo_cache.json
+pivo_manual.json

@@ -426,6 +426,18 @@ input.modal-date:focus{border-color:var(--gold);}
 .mx-hist{margin-top:8px;max-height:110px;overflow-y:auto;font-size:11px;}
 .mx-hist div{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid var(--border);}
 .kpi-badge-neu{color:var(--muted2);}
+.mx-avisos{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px;min-height:0;}
+.mx-aviso{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid;cursor:default;}
+.mx-aviso.rebot{color:#166534;background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.55);box-shadow:0 0 0 3px rgba(34,197,94,.10);}
+.mx-aviso.pivo-atencao{color:#92400e;background:rgba(245,158,11,.16);border-color:rgba(245,158,11,.6);}
+.mx-aviso.pivo-ok{color:#166534;background:rgba(34,197,94,.10);border-color:rgba(34,197,94,.35);}
+.pivo-chip{display:inline-block;padding:1px 7px;border-radius:6px;font-size:11px;font-weight:700;border:1px solid var(--border2);color:var(--muted2);cursor:default;}
+.pivo-chip.ok{color:#166534;background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.4);}
+.pivo-chip.nok{color:#991b1b;background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.45);}
+.pivo-chip.na{color:#92400e;background:rgba(245,158,11,.14);border-color:rgba(245,158,11,.5);}
+.pivo-chip.clicavel{cursor:pointer;}
+.pivo-cel{font-size:11px;font-weight:700;}
+.pivo-cel.ok{color:var(--green);}.pivo-cel.pouco{color:var(--gold);}.pivo-cel.ruim{color:var(--red);}
 .mx-col .kpi-badge-var::after{left:auto;right:0;transform:none;}
 @media (max-width:1000px){.mx-strip{grid-template-columns:repeat(3,1fr);}.mx-cols{grid-template-columns:1fr;}}
 
@@ -818,6 +830,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
         <button class="btn-sync-produto" id="btn-sync-produto"><span id="sync-icon">↻</span> Sincronizar MLB</button>
       </div>
     </div>
+    <div class="mx-avisos" id="m-avisos"><span id="m-aviso-rebot"></span><span id="m-pivo"></span></div>
     <div class="mx-strip-wrap">
       <div class="mx-strip-cap">Média por unidade, últimos 30 dias (fixa)</div>
       <div class="mx-strip" id="mx-strip"></div>
@@ -1606,6 +1619,8 @@ function renderPainel(conta) {
         <button class="btn-sync" id="btn-catalog-${conta}" onclick="syncCatalog('${conta}')" title="Preenche catalog_listing dos produtos sem dados">
           🔄 Sync Catalog
         </button>
+        <button class="btn-sync" id="btn-pivo-${conta}" onclick="pivoAnalisar('${conta}')" title="Confere título, imagens, clip, descrição, promoção e ADS de cada anúncio"><span>✓</span> Analisar PIVO</button>
+        <span id="pivo-st-${conta}" class="sac-mut" style="font-size:11px"></span>
         <button class="btn-gold" onclick="buscarPeriodo('${conta}')">Buscar</button>
       </div>
     </div>
@@ -1786,6 +1801,7 @@ async function buscarPeriodo(conta) {
     renderKPIs(conta, data.kpis, prevDB[conta]?.kpis);
     renderTable(conta, data.produtos);
     carregarPosicoes(conta);
+    pivoCarregar(conta);
   } catch(e){
     document.getElementById(`tbl-${conta}`).innerHTML='<div class="empty"><div class="empty-icon">⚡</div><div class="empty-text">Erro ao carregar dados</div></div>';
     renderKPIs(conta,null,null);
@@ -1995,6 +2011,7 @@ function renderTable(conta, produtos) {
     {k:'margem_total',l:'Margem R$'},
     {k:'margem_pct',l:'Margem %'},
     {k:'posicao',l:'Posição ML',align:'center'},
+    {k:'pivo',l:'PIVO',align:'center'},
   ];
   const thead = cols.map(c=>`<th onclick="sortTable('${conta}','${c.k}')" style="${c.align?`text-align:${c.align}`:''}">${c.l}${sortCol===c.k?(sortDir>0?' ↑':' ↓'):''}</th>`).join('');
   const tbody = produtos.map(p=>{
@@ -2025,6 +2042,7 @@ function renderTable(conta, produtos) {
         <td class="mono ${mCls}">${brl(per.margem_total)}</td>
         <td class="mono ${mCls}">${mp.toFixed(1)}%</td>
         <td style="text-align:center">${renderPosBadge(p.mlb)}</td>
+        <td style="text-align:center" data-pivo="${p.mlb}">${renderPivoCel(conta,p.mlb)}</td>
       </tr>`;
   }).join('');
   document.getElementById(`tbl-${conta}`).innerHTML=`<table class="tbl"><thead><tr>${thead}</tr></thead><tbody id="tbody-${conta}">${tbody}</tbody></table>`;
@@ -2168,6 +2186,8 @@ function openModal(mlb, conta) {
 }
 
 function renderModalContent(mlb, conta) {
+  const _ar = document.getElementById('m-aviso-rebot'); if (_ar) _ar.innerHTML = '';
+  mostrarPivoModal(conta, mlb);
   const de  = document.getElementById('modal-de')?.value || '';
   const ate = document.getElementById('modal-ate')?.value || '';
   const dbProd = db[conta]?.produtos?.find(x => x.mlb === mlb);
@@ -2315,6 +2335,70 @@ async function trocarSt(mlb, conta, sel) {
     .catch(() => toast('Erro ao salvar o imposto', 'error'));
 }
 
+// ── Aviso de novo rebot (compacto, no cabeçalho do modal) ───────────────────
+function mostrarAvisoRebot(o) {
+  const box = document.getElementById('m-aviso-rebot'); if (!box) return;
+  if (!o || o.empate || !(o.ganho_un > 0)) { box.innerHTML = ''; return; }
+  const dt = x => x ? x.split('-').reverse().slice(0,2).join('/') : '';
+  const det = [`${brl2(o.atual_preco)} → ${brl2(o.preco)}`, `rebot ${brl2(o.atual_rebot)} → ${brl2(o.rebot)}`,
+    o.delta_preco > 0 ? `atenção: o preço sobe ${brl2(o.delta_preco)}, confira o buybox` : '',
+    (o.tipo === 'LIGHTNING' && o.estoque) ? `exige estoque de ${o.estoque.min} a ${o.estoque.max} un` : '',
+    o.fim ? `até ${dt(o.fim)}` : '', `em vez de «${o.atual_nome}»`].filter(Boolean).join(' · ');
+  box.innerHTML = `<span class="mx-aviso rebot" title="${sacEsc(det)}">Novo rebot disponível: +${brl2(o.ganho_un)}/un · ${sacEsc((o.nome||o.tipo||'').slice(0,40))}${o.delta_preco>0?' · preço sobe':''}</span>`;
+}
+
+// ── PIVO: análise de cada anúncio (título, imagens, clip, descrição, promoção, ADS) ──
+const _pivo = {};
+async function pivoCarregar(conta) {
+  try {
+    const d = await (await fetch(`${API}/pivo/${conta}`)).json();
+    _pivo[conta] = d; pivoAtualizarCelulas(conta);
+    const st = document.getElementById(`pivo-st-${conta}`);
+    if (st) st.textContent = d.estado?.rodando ? `PIVO: ${d.estado.etapa}…` : (d.total ? `PIVO: ${d.fora_do_pivo} de ${d.total} fora do padrão` : 'PIVO: não analisado');
+    if (d.estado?.rodando) setTimeout(() => pivoCarregar(conta), 6000);
+  } catch(e) {}
+}
+async function pivoAnalisar(conta) {
+  try { await fetch(`${API}/pivo/${conta}/analisar`, {method:'POST'}); toast('Análise PIVO iniciada: leva alguns minutos'); } catch(e) { toast('Erro ao iniciar o PIVO', 'error'); return; }
+  setTimeout(() => pivoCarregar(conta), 3000);
+}
+function renderPivoCel(conta, mlb) {
+  const it = _pivo[conta]?.itens?.[mlb];
+  if (!it) return '<span class="sac-mut">—</span>';
+  const cls = it.passa ? 'ok' : (it.pontos >= it.total - 1 ? 'pouco' : 'ruim');
+  return `<span class="pivo-cel ${cls}" title="${sacEsc(it.passa ? 'Passa no PIVO' : 'Atenção: ' + it.atencao.join(' | '))}">${it.pontos}/${it.total}</span>`;
+}
+function pivoAtualizarCelulas(conta) {
+  document.querySelectorAll(`#tab-${conta} td[data-pivo]`).forEach(td => { td.innerHTML = renderPivoCel(conta, td.dataset.pivo); });
+}
+const PIVO_CURTO = {P:'P', I:'I', V:'V', O:'O', PROMO:'Promo', ADS:'ADS'};
+function mostrarPivoModal(conta, mlb) {
+  const box = document.getElementById('m-pivo'); if (!box) return;
+  const it = _pivo[conta]?.itens?.[mlb];
+  if (!it) { box.innerHTML = `<span class="mx-aviso pivo-atencao" style="cursor:pointer" onclick="pivoAnalisar('${conta}')" title="Clique para analisar os anúncios da conta">PIVO não analisado</span>`; return; }
+  const chips = it.checks.map(c => {
+    const cls = c.ok === true ? 'ok' : (c.ok === false ? 'nok' : 'na');
+    const extra = c.id === 'V' ? ' clicavel' : '';
+    const clique = c.id === 'V' ? ` onclick="pivoAlternarClip('${conta}','${mlb}')"` : '';
+    return `<span class="pivo-chip ${cls}${extra}"${clique} title="${sacEsc(c.nome + ': ' + c.detalhe + (c.id==='V' ? ' (clique para alternar: tem clip, sem clip, não confirmado)' : ''))}">${PIVO_CURTO[c.id]}</span>`;
+  }).join(' ');
+  const resumo = it.passa
+    ? `<span class="mx-aviso pivo-ok">PIVO ${it.pontos}/${it.total}</span>`
+    : `<span class="mx-aviso pivo-atencao" title="${sacEsc(it.atencao.join('\n'))}">Atenção PIVO ${it.pontos}/${it.total}: ${sacEsc(it.checks.filter(c=>c.ok!==true).map(c=>PIVO_CURTO[c.id]).join(', '))}</span>`;
+  box.innerHTML = resumo + ' ' + chips;
+}
+async function pivoAlternarClip(conta, mlb) {
+  const it = _pivo[conta]?.itens?.[mlb]; if (!it) return;
+  const v = it.checks.find(c => c.id === 'V');
+  const prox = v.ok === true ? false : (v.ok === false ? null : true);   // não confirmado → tem clip → sem clip → não confirmado
+  try {
+    const r = await (await fetch(`${API}/pivo/${conta}/${mlb}/clip`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tem_clip: prox})})).json();
+    if (r.item) { _pivo[conta].itens[mlb] = r.item; _pivo[conta].fora_do_pivo = Object.values(_pivo[conta].itens).filter(x => !x.passa).length; }
+    mostrarPivoModal(conta, mlb); pivoAtualizarCelulas(conta);
+    toast(prox === true ? 'Clip confirmado' : prox === false ? 'Marcado sem clip' : 'Marcação de clip removida');
+  } catch(e) { toast('Erro ao salvar a marcação', 'error'); }
+}
+
 // Preenche o simulador com as médias do período selecionado (alternativa ao pré-preenchimento pela última venda)
 function usarMediasDoPeriodo(mlb, conta) {
   const per = _modalPer || {};
@@ -2460,7 +2544,7 @@ async function carregarCustosML(mlb, conta) {
     const salvo = !!p?.custos?.simulador;
     box.innerHTML = `Custos reais do ML — base: ${origem}${rebotReal}<br>${camp} · Rebot ativo hoje: <b>${brl2(d.rebot_un)}</b> · Frete: <b>${d.frete!=null?brl2(d.frete):'n/d'}</b>${d.peso_g?` <small>(${d.peso_g} g)</small>`:''}
       <br><a href="#" onclick="aplicarCustosReais('${mlb}','${conta}');return false;" style="color:var(--gold);">${salvo?'Cenário salvo carregado — usar valores reais':'Restaurar valores reais'}</a>`;
-    box.insertAdjacentHTML('afterbegin', msgOportunidadeRebot(d.oportunidade));
+    mostrarAvisoRebot(d.oportunidade);
     if(!salvo) aplicarCustosReais(mlb, conta);
   } catch(e) {
     if(document.getElementById('sim-real')===box)
