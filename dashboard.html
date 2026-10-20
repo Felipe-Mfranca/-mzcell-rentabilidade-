@@ -1418,15 +1418,13 @@ function amzDesenharModal(d) {
   const impPct = c.imposto_pct != null ? c.imposto_pct : al.com_st;
   const comPct = rl > 0 ? Math.abs(a.comissao) / rl : 0;
   const fld = (lbl, id, val) => `<div class="sim-field"><label>${lbl}</label><input type="number" id="${id}" value="${val}" step="0.01" oninput="amzCalc()" onblur="fmt2(this)"/></div>`;
-  const dec2 = v => Number(v||0).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  const prep = o => o ? {...o, preco_c: o.un_liquidas > 0 ? o.receita_liquida / o.un_liquidas : 0, mp: o.completo ? (o.margem_pct || 0) / 100 : null, m: o.completo ? o.margem : null} : null;
-  const A = prep(a), B = prep(p);
-  const cols = [
-    {k:'un_enviadas', l:'Enviadas', f:v=>r(v)}, {k:'un_devolvidas', l:'Devolvidas', f:v=>r(v), inv:true}, {k:'un_liquidas', l:'Líquidas', f:v=>r(v)},
-    {k:'receita', l:'Vendas (R$)', f:dec2}, {k:'receita_liquida', l:'Receita líquida (R$)', f:dec2}, {k:'preco_c', l:'Preço médio (R$)', f:dec2},
-    {k:'m', l:'Margem (R$)', f:dec2}, {k:'mp', l:'Margem %', f:pct1}
-  ];
+  const diasP = Math.round((new Date(d.periodo.ate) - new Date(d.periodo.de)) / 86400000) + 1;
+  const prepA = o => o ? {unidades: o.un_liquidas, media_dia: o.un_liquidas / diasP, visitas: null, conv_c: null} : null;
   const rotA = `${mxDmy(d.periodo.de)} a ${mxDmy(d.periodo.ate)}`, rotB = `${mxDmy(d.anterior.de)} a ${mxDmy(d.anterior.ate)}`;
+  const iso = x => x.toISOString().split('T')[0], dia = 86400000;
+  const p3Ate = iso(new Date(new Date(d.anterior.de) - dia)), p3De = iso(new Date(new Date(p3Ate) - (diasP-1)*dia));
+  const p4Ate = iso(new Date(new Date(p3De) - dia)), p4De = iso(new Date(new Date(p4Ate) - (diasP-1)*dia));
+  _amz.tab = {A: prepA(a), B: prepA(p), P3: null, P4: null, rotA, rotB, rotC: `${mxDmy(p3De)} a ${mxDmy(p3Ate)}`, rotD: `${mxDmy(p4De)} a ${mxDmy(p4Ate)}`, r3: [p3De, p3Ate], r4: [p4De, p4Ate], diasP};
   const colSim = `<aside class="mx-card2 mx-sim"><h4>Simulação do cenário</h4>
         <div class="sim-grid">
           ${fld('Preço simulado (R$)','as-preco',preco.toFixed(2))}
@@ -1444,12 +1442,12 @@ function amzDesenharModal(d) {
         <div class="mx-sim-info" style="margin-top:8px">CMV ${c.origem==='base'?'da base central (arquivo do Grupo)':(c.cmv_unit!=null?'cadastrado para este SKU':'não encontrado: importe o CMV em Configurações')}. Os valores iniciais são as médias do período selecionado.</div>
       </aside>`;
   document.getElementById('amz-body').innerHTML = `
-    <div class="mx-main" style="--g:minmax(250px,.8fr) minmax(0,.7fr) minmax(0,2fr)">
+    <div class="mx-main">
       <div class="mx-left">
-        <section class="mx-card2"><h4>Dados de ADS<small>indisponível por SKU</small></h4>
-          <div class="sac-mut" style="font-size:12px;line-height:1.5">Falta a liberação da Advertising API da Amazon (credencial própria). A fatura de Ads da conta aparece nos cartões da tela principal, sem rateio.</div></section>
-        <section class="mx-card2"><h4>Dados de vendas</h4>${mxTabela(cols, A, B, rotA, rotB)}
-          <div id="amz-trafego" style="margin-top:10px"><div class="sac-mut" style="font-size:11px">Buscando visitas e conversão no relatório da Amazon (30 a 60 s)…</div></div></section>
+        <section class="mx-card2"><h4>Dados de ADS</h4><div id="ads-tab"></div>
+          <div class="sac-mut" style="font-size:11px;margin-top:6px">Sem dados de ADS por SKU ainda (falta a Advertising API da Amazon); virão em breve.</div></section>
+        <section class="mx-card2"><h4>Dados de vendas</h4><div id="amz-vendas"></div>
+          <div id="amz-trafego" style="margin-top:8px"><div class="sac-mut" style="font-size:11px">Buscando visitas e conversão no relatório da Amazon (30 a 60 s)…</div></div></section>
       </div>
       ${colSim}
     </div>
@@ -1457,7 +1455,7 @@ function amzDesenharModal(d) {
   _mapa = {conta, chave: sku, snapshot: () => ({
     periodo: d.periodo, preco_medio: preco, margem_pct: a.completo ? (a.margem_pct || 0) / 100 : null,
     unidades: a.un_liquidas, receita: a.receita, visitas: _amz?.visitas ?? null, conversao: _amz?.conversao ?? null }) };
-  amzCalc(); mapaCarregar(); amzCarregarTrafego(d);
+  amzCalc(); mapaCarregar(); amzRenderTabelas(); amzCarregarTrafego(d); amzCarregarExtras(d);
 }
 // Visitas e conversão: relatório Sales and Traffic (por ASIN e período), buscado em segundo plano e consultado até ficar pronto
 async function amzCarregarTrafego(d) {
@@ -1481,15 +1479,38 @@ async function amzCarregarTrafego(d) {
   }
   if (_amz && _amz.tok === token) box().innerHTML = '<div class="sac-mut" style="font-size:11px">A Amazon demorou para gerar o relatório. Reabra o modal em instantes.</div>';
 }
+const AMZ_COLS_V = [{k:'media_dia', l:'Média diária (un.)', f:_dec2}, {k:'unidades', l:'Unidades', f:v=>r(v)}, {k:'visitas', l:'Visitas', f:v=>r(v)}, {k:'conv_c', l:'Conversão', f:pct2}];
+function amzRenderTabelas() {
+  const t = _amz?.tab; if (!t) return;
+  const vazio = [{o: null, rot: t.rotC}, {o: null, rot: t.rotD}];
+  _adsCtx = {A: {}, B: {}, rotA: t.rotA, rotB: t.rotB, extras: vazio, todas: adsTodas()};
+  const ea = document.getElementById('ads-tab'); if (ea) ea.innerHTML = adsTabela();
+  const ev = document.getElementById('amz-vendas');
+  if (ev) ev.innerHTML = mxTabela(AMZ_COLS_V, t.A, t.B, t.rotA, t.rotB, null, [{o: t.P3, rot: t.rotC}, {o: t.P4, rot: t.rotD}]);
+}
+// P3 e P4: vendas dos dois períodos anteriores ao P2 (o backend responde por período)
+async function amzCarregarExtras(d) {
+  const t = _amz?.tab; if (!t) return;
+  for (const [campo, [de, ate]] of [['P3', t.r3], ['P4', t.r4]]) {
+    try {
+      const x = await (await fetch(`${API}/amazon/sku/${d.conta}?sku=${encodeURIComponent(d.sku)}&de=${de}&ate=${ate}`)).json();
+      if (_amz?.tab !== t) return;
+      if (x.atual) t[campo] = {unidades: x.atual.un_liquidas, media_dia: x.atual.un_liquidas / t.diasP, visitas: null, conv_c: null};
+      amzRenderTabelas();
+    } catch(e) {}
+  }
+}
 function amzPreencherTrafego(d, t) {
   const box = document.getElementById('amz-trafego'); if (!box) return;
-  const a = t.atual.dados, p = t.anterior.dados;
+  const a = t.atual.dados, p = t.anterior.dados, tab = _amz?.tab;
   if (!a) { box.innerHTML = '<div class="sac-mut" style="font-size:11px">A Amazon não trouxe visitas deste ASIN no período (sem tráfego ou ASIN fora do relatório).</div>'; return; }
   if (_amz) { _amz.visitas = a.sessoes; _amz.conversao = a.conversao_pct != null ? a.conversao_pct / 100 : null; }
-  const pc = v => (v == null ? '—' : Number(v).toFixed(2).replace('.', ',') + '%');
-  const cols = [{k:'sessoes', l:'Visitas (sessões)', f:v=>r(v)}, {k:'visualizacoes', l:'Visualizações', f:v=>r(v)}, {k:'conversao_pct', l:'Conversão', f:pc}, {k:'buybox_pct', l:'Buy Box', f:pc}];
-  box.innerHTML = mxTabela(cols, a, p, `${mxDmy(d.periodo.de)} a ${mxDmy(d.periodo.ate)}`, `${mxDmy(d.anterior.de)} a ${mxDmy(d.anterior.ate)}`) +
-    `<div class="sac-mut" style="font-size:11px;margin-top:4px">Dados por ASIN. Se o ASIN tem mais de um SKU (FBA e DBA), os números valem para o ASIN inteiro.</div>`;
+  if (tab) {
+    if (tab.A) { tab.A.visitas = a.sessoes; tab.A.conv_c = a.conversao_pct != null ? a.conversao_pct / 100 : null; }
+    if (tab.B && p) { tab.B.visitas = p.sessoes; tab.B.conv_c = p.conversao_pct != null ? p.conversao_pct / 100 : null; }
+    amzRenderTabelas();
+  }
+  box.innerHTML = '<div class="sac-mut" style="font-size:11px">Visitas e conversão por ASIN (P1 e P2). Se o ASIN tem mais de um SKU (FBA e DBA), os números valem para o ASIN inteiro.</div>';
 }
 
 function amzCalc() {
@@ -2327,12 +2348,7 @@ function renderModalContent(mlb, conta) {
   const mil = v => dec2(v).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   const diasB = diasPer || 1;
   A.media_dia = diasPer ? (A.unidades || 0) / diasPer : 0; B.media_dia = diasPer ? (B.unidades || 0) / diasB : 0;
-  _adsCtx = {A, B, rotA, rotB, extras: [{o: P3, rot: rotC}, {o: P4, rot: rotD}], todas: [
-    {k:'tacos', l:'TACOS', f:pct2, inv:true}, {k:'acos', l:'ACOS', f:pct2, inv:true}, {k:'roas', l:'ROAS', f:dec2},
-    {k:'ads_total', l:'Investimento (R$)', f:mil, neu:true}, {k:'receita_publi', l:'Receita por ADS (R$)', f:mil},
-    {k:'vads', l:'Vendas por ADS (un.)', f:v=>r(v)}, {k:'vendas_sem_publi', l:'Vendas sem ADS (un.)', f:v=>r(v)},
-    {k:'impressoes', l:'Impressões', f:v=>r(v)}, {k:'cliques', l:'Cliques', f:v=>r(v)}, {k:'ctr_c', l:'CTR', f:pct2},
-    {k:'cpc_c', l:'CPC (R$)', f:dec2, inv:true}, {k:'cvr_ads', l:'Conversão do ADS', f:pct2}]};
+  _adsCtx = {A, B, rotA, rotB, extras: [{o: P3, rot: rotC}, {o: P4, rot: rotD}], todas: adsTodas()};
   A.cvr_ads = A.cliques > 0 ? (A.vads || 0) / A.cliques : 0; B.cvr_ads = B.cliques > 0 ? (B.vads || 0) / B.cliques : 0;
   const colsVendas = [
     {k:'media_dia', l:'Média diária (un.)', f:dec2}, {k:'unidades', l:'Unidades', f:v=>r(v)}, {k:'visitas', l:'Visitas', f:v=>r(v)},
@@ -2664,6 +2680,17 @@ function mxVar(atual, ant, inverso, neutro) {
   const bom = inverso ? diff < 0 : diff > 0;
   const cls = neutro ? 'neu' : (bom ? 'up' : 'dn');
   return `<span class="mxt-pill ${cls}">${diff > 0 ? '▲' : '▼'} ${Math.abs(diff / ant * 100).toFixed(1).replace('.', ',')}%</span>`;
+}
+const _mil = v => Number(v||0).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+const _dec2 = v => Number(v||0).toFixed(2).replace('.', ',');
+function adsTodas() {
+  const n = v => r(v);
+  return [
+    {k:'tacos', l:'TACOS', f:pct2, inv:true}, {k:'acos', l:'ACOS', f:pct2, inv:true}, {k:'roas', l:'ROAS', f:_dec2},
+    {k:'ads_total', l:'Investimento (R$)', f:_mil, neu:true}, {k:'receita_publi', l:'Receita por ADS (R$)', f:_mil},
+    {k:'vads', l:'Vendas por ADS (un.)', f:n}, {k:'vendas_sem_publi', l:'Vendas sem ADS (un.)', f:n},
+    {k:'impressoes', l:'Impressões', f:n}, {k:'cliques', l:'Cliques', f:n}, {k:'ctr_c', l:'CTR', f:pct2},
+    {k:'cpc_c', l:'CPC (R$)', f:_dec2, inv:true}, {k:'cvr_ads', l:'Conversão do ADS', f:pct2}];
 }
 let _adsCtx = null;
 const ADS_PADRAO = ['tacos', 'acos', 'roas', 'ads_total', 'receita_publi', 'vads', 'vendas_sem_publi'];
