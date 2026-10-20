@@ -427,26 +427,26 @@ input.modal-date:focus{border-color:var(--gold);}
 .mx-hist div{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid var(--border);}
 .kpi-badge-neu{color:var(--muted2);}
 /* ══ Novo layout dos modais: tabelas em colunas, rebot e PIVO ══ */
-.modal.modal-wide{width:1300px;max-width:96vw;}
+.modal.modal-wide{width:1560px;max-width:97vw;}
 .mx-strip{grid-template-columns:repeat(var(--cols,6),minmax(0,1fr));}
-.mx-main{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;align-items:start;}
-.mx-left{display:flex;flex-direction:column;gap:14px;min-width:0;}
+.mx-main{display:grid;grid-template-columns:var(--g,minmax(250px,.8fr) minmax(0,2fr) minmax(0,1.15fr));gap:14px;align-items:start;}.mx-main > .mx-sim{order:-1;}
+.mx-left{display:contents;}
 .mx-card2{background:var(--bg3);border-radius:16px;padding:14px 16px;border:1px solid rgba(128,128,128,.10);box-shadow:0 1px 2px rgba(0,0,0,.04),0 12px 30px rgba(20,32,26,.06);min-width:0;}
-.mx-card2 > h4{margin:0 0 8px;font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
-.mx-card2 > h4 small{font-weight:500;color:var(--muted2);font-size:11px;}
+.mx-card2 > h4{margin:0 0 10px;font-size:16px;font-weight:700;display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+.mx-card2 > h4 small{font-weight:500;color:var(--muted2);font-size:10.5px;}
 .mxt{display:flex;flex-direction:column;gap:3px;overflow-x:auto;}
-.mxt-row{display:grid;grid-template-columns:112px repeat(var(--n),minmax(64px,1fr));align-items:center;border-radius:12px;}
-.mxt-row > div{padding:7px 8px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.mxt-row{display:grid;grid-template-columns:78px repeat(var(--n),minmax(0,1fr));align-items:center;border-radius:12px;}
+.mxt-row > div{padding:6px 4px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
 .mxt-row > .lab{text-align:left;display:flex;flex-direction:column;gap:1px;line-height:1.2;}
-.mxt-head > div{font-size:11px;font-weight:600;color:var(--muted2);padding-bottom:3px;}
+.mxt-head > div{white-space:normal;line-height:1.15;font-size:10px;font-weight:600;color:var(--muted2);padding-bottom:3px;}
 .mxt-row.sel{background:linear-gradient(90deg,rgba(22,101,52,.10),rgba(22,101,52,.03));}
-.mxt-row.sel > div:not(.lab){font-weight:800;font-size:14px;}
-.mxt-row.sel .lab b{font-size:12px;}
+.mxt-row.sel > div:not(.lab){font-weight:800;font-size:12.5px;}
+.mxt-row .lab b{font-size:11px;}
 .mxt-row.ant{color:var(--muted2);}
-.mxt-row.ant > div:not(.lab){font-weight:400;font-size:13px;}
+.mxt-row.ant > div:not(.lab){font-weight:400;font-size:11.5px;}
 .mxt-row .lab small{font-size:10px;font-weight:400;color:var(--muted2);}
 .mxt-row.var > div:not(.lab){padding:4px 6px;}
-.mxt-pill{display:inline-flex;align-items:center;gap:3px;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;}
+.mxt-pill{display:inline-flex;align-items:center;gap:2px;padding:2px 6px;border-radius:999px;font-size:10px;font-weight:700;}
 .mxt-pill.up{background:rgba(34,197,94,.15);color:#15803d;}
 .mxt-pill.dn{background:rgba(239,68,68,.14);color:#b91c1c;}
 .mxt-pill.neu{background:rgba(120,120,120,.14);color:var(--muted2);}
@@ -480,7 +480,7 @@ html:not([data-tema="claro"]) .mxt-pill.up{color:#4ade80;}html:not([data-tema="c
 .mapa-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;}
 .mapa-chip{font-size:10.5px;padding:2px 8px;border-radius:999px;background:rgba(120,120,120,.12);color:var(--muted2);white-space:nowrap;}
 .mapa-chip b{color:var(--text);font-weight:700;}
-@media (max-width:1100px){.mx-main{grid-template-columns:1fr;}}
+@media (max-width:1200px){.mx-main{grid-template-columns:1fr;}}
 
 .mx-avisos{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px;min-height:0;}
 .mx-aviso{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid;cursor:default;}
@@ -1435,7 +1435,7 @@ function amzDesenharModal(d) {
         <div class="mx-sim-info" style="margin-top:8px">CMV ${c.origem==='base'?'da base central (arquivo do Grupo)':(c.cmv_unit!=null?'cadastrado para este SKU':'não encontrado: importe o CMV em Configurações')}. Os valores iniciais são as médias do período selecionado.</div>
       </aside>`;
   document.getElementById('amz-body').innerHTML = `
-    <div class="mx-main">
+    <div class="mx-main" style="--g:minmax(250px,.8fr) minmax(0,.7fr) minmax(0,2fr)">
       <div class="mx-left">
         <section class="mx-card2"><h4>Dados de ADS<small>indisponível por SKU</small></h4>
           <div class="sac-mut" style="font-size:12px;line-height:1.5">Falta a liberação da Advertising API da Amazon (credencial própria). A fatura de Ads da conta aparece nos cartões da tela principal, sem rateio.</div></section>
