@@ -88,3 +88,4 @@ amazon_trafego_*.json
 # PIVO (cache e marcacoes locais)
 pivo_cache.json
 pivo_manual.json
+full_alertas_cache.json

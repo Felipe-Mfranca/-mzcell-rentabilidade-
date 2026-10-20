@@ -39,10 +39,10 @@ class Regras(unittest.TestCase):
         self.assertIn("V", ids(pivo_ml.avaliar(BOM, "d" * 200, PROMO, "active"), True))
 
     def test_descricao_minima_e_aviso_de_longa(self):
-        self.assertIn("O", ids(pivo_ml.avaliar(BOM, "d" * 149, PROMO, "active"), False))
+        self.assertIn("D", ids(pivo_ml.avaliar(BOM, "d" * 149, PROMO, "active"), False))
         r = pivo_ml.avaliar(BOM, "d" * 3500, PROMO, "active")
-        self.assertIn("O", ids(r, True))
-        self.assertIn("longa", next(c for c in r["checks"] if c["id"] == "O")["detalhe"])
+        self.assertIn("D", ids(r, True))
+        self.assertIn("longa", next(c for c in r["checks"] if c["id"] == "D")["detalhe"])
 
     def test_promocao_ignora_banco_e_candidata(self):
         so_banco = [{"type": "BANK", "status": "started", "name": "PIX"}, {"type": "DEAL", "status": "candidate", "name": "x"}]
@@ -56,10 +56,44 @@ class Regras(unittest.TestCase):
 
     def test_passa_so_com_tudo_ok_e_lista_atencao(self):
         r = pivo_ml.avaliar(BOM, "d" * 200, PROMO, "active")
-        self.assertEqual((r["passa"], r["pontos"], r["total"], r["atencao"]), (True, 6, 6, []))
+        self.assertEqual((r["passa"], r["pontos"], r["total"], r["atencao"]), (True, 4, 4, []))
         r = pivo_ml.avaliar(dict(BOM, video_id=None), "d" * 10, [], None)
         self.assertFalse(r["passa"])
         self.assertEqual(len(r["atencao"]), 4)   # clip não confirmado, descrição, promoção, ADS
+
+
+class Grupos(unittest.TestCase):
+    def grupos(self, r):
+        return {g["id"]: g["ok"] for g in r["grupos"]}
+
+    def test_quatro_grupos_p_i_v_o(self):
+        r = pivo_ml.avaliar(BOM, "d" * 200, PROMO, "active")
+        self.assertEqual(self.grupos(r), {"P": True, "I": True, "V": True, "O": True})
+
+    def test_p_exige_titulo_e_descricao(self):
+        self.assertFalse(self.grupos(pivo_ml.avaliar(dict(BOM, title="curto"), "d" * 200, PROMO, "active"))["P"])
+        self.assertFalse(self.grupos(pivo_ml.avaliar(BOM, "d" * 10, PROMO, "active"))["P"])
+
+    def test_o_exige_promocao_e_ads(self):
+        self.assertFalse(self.grupos(pivo_ml.avaliar(BOM, "d" * 200, PROMO, None))["O"])
+        self.assertFalse(self.grupos(pivo_ml.avaliar(BOM, "d" * 200, [], "active"))["O"])
+        r = pivo_ml.avaliar(BOM, "d" * 200, [], None)
+        self.assertEqual([p["id"] for p in next(g for g in r["grupos"] if g["id"] == "O")["partes"]], ["PROMO", "ADS"])
+
+    def test_v_desconhecido_fica_sem_cor(self):
+        self.assertIsNone(self.grupos(pivo_ml.avaliar(dict(BOM, video_id=None), "d" * 200, PROMO, "active"))["V"])
+
+    def test_resultado_antigo_sem_grupos_e_refeito(self):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        cache = os.path.join(d.name, "c.json")
+        antigo = {"checks": [], "pontos": 3, "total": 6, "passa": False, "atencao": [],
+                  "_entrada": {"item": BOM, "descricao_n": 200, "promocoes": PROMO, "ads": "active"}}
+        json.dump({"meli01": {"MLB1": antigo, "_meta": {"gerado_em": "x"}}}, open(cache, "w"))
+        with mock.patch.object(pivo_ml, "CACHE_PATH", cache), mock.patch.object(pivo_ml, "MANUAL_PATH", os.path.join(d.name, "m.json")):
+            r = pivo_ml.resultado("meli01")["itens"]["MLB1"]
+        self.assertTrue(r["passa"])
+        self.assertEqual(r["total"], 4)
 
 
 class Cache(unittest.TestCase):

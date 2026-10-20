@@ -335,6 +335,20 @@ class CustosPayload(BaseModel):
     rebot_fim: str = ""
     simulador: Optional[dict] = None
 
+# ─── Full: aviso de estoque zerado ou perto de romper (somente leitura) ─────────────
+@app.get("/full/{conta}/alertas")
+def full_alertas(conta: str, atualizar: bool = False):
+    """Saldo do Full contra a média diária dos últimos 7 dias: zerado, crítico (até 5 dias) ou atenção (até 10 dias)."""
+    import full_alerta
+    from reposicao_full import ML
+    if conta not in ("meli01", "meli02", "meli03"):
+        raise HTTPException(status_code=404, detail="conta inválida")
+    try:
+        return full_alerta.obter(conta, ML(conta), atualizar)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"{type(e).__name__}: {str(e)[:150]}")
+
+
 # ─── PIVO: análise dos anúncios do ML (somente leitura) ──────────────────────────
 @app.post("/pivo/{conta}/analisar")
 def pivo_analisar(conta: str):

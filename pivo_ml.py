@@ -3,14 +3,15 @@ pivo_ml.py — Análise PIVO dos anúncios do Mercado Livre (somente leitura)
 MZCell Rentabilidade
 
 PIVO = Palavras-chave indexadas, Imagens com quebra de objeções, Vídeo, Otimização (promoção e ADS).
-Para cada anúncio confere:
-  P  título preenchido com pelo menos 60 caracteres
+Quatro grupos, cada um com suas verificações:
+  P  título com pelo menos 60 caracteres + descrição objetiva (mínimo de 150 caracteres; "objetiva" é avaliação
+     humana, a tela avisa se for muito longa)
   I  pelo menos 5 imagens em 1200x1200 (ou maior)
-  V  clip/vídeo (a API do ML não expõe os clips: vale o video_id do anúncio ou a marcação manual do analista)
-  O  descrição preenchida (mínimo de 150 caracteres; "objetiva" é avaliação humana, a tela avisa se for muito longa)
-  Promoção  inscrito em campanha de desconto (started ou pending; promoção de banco/PIX não conta)
-  ADS       publicidade ativa (Product Ads com status active)
-Anúncio que não passa em tudo ganha um item de atenção com o que falta. Nada é escrito no ML.
+  V  clip/vídeo: o endpoint de clips do ML (/marketplace/items/{id}/clips) responde 403 para o nosso app, então vale
+     o video_id do anúncio ou a marcação manual do analista
+  O  inscrito em campanha de desconto (started ou pending; promoção de banco/PIX não conta) + publicidade ativa
+     (Product Ads com status active). O grupo só fica verde com as duas
+Anúncio que não passa em todos os grupos ganha um item de atenção com o que falta. Nada é escrito no ML.
 
 O resultado fica em pivo_cache.json (por conta) e as marcações manuais de clip em pivo_manual.json; os dois
 no .gitignore. A análise de uma conta roda em segundo plano (centenas de chamadas).
@@ -68,7 +69,7 @@ def avaliar(item: dict, descricao: str, promocoes: list, ads_status, clip_manual
 
     d = len((descricao or "").strip())
     longa = " (longa: confira se está objetiva)" if d > DESCRICAO_LONGA else ""
-    add("O", "Descrição objetiva", d >= DESCRICAO_MIN, f"{d} caracteres (mínimo {DESCRICAO_MIN}){longa}")
+    add("D", "Descrição objetiva", d >= DESCRICAO_MIN, f"{d} caracteres (mínimo {DESCRICAO_MIN}){longa}")
 
     ativas = [p for p in promocoes or [] if p.get("status") in ("started", "pending") and p.get("type") not in PROMOS_IGNORADAS]
     add("PROMO", "Campanha de desconto", bool(ativas),
@@ -76,8 +77,17 @@ def avaliar(item: dict, descricao: str, promocoes: list, ads_status, clip_manual
 
     add("ADS", "Publicidade ativa", ads_status == "active", f"Product Ads: {ads_status or 'sem campanha'}")
 
-    pontos = sum(1 for c in checks if c["ok"] is True)
-    return {"checks": checks, "pontos": pontos, "total": len(checks), "passa": pontos == len(checks),
+    por_id = {c["id"]: c for c in checks}
+
+    def grupo(id_, nome, partes):
+        oks = [por_id[x]["ok"] for x in partes]
+        ok = True if all(o is True for o in oks) else (False if any(o is False for o in oks) else None)
+        return {"id": id_, "nome": nome, "ok": ok, "partes": [por_id[x] for x in partes]}
+
+    grupos = [grupo("P", "Palavras-chave indexadas", ["P", "D"]), grupo("I", "Imagens", ["I"]),
+              grupo("V", "Vídeo (clip)", ["V"]), grupo("O", "Otimização: promoção e ADS", ["PROMO", "ADS"])]
+    pontos = sum(1 for g in grupos if g["ok"] is True)
+    return {"checks": checks, "grupos": grupos, "pontos": pontos, "total": len(grupos), "passa": pontos == len(grupos),
             "atencao": [c["nome"] + ": " + c["detalhe"] for c in checks if c["ok"] is not True]}
 
 
@@ -107,6 +117,13 @@ def estado(conta: str) -> dict:
 def resultado(conta: str) -> dict:
     c = _ler(CACHE_PATH).get(conta) or {}
     itens = {k: v for k, v in c.items() if k != "_meta"}
+    manual = _ler(MANUAL_PATH).get(conta) or {}
+    for mlb, v in itens.items():            # resultados de versões antigas (sem grupos) são refeitos a partir da entrada guardada
+        if "grupos" not in v and v.get("_entrada"):
+            e = v["_entrada"]
+            novo = avaliar(e["item"], "x" * (e.get("descricao_n") or 0), e["promocoes"], e["ads"], (manual.get(mlb) or {}).get("clip"))
+            novo["_entrada"] = e
+            itens[mlb] = novo
     fora = sum(1 for v in itens.values() if not v["passa"])
     return {"conta": conta, "estado": estado(conta), "total": len(itens), "fora_do_pivo": fora, "itens": itens}
 

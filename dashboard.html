@@ -437,6 +437,17 @@ input.modal-date:focus{border-color:var(--gold);}
 .pivo-chip.na{color:#92400e;background:rgba(245,158,11,.14);border-color:rgba(245,158,11,.5);}
 .pivo-chip.clicavel{cursor:pointer;}
 .pivo-cel{font-size:11px;font-weight:700;}
+.pivo-l{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;font-size:12px;font-weight:800;margin-right:3px;background:#e5e7eb;color:#9ca3af;}
+.pivo-l.mini{width:17px;height:17px;font-size:10px;border-radius:5px;margin-right:2px;}
+.pivo-l.on-P{background:#2563eb;color:#fff;}.pivo-l.on-I{background:#7c3aed;color:#fff;}.pivo-l.on-V{background:#dc2626;color:#fff;}.pivo-l.on-O{background:#16a34a;color:#fff;}
+.pivo-l.clicavel{cursor:pointer;}
+.mx-aviso.full-zerado{color:#991b1b;background:rgba(239,68,68,.14);border-color:rgba(239,68,68,.6);}
+.mx-aviso.full-critico{color:#991b1b;background:rgba(239,68,68,.10);border-color:rgba(239,68,68,.5);}
+.mx-aviso.full-atencao{color:#92400e;background:rgba(245,158,11,.16);border-color:rgba(245,158,11,.6);}
+.full-tag{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid;vertical-align:middle;}
+.full-tag.zerado,.full-tag.critico{color:#991b1b;background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.5);}
+.full-tag.atencao{color:#92400e;background:rgba(245,158,11,.16);border-color:rgba(245,158,11,.55);}
+html:not([data-tema="claro"]) .pivo-l{background:#2f3642;color:#6b7280;}
 .pivo-cel.ok{color:var(--green);}.pivo-cel.pouco{color:var(--gold);}.pivo-cel.ruim{color:var(--red);}
 .mx-col .kpi-badge-var::after{left:auto;right:0;transform:none;}
 @media (max-width:1000px){.mx-strip{grid-template-columns:repeat(3,1fr);}.mx-cols{grid-template-columns:1fr;}}
@@ -830,7 +841,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
         <button class="btn-sync-produto" id="btn-sync-produto"><span id="sync-icon">↻</span> Sincronizar MLB</button>
       </div>
     </div>
-    <div class="mx-avisos" id="m-avisos"><span id="m-aviso-rebot"></span><span id="m-pivo"></span></div>
+    <div class="mx-avisos" id="m-avisos"><span id="m-aviso-full"></span><span id="m-aviso-rebot"></span><span id="m-pivo"></span></div>
     <div class="mx-strip-wrap">
       <div class="mx-strip-cap">Média por unidade, últimos 30 dias (fixa)</div>
       <div class="mx-strip" id="mx-strip"></div>
@@ -1802,6 +1813,7 @@ async function buscarPeriodo(conta) {
     renderTable(conta, data.produtos);
     carregarPosicoes(conta);
     pivoCarregar(conta);
+    fullCarregar(conta);
   } catch(e){
     document.getElementById(`tbl-${conta}`).innerHTML='<div class="empty"><div class="empty-icon">⚡</div><div class="empty-text">Erro ao carregar dados</div></div>';
     renderKPIs(conta,null,null);
@@ -2025,7 +2037,7 @@ function renderTable(conta, produtos) {
       <tr class="${per.margem_pct<0?'row-neg':''}" onclick="openModal('${p.mlb}','${conta}')">
         <td>
           <div class="td-prod">${p.titulo||p.mlb}</div>
-          <div class="td-sku">${p.sku||''}</div>
+          <div class="td-sku">${p.sku||''}<span data-fulltag="${p.mlb}">${renderFullTag(conta,p.mlb)}</span></div>
           ${p.arquivado?'<div class="td-arq">Arquivado</div>':''}
           <div class="td-mlb">${p.mlb}</div>
         </td>
@@ -2188,6 +2200,7 @@ function openModal(mlb, conta) {
 function renderModalContent(mlb, conta) {
   const _ar = document.getElementById('m-aviso-rebot'); if (_ar) _ar.innerHTML = '';
   mostrarPivoModal(conta, mlb);
+  mostrarAvisoFull(conta, mlb);
   const de  = document.getElementById('modal-de')?.value || '';
   const ate = document.getElementById('modal-ate')?.value || '';
   const dbProd = db[conta]?.produtos?.find(x => x.mlb === mlb);
@@ -2335,6 +2348,38 @@ async function trocarSt(mlb, conta, sel) {
     .catch(() => toast('Erro ao salvar o imposto', 'error'));
 }
 
+// ── Full: aviso de estoque zerado ou perto de romper (média diária dos 7 dias contra o saldo) ──
+const _fullAl = {};
+async function fullCarregar(conta) {
+  try {
+    const d = await (await fetch(`${API}/full/${conta}/alertas`)).json();
+    if (!d.itens) return;
+    _fullAl[conta] = d;
+    document.querySelectorAll(`#tab-${conta} span[data-fulltag]`).forEach(sp => { sp.innerHTML = renderFullTag(conta, sp.dataset.fulltag); });
+  } catch(e) {}
+}
+function textoFull(a) {
+  if (a.nivel === 'zerado') return 'Sem estoque no Full';
+  return `Estoque no Full para ${String(a.dias_cobertura).replace('.', ',')} dias`;
+}
+function detalheFull(a) {
+  return `Saldo no Full: ${a.saldo} un (disponível + em transferência) · média dos últimos 7 dias: ${String(a.media_7d).replace('.', ',')} un/dia` +
+    (a.anuncios_no_inventario > 1 ? ` (soma de ${a.anuncios_no_inventario} anúncios que dividem o mesmo estoque)` : '') + ' · o saldo não cobre mais de 10 dias';
+}
+function renderFullTag(conta, mlb) {
+  const a = _fullAl[conta]?.itens?.[mlb];
+  if (!a || !a.nivel) return '';
+  return `<span class="full-tag ${a.nivel}" title="${sacEsc(detalheFull(a))}">${a.nivel === 'zerado' ? 'Full zerado' : 'Full ' + String(a.dias_cobertura).replace('.', ',') + ' d'}</span>`;
+}
+async function mostrarAvisoFull(conta, mlb) {
+  const box = document.getElementById('m-aviso-full'); if (!box) return;
+  box.innerHTML = '';
+  if (!_fullAl[conta]) await fullCarregar(conta);
+  const a = _fullAl[conta]?.itens?.[mlb];
+  if (document.getElementById('m-aviso-full') !== box || !a || !a.nivel) return;
+  box.innerHTML = `<span class="mx-aviso full-${a.nivel}" title="${sacEsc(detalheFull(a))}">${textoFull(a)} · média ${String(a.media_7d).replace('.', ',')}/dia, saldo ${a.saldo}</span>`;
+}
+
 // ── Aviso de novo rebot (compacto, no cabeçalho do modal) ───────────────────
 function mostrarAvisoRebot(o) {
   const box = document.getElementById('m-aviso-rebot'); if (!box) return;
@@ -2364,28 +2409,26 @@ async function pivoAnalisar(conta) {
 }
 function renderPivoCel(conta, mlb) {
   const it = _pivo[conta]?.itens?.[mlb];
-  if (!it) return '<span class="sac-mut">—</span>';
-  const cls = it.passa ? 'ok' : (it.pontos >= it.total - 1 ? 'pouco' : 'ruim');
-  return `<span class="pivo-cel ${cls}" title="${sacEsc(it.passa ? 'Passa no PIVO' : 'Atenção: ' + it.atencao.join(' | '))}">${it.pontos}/${it.total}</span>`;
+  if (!it || !it.grupos) return '<span class="sac-mut">—</span>';
+  const tip = it.passa ? 'Passa no PIVO' : 'Atenção: ' + it.atencao.join(' | ');
+  return `<span title="${sacEsc(tip)}">${it.grupos.map(g => `<span class="pivo-l mini ${g.ok === true ? 'on-' + g.id : ''}">${g.id}</span>`).join('')}</span>`;
 }
 function pivoAtualizarCelulas(conta) {
   document.querySelectorAll(`#tab-${conta} td[data-pivo]`).forEach(td => { td.innerHTML = renderPivoCel(conta, td.dataset.pivo); });
 }
-const PIVO_CURTO = {P:'P', I:'I', V:'V', O:'O', PROMO:'Promo', ADS:'ADS'};
 function mostrarPivoModal(conta, mlb) {
   const box = document.getElementById('m-pivo'); if (!box) return;
   const it = _pivo[conta]?.itens?.[mlb];
-  if (!it) { box.innerHTML = `<span class="mx-aviso pivo-atencao" style="cursor:pointer" onclick="pivoAnalisar('${conta}')" title="Clique para analisar os anúncios da conta">PIVO não analisado</span>`; return; }
-  const chips = it.checks.map(c => {
-    const cls = c.ok === true ? 'ok' : (c.ok === false ? 'nok' : 'na');
-    const extra = c.id === 'V' ? ' clicavel' : '';
-    const clique = c.id === 'V' ? ` onclick="pivoAlternarClip('${conta}','${mlb}')"` : '';
-    return `<span class="pivo-chip ${cls}${extra}"${clique} title="${sacEsc(c.nome + ': ' + c.detalhe + (c.id==='V' ? ' (clique para alternar: tem clip, sem clip, não confirmado)' : ''))}">${PIVO_CURTO[c.id]}</span>`;
-  }).join(' ');
-  const resumo = it.passa
-    ? `<span class="mx-aviso pivo-ok">PIVO ${it.pontos}/${it.total}</span>`
-    : `<span class="mx-aviso pivo-atencao" title="${sacEsc(it.atencao.join('\n'))}">Atenção PIVO ${it.pontos}/${it.total}: ${sacEsc(it.checks.filter(c=>c.ok!==true).map(c=>PIVO_CURTO[c.id]).join(', '))}</span>`;
-  box.innerHTML = resumo + ' ' + chips;
+  if (!it || !it.grupos) { box.innerHTML = `<span class="mx-aviso pivo-atencao" style="cursor:pointer" onclick="pivoAnalisar('${conta}')" title="Clique para analisar os anúncios da conta">PIVO não analisado</span>`; return; }
+  const letras = it.grupos.map(g => {
+    const partes = g.partes.map(x => (x.ok === true ? '[ok] ' : x.ok === false ? '[falta] ' : '[?] ') + x.nome + ': ' + x.detalhe).join('\n');
+    const clique = g.id === 'V' ? ` onclick="pivoAlternarClip('${conta}','${mlb}')"` : '';
+    const dica = g.id === 'V' ? '\n(clique para alternar: tem clip, sem clip, não confirmado)' : '';
+    return `<span class="pivo-l ${g.ok === true ? 'on-' + g.id : ''}${g.id==='V' ? ' clicavel' : ''}"${clique} title="${sacEsc(g.nome + '\n' + partes + dica)}">${g.id}</span>`;
+  }).join('');
+  const faltam = it.grupos.filter(g => g.ok !== true).map(g => g.id).join(', ');
+  const resumo = it.passa ? '' : `<span class="mx-aviso pivo-atencao" title="${sacEsc(it.atencao.join('\n'))}">Atenção PIVO ${it.pontos}/${it.total}: ${faltam}</span> `;
+  box.innerHTML = resumo + `<span style="display:inline-flex;align-items:center">${letras}</span>`;
 }
 async function pivoAlternarClip(conta, mlb) {
   const it = _pivo[conta]?.itens?.[mlb]; if (!it) return;
