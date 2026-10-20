@@ -4,28 +4,25 @@ Cada pessoa roda o app no próprio computador. Para que comentários, posição 
 apareçam para todos, o app grava e lê uma planilha do Google. Isso é feito **automaticamente em segundo plano**;
 o Claude não participa do funcionamento.
 
-## 1. Criar a planilha e o script (uma vez, na conta da empresa)
-1. Em sheets.google.com, crie uma planilha em branco chamada **MZ-app dados**.
-2. Menu **Extensões > Apps Script**. Apague o que estiver no editor e cole o conteúdo de `compartilhado/Code.gs`. Salve.
-3. Defina o código de acesso (uma senha longa que só a equipe conhece):
-   - Engrenagem **Configurações do projeto** > **Propriedades do script** > **Adicionar propriedade**.
-   - Nome: `TOKEN`. Valor: invente uma sequência longa (mínimo 30 caracteres, letras e números).
-4. **Implantar > Nova implantação** > tipo **App da Web**:
-   - Executar como: **Eu**.
-   - Quem tem acesso: **Qualquer pessoa**.
-   - Autorize quando o Google pedir. Copie a **URL do app da Web** (termina em `/exec`).
+## 1. Criar tudo pelo script.google.com (uma vez, na conta da empresa)
+1. Abra **script.google.com** (de preferência em janela anônima, com uma conta só) > **Novo projeto**.
+2. Apague o código e cole o conteúdo de `compartilhado/Code.gs`. Salve.
+3. Escolha a função **`configurar`** na lista do editor e clique em **Executar**. Autorize quando o Google pedir.
+   Ela cria a planilha **MZ-app dados** na sua conta, gera o **TOKEN** e cria as abas.
+4. Em **Registro de execução** aparecem o endereço da planilha e o **TOKEN**. Copie o TOKEN (para o passo 2 abaixo).
+   Para ver de novo, rode a função **`mostrarDados`**.
+5. **Implantar > Nova implantação** > tipo **App da Web**: executar como **Eu**, quem tem acesso **Qualquer pessoa**.
+   Autorize e copie a **URL do app da Web** (termina em `/exec`).
 
 A URL sozinha não dá acesso: sem o `TOKEN` o script recusa qualquer pedido.
 
-**Se Extensões > Apps Script der erro** ("Não foi possível abrir o arquivo": costuma ser duas contas Google logadas ou
-Apps Script bloqueado na conta): abra **script.google.com** em janela anônima, crie um **Novo projeto**, cole o `Code.gs`
-e, além do `TOKEN`, adicione a propriedade `PLANILHA_ID` (o trecho da URL da planilha entre `/d/` e `/edit`). Depois siga
-o passo 4 normalmente. A planilha precisa ser uma **Planilha Google nativa** (Novo > Planilhas Google), não um `.xlsx`.
+(Alternativa manual: criar uma Planilha Google nativa, abrir Extensões > Apps Script, colar o código e definir as
+propriedades `TOKEN` e, se o projeto for avulso, `PLANILHA_ID`. A planilha precisa ser nativa, não um `.xlsx`.)
 
 ## 2. Configurar em cada computador
 1. Copie `shared_config.exemplo.json` para `shared_config.json` (na pasta do app) e preencha:
    ```json
-   { "url": "<a URL que termina em /exec>", "token": "<o mesmo TOKEN do passo 1.3>", "intervalo_seg": 60 }
+   { "url": "<a URL que termina em /exec>", "token": "<o TOKEN do passo 1.4>", "intervalo_seg": 60 }
    ```
 2. Teste a conexão: `.\venv\Scripts\python.exe -m shared_store --testar`
    (mostra apenas "conectado" ou o motivo da falha).

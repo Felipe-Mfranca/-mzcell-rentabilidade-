@@ -29,6 +29,32 @@ function doPost(e) {
   }
 }
 
+/**
+ * CONFIGURAÇÃO AUTOMÁTICA (rode uma vez no editor: escolha "configurar" e clique em Executar).
+ * Cria a planilha "MZ-app dados", gera o TOKEN, cria as abas e mostra os dados no Registro de execução.
+ */
+function configurar() {
+  var props = PropertiesService.getScriptProperties();
+  if (!props.getProperty('PLANILHA_ID')) {
+    var ss = SpreadsheetApp.create('MZ-app dados');
+    props.setProperty('PLANILHA_ID', ss.getId());
+  }
+  if (!props.getProperty('TOKEN')) {
+    props.setProperty('TOKEN', Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, ''));
+  }
+  COLECOES.forEach(function (c) { abaDe(c); });
+  mostrarDados();
+}
+
+/** Mostra de novo a planilha e o TOKEN (Registro de execução). Não compartilhe o TOKEN fora da equipe. */
+function mostrarDados() {
+  var props = PropertiesService.getScriptProperties();
+  var id = props.getProperty('PLANILHA_ID');
+  Logger.log('Planilha: ' + (id ? SpreadsheetApp.openById(id).getUrl() : '(ainda não criada: rode configurar)'));
+  Logger.log('TOKEN (vai no shared_config.json): ' + (props.getProperty('TOKEN') || '(ainda não criado: rode configurar)'));
+  Logger.log('Depois: Implantar > Nova implantação > App da Web (executar como Eu; acesso Qualquer pessoa) e copiar a URL /exec.');
+}
+
 function doGet() {
   return saida({ ok: true, servico: 'MZ-app banco compartilhado' });
 }
