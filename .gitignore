@@ -97,3 +97,7 @@ shared_estado.json
 contestacoes_compartilhadas.json
 pivo_compartilhado.json
 fotos_cache.json
+
+# distribuicao controlada: nunca no GitHub
+CLAUDE.md
+dist/
