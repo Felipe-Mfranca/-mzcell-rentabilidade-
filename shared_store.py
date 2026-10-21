@@ -27,7 +27,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE_DIR, "shared_config.json")
 FILA_PATH = os.path.join(BASE_DIR, "shared_fila.json")
 ESTADO_PATH = os.path.join(BASE_DIR, "shared_estado.json")
-COLECOES = ("comentarios", "posicoes", "clips", "pivo", "contestacoes", "usuarios")
+COLECOES = ("comentarios", "posicoes", "clips", "pivo", "contestacoes", "usuarios", "tags")
 _trava = threading.Lock()
 
 

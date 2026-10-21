@@ -22,7 +22,7 @@ STATUS_ABERTOS = ("ready_to_ship", "pending")
 PREPARO_ANTES_MIN = 30
 META_FLEX_HORA = 12
 DIAS_BUSCA = 6
-PAGINAS = 3
+PAGINAS = 20          # 50 pedidos por página: até 1000 no período (antes 150 e perdia pedidos)
 CONTAS = ["meli01", "meli02", "meli03"]
 _cache = {}
 CACHE_SEG = 90
@@ -47,6 +47,35 @@ def prazos(canal: str, expected_date: str):
     return ml.isoformat(), meta.isoformat()
 
 
+# Situação do envio em português. Ordem do fluxo: pendente -> nota fiscal -> etiqueta -> impresso (em separação)
+# -> postado na agência (in_hub) -> despachado -> entregue. Pares não listados caem no status genérico.
+STATUS_PT = {"pending": "Pendente", "handling": "Em preparação", "ready_to_ship": "Pronto para despacho",
+             "shipped": "Despachado", "delivered": "Entregue", "not_delivered": "Não entregue", "cancelled": "Cancelado"}
+SUBSTATUS_PT = {
+    ("pending", "buffered"): "Aguardando liberação",
+    ("ready_to_ship", "invoice_pending"): "Aguardando nota fiscal",
+    ("ready_to_ship", "ready_to_print"): "Etiqueta pronta para impressão",
+    ("ready_to_ship", "printed"): "Em separação",
+    ("ready_to_ship", "packed"): "Embalado",
+    ("ready_to_ship", "in_packing_list"): "Na lista de postagem",
+    ("ready_to_ship", "in_hub"): "Postado na agência",
+    ("shipped", "out_for_delivery"): "Saiu para entrega",
+    ("shipped", "soon_deliver"): "Entrega em breve",
+    ("shipped", "at_the_door"): "Na porta",
+    ("shipped", "waiting_for_withdrawal"): "Aguardando retirada",
+    ("cancelled", "pack_splitted"): "Cancelado (pacote dividido)",
+    ("cancelled", "fraudulent"): "Cancelado (fraude)",
+    ("cancelled", "unfulfillable"): "Cancelado (não atendível)",
+}
+
+
+def situacao(status: str, sub: str) -> str:
+    if (status, sub) in SUBSTATUS_PT:
+        return SUBSTATUS_PT[(status, sub)]
+    base = STATUS_PT.get(status, status or "-")
+    return f"{base} ({sub})" if sub else base
+
+
 def linha(conta: str, pedido: dict, envio: dict, sla: dict):
     """Monta a linha do mapa; None se o envio não é do galpão ou já saiu."""
     canal = CANAIS.get(envio.get("logistic_type"))
@@ -59,8 +88,9 @@ def linha(conta: str, pedido: dict, envio: dict, sla: dict):
         i = it.get("item") or {}
         itens.append({"mlb": i.get("id"), "titulo": i.get("title"), "sku": i.get("seller_sku") or i.get("seller_custom_field"),
                       "qtd": it.get("quantity")})
-    return {"conta": conta, "canal": canal, "pedido": pedido.get("id"), "envio": envio.get("id"),
-            "status": envio.get("status"), "substatus": sub,
+    return {"conta": conta, "canal": canal, "logistica": envio.get("logistic_type"), "pedido": pedido.get("id"), "envio": envio.get("id"),
+            "unidades": sum(i["qtd"] or 0 for i in itens), "status": envio.get("status"), "substatus": sub,
+            "situacao": situacao(envio.get("status"), sub),
             "liberado": envio.get("status") == "ready_to_ship",   # pending/buffered = ainda não liberado
             "sla_status": (sla or {}).get("status"), "prazo_ml": prazo_ml, "meta": meta, "itens": itens}
 

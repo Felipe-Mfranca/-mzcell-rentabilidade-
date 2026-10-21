@@ -41,6 +41,11 @@
   .tag.ok { background:var(--okb); color:var(--ok); } .tag.am { background:var(--amb); color:var(--am); } .tag.vm { background:var(--vmb); color:var(--vm); }
   .erro { background:var(--vmb); color:var(--vm); padding:8px 12px; border-radius:8px; margin-bottom:10px; }
   .nota { color:var(--mut); font-size:12px; margin-top:20px; }
+  .mont { display:grid; grid-template-columns:72px 1fr; gap:12px; background:var(--card); border:1px solid var(--bd); border-radius:8px; padding:10px 12px; margin-bottom:8px; }
+  .foto { width:72px; height:72px; object-fit:cover; border-radius:6px; background:var(--czb); }
+  .foto.sem { display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--mut); }
+  .mt { font-weight:700; }
+  .quebra { font-size:16px; font-weight:700; margin-top:4px; color:var(--ok); }
   @media (max-width:560px) { .linha { grid-template-columns:1fr; } }
 </style>
 </head>
@@ -58,7 +63,7 @@
   Amazon DBA (corte 11h, ponto até 14h) e Shopee (12h) entram nas próximas etapas. Verde: mais de 60 min. Amarelo: até 60 min. Vermelho: vencido.</p>
 </main>
 <script>
-  var dados = null, AMARELO_MIN = 60, aba = 'hoje';
+  var dados = null, AMARELO_MIN = 60, aba = 'hoje', fotos = {};
   function dia(iso) { return iso ? new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) : ''; }
   function hojeStr() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }); }
   function ehHoje(l) { var d = dia(l.meta || l.prazo_ml); return !d || d <= hojeStr(); }
@@ -66,6 +71,8 @@
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
   function hm(iso) { var d = new Date(iso); return d.toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" }); }
   function falta(l) {
+    // Já postado (in_hub) ou na lista de postagem: a parte do vendedor está feita, não conta como atraso
+    if (l.status === "ready_to_ship" && (l.substatus === "in_hub" || l.substatus === "in_packing_list")) return { cls: "cz", txt: "postado · aguardando coleta", min: null };
     if (!l.meta) return { cls: "cz", txt: "sem prazo", min: null };
     var min = Math.round((new Date(l.meta) - new Date()) / 60000);
     if (min < 0) {
@@ -78,9 +85,10 @@
   function dur(m) { var h = Math.floor(m / 60), r = m % 60; return h ? h + "h" + (r < 10 ? "0" : "") + r : r + " min"; }
   function desenhar() {
     if (!dados) return;
-    var porCanal = {}, cont = { ok: 0, am: 0, vm: 0, cz: 0 }, contas = {};
+    var porCanal = {}, cont = { ok: 0, am: 0, vm: 0, cz: 0 }, contas = {}, logi = {};
     dados.linhas.forEach(function (l) {
       l._f = falta(l);
+      var lg = logi[l.canal] = logi[l.canal] || { p: 0, u: 0 }; lg.p++; lg.u += l.unidades || 0;
       var c = contas[l.conta] = contas[l.conta] || { total: 0, hoje: 0, prox: 0, vm: 0, aguardando: 0, canais: {} };
       c.total++; c.canais[l.canal] = (c.canais[l.canal] || 0) + 1;
       if (ehHoje(l)) c.hoje++; else c.prox++;
@@ -101,7 +109,9 @@
     var tot = { total: 0, hoje: 0, prox: 0, vm: 0, aguardando: 0, canais: {} };
     Object.keys(contas).forEach(function (k) { var c = contas[k]; ['total','hoje','prox','vm','aguardando'].forEach(function (f) { tot[f] += c[f]; }); });
     var nomes = { meli01: 'Meli01 (coleta)', meli02: 'Meli02 (agência)', meli03: 'Meli03 (agência)' };
-    el("kpis").innerHTML = card('Total', Object.assign(tot, { canais: {} })) + ['meli01','meli02','meli03'].map(function (k) { return card(nomes[k], contas[k] || { total: 0, hoje: 0, prox: 0, vm: 0, aguardando: 0, canais: {} }); }).join('');
+    var logHtml = Object.keys(logi).map(function (k) { return "<div class='n'><span>" + esc(k) + "</span><b>" + logi[k].p + " ped · " + logi[k].u + " un</b></div>"; }).join('');
+    el("kpis").innerHTML = "<div class='kpi'><h3>Logística (todas as contas)</h3>" + (logHtml || "<span class='meta'>sem envios</span>") + "</div>" +
+      card('Total', Object.assign(tot, { canais: {} })) + ['meli01','meli02','meli03'].map(function (k) { return card(nomes[k], contas[k] || { total: 0, hoje: 0, prox: 0, vm: 0, aguardando: 0, canais: {} }); }).join('');
     el("erros").innerHTML = Object.keys(dados.erros || {}).map(function (c) { return "<div class='erro'>❌ " + esc(c) + ": " + esc(dados.erros[c]) + " (conta não carregada)</div>"; }).join("");
     var html = "";
     Object.keys(porCanal).sort().forEach(function (k) {
@@ -114,16 +124,54 @@
           "<div class='meta'>meta " + (l.meta ? hm(l.meta) : "-") + "</div>" + (l.prazo_ml ? "<div class='meta'>ML até " + hm(l.prazo_ml) + "</div>" : "") +
           (f.extra ? "<div class='meta'>" + esc(f.extra) + "</div>" : "") + "</div>" +
           "<div><span class='tag " + (l.liberado ? "ok" : "") + "'>" + (l.liberado ? "liberado" : "aguardando liberação") + "</span>" +
-          "<span class='tag'>" + esc(l.substatus || l.status) + "</span><span class='meta'>pedido " + esc(l.pedido) + "</span>" + its + "</div></div>";
+          "<span class='tag'>" + esc(l.situacao || l.status) + "</span><span class='meta'>pedido " + esc(l.pedido) + "</span>" + its + "</div></div>";
       });
     });
-    el("lista").innerHTML = html || "<p class='meta'>" + (aba === "hoje" ? "Nenhum envio para hoje." : "Nenhum envio para os próximos dias.") + "</p>";
+    var doAba = dados.linhas.filter(function (l) { return ehHoje(l) === (aba === 'hoje'); });
+    el("lista").innerHTML = montagemHtml(doAba) + (html || "<p class='meta'>" + (aba === "hoje" ? "Nenhum envio para hoje." : "Nenhum envio para os próximos dias.") + "</p>");
     el("sub").textContent = "dados de " + hm(dados.gerado_em) + " · contagem atualiza a cada 30 s";
+  }
+  // Montagem para os embaladores: um produto por bloco, com a quebra de pacotes (1 pedido = 1 pacote)
+  function plural(n, s, p) { return n + ' ' + (n === 1 ? s : p); }
+  function montagemHtml(ls) {
+    var g = {}, mistos = [];
+    ls.forEach(function (l) {
+      if (l.itens.length !== 1) { mistos.push(l); return; }
+      var i = l.itens[0], k = i.mlb || i.titulo;
+      var x = g[k] = g[k] || { mlb: i.mlb, sku: i.sku, titulo: i.titulo, un: 0, ped: 0, pac: {} };
+      x.un += i.qtd || 0; x.ped++; x.pac[i.qtd] = (x.pac[i.qtd] || 0) + 1;
+    });
+    var lista = Object.keys(g).map(function (k) { return g[k]; }).sort(function (a, b) { return b.un - a.un; });
+    var h = "<h2>Montagem <small>· " + lista.length + " produto(s), " + plural(ls.length, 'pedido', 'pedidos') + "</small></h2>";
+    lista.forEach(function (x) {
+      var quebra = Object.keys(x.pac).map(Number).sort(function (a, b) { return a - b; })
+        .map(function (q) { return plural(x.pac[q], 'pacote', 'pacotes') + " de " + plural(q, 'un', 'un'); }).join(' · ');
+      var foto = fotos[x.mlb] ? "<img class='foto' src='" + esc(fotos[x.mlb]) + "' alt=''>" : "<div class='foto sem'>sem foto</div>";
+      h += "<div class='mont'>" + foto + "<div><div class='mt'>" + esc((x.titulo || '').slice(0, 90)) + "</div>" +
+        "<div class='meta'>" + (x.sku ? esc(x.sku) + " · " : "") + esc(x.mlb || '') + "</div>" +
+        "<div><b>" + plural(x.un, 'unidade', 'unidades') + "</b> em " + plural(x.ped, 'pedido', 'pedidos') + "</div>" +
+        "<div class='quebra'>" + quebra + "</div></div></div>";
+    });
+    if (mistos.length) {
+      h += "<h2>Pedidos com mais de um produto <small>· " + mistos.length + "</small></h2>";
+      mistos.forEach(function (l) {
+        h += "<div class='linha cz'><div><b>pedido " + esc(l.pedido) + "</b><div class='meta'>" + esc(l.canal) + " · " + esc(l.conta) + "</div></div><div>" +
+          l.itens.map(function (i) { return "<div class='it'><b>" + esc(i.qtd) + "×</b> " + esc((i.titulo || '').slice(0, 70)) + (i.sku ? " <span class='meta'>" + esc(i.sku) + "</span>" : "") + "</div>"; }).join('') +
+          "</div></div>";
+      });
+    }
+    return h;
+  }
+  function carregarFotos() {
+    var contasLista = dados.linhas.map(function (l) { return l.conta; }).filter(function (c, i, a) { return a.indexOf(c) === i; });
+    return Promise.all(contasLista.map(function (c) {
+      return fetch("/fotos/" + c).then(function (r) { return r.json(); }).then(function (d) { Object.assign(fotos, d.fotos || {}); }).catch(function () {});
+    })).then(desenhar);
   }
   function carregar(forcar) {
     el("sub").textContent = "carregando…"; el("atualizar").disabled = true;
     fetch("/expedicao/galpao" + (forcar ? "?atualizar=true" : "")).then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-      .then(function (d) { dados = d; desenhar(); })
+      .then(function (d) { dados = d; desenhar(); carregarFotos(); })
       .catch(function (e) { el("sub").textContent = "erro ao carregar: " + e.message; })
       .then(function () { el("atualizar").disabled = false; });
   }

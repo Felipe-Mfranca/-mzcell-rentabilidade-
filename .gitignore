@@ -101,3 +101,6 @@ fotos_cache.json
 # distribuicao controlada: nunca no GitHub
 CLAUDE.md
 dist/
+
+# dados de uso compartilhados (tags de análise, logins e comentários): não sobem
+tags_compartilhadas.json

@@ -129,7 +129,8 @@ def resultado(conta: str) -> dict:
         local = itens.get(mlb)
         if (not local or gerado < (d.get("gerado_em") or "")) and "grupos" in d:
             itens[mlb] = {**d, "remoto": True}
-    for mlb, v in itens.items():                              # quem marcou o clip e quando
+    for mlb, v in itens.items():                              # clip marcado à mão vale para todos; depois, quem marcou e quando
+        _aplicar_clip(v, manual.get(mlb))
         _anexar_clip(v, manual.get(mlb))
     fora = sum(1 for v in itens.values() if not v["passa"])
     return {"conta": conta, "estado": estado(conta), "total": len(itens), "fora_do_pivo": fora, "itens": itens}
@@ -178,6 +179,30 @@ def _quando(iso: str) -> str:
         return d.strftime("%d/%m/%Y %H:%M")
     except ValueError:
         return iso or ""
+
+
+def _aplicar_clip(item: dict, info: dict):
+    """Refaz o check V, o grupo V e o total com a marcação manual. Não precisa da entrada bruta,
+    então funciona também em análise vinda de outro computador. Vídeo confirmado pelo ML não muda."""
+    if not item or not info or info.get("clip") is None:
+        return item
+    checks = item.get("checks") or []
+    v = next((c for c in checks if c.get("id") == "V"), None)
+    if v is None or v.get("detalhe") == "vídeo no anúncio":
+        return item
+    clip = bool(info["clip"])
+    v.update(ok=clip, detalhe="confirmado manualmente" if clip else "sem clip (marcado manualmente)")
+    grupos = item.get("grupos") or []
+    for g in grupos:
+        if g.get("id") == "V":
+            g["ok"] = clip
+            for p in g.get("partes") or []:
+                if p.get("id") == "V":
+                    p.update(ok=clip, detalhe=v["detalhe"])
+    item["pontos"] = sum(1 for g in grupos if g.get("ok") is True)
+    item["passa"] = item["pontos"] == len(grupos)
+    item["atencao"] = [c["nome"] + ": " + c["detalhe"] for c in checks if c.get("ok") is not True]
+    return item
 
 
 def _anexar_clip(item: dict, info: dict):

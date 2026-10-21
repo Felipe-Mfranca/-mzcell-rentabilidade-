@@ -461,6 +461,8 @@ def pivo_clip(conta: str, mlb: str, payload: dict):
     autor = str(payload.get("autor", ""))[:40]
     nome = str(payload.get("autor_nome", ""))[:60]
     novo = pivo_ml.marcar_clip(conta, mlb, tem, autor, nome)
+    if not novo:   # anúncio sem análise local (vindo de outro computador): devolve o resultado já com o clip
+        novo = (pivo_ml.resultado(conta).get("itens") or {}).get(mlb)
     if novo:
         novo.pop("_entrada", None)
     info = (_ler_json(pivo_ml.MANUAL_PATH).get(conta) or {}).get(mlb) or {}
@@ -1027,6 +1029,38 @@ def _aplicar_pivo(registros: list):
     _modulo("pivo_ml").aplicar_remoto(registros)
 
 
+# ─── Tags de análise dos anúncios (Eduardo/Michel): visíveis para todos, exigem comentário do mesmo dia ───
+TAGS_PATH = os.path.join(BASE_DIR, "tags_compartilhadas.json")
+TAGS_PERMISSAO = {"ranqueamento": {"eduardo", "michel", "zicri"}, "sazonalidade": {"eduardo", "michel", "zicri"},
+                  "revisado": {"eduardo", "zicri"}, "atencao": {"eduardo", "zicri"}}  # zicri: liberado para teste
+TAGS_COM_COMENTARIO = {"revisado", "atencao"}   # só estas exigem comentário escrito no mesmo dia
+
+
+def _ler_tags() -> dict:
+    return _ler_json(TAGS_PATH)
+
+
+def _gravar_tags(db: dict):
+    with open(TAGS_PATH, "w", encoding="utf-8") as f:
+        json.dump(db, f, ensure_ascii=False)
+
+
+def _aplicar_tags(registros: list):
+    """Aplica tags vindas de outros computadores. Registro removido ou inativo apaga a tag."""
+    db = _ler_tags()
+    for r in registros:
+        try:
+            conta, mlb, tipo = r["chave"].split("|", 2)
+            d = json.loads(r["dados"]) if r.get("dados") else {}
+        except (ValueError, KeyError):
+            continue
+        if r.get("removido") or not d.get("ativa"):
+            db.get(conta, {}).get(mlb, {}).pop(tipo, None)
+        else:
+            db.setdefault(conta, {}).setdefault(mlb, {})[tipo] = d
+    _gravar_tags(db)
+
+
 CONTESTACOES_PATH = os.path.join(BASE_DIR, "contestacoes_compartilhadas.json")
 
 
@@ -1061,7 +1095,8 @@ def _aplicar_usuarios(registros: list):
 
 
 _APLICADORES_COMPARTILHADOS = {"comentarios": _aplicar_comentarios, "posicoes": _aplicar_posicoes, "clips": _aplicar_clips,
-                               "pivo": _aplicar_pivo, "contestacoes": _aplicar_contestacoes, "usuarios": _aplicar_usuarios}
+                               "pivo": _aplicar_pivo, "contestacoes": _aplicar_contestacoes, "usuarios": _aplicar_usuarios,
+                               "tags": _aplicar_tags}
 
 
 @app.post("/compartilhado/sincronizar")
@@ -1106,6 +1141,48 @@ async def salvar_posicao_anuncio(conta: str, mlb: str, payload: dict):
         json.dump(db, f, indent=2, ensure_ascii=False)
     shared_store.enviar_async("posicoes", f"{conta}|{mlb}", novo, str(payload.get("autor", ""))[:40])
     return {"success": True, "posicao": novo}
+
+
+@app.get("/tags/{conta}")
+def get_tags(conta: str):
+    """Tags ativas de cada anúncio da conta: {mlb: {tipo: {nome, comentario, comentario_em, em}}}."""
+    return {"success": True, "tags": _ler_tags().get(conta, {})}
+
+
+@app.post("/tags/{conta}/{mlb}")
+def marcar_tag(conta: str, mlb: str, payload: dict):
+    """Marca ou remove uma tag. Marcar exige anotação feita hoje no anúncio: a tag copia esse comentário e a data."""
+    tipo = str(payload.get("tipo", ""))
+    ativa = bool(payload.get("ativa", True))
+    login = str(payload.get("login", ""))[:40].lower()
+    nome = str(payload.get("nome", ""))[:60]
+    if tipo not in TAGS_PERMISSAO:
+        raise HTTPException(status_code=400, detail="tipo de tag inválido")
+    if login not in TAGS_PERMISSAO[tipo]:
+        raise HTTPException(status_code=403, detail="sem permissão para esta tag")
+    agora = datetime.now()
+    if ativa and tipo not in TAGS_COM_COMENTARIO:   # ranqueamento e sazonalidade: só marcação
+        rec = {"ativa": True, "login": login, "nome": nome or login, "em": agora.isoformat(timespec="seconds"),
+               "comentario": "", "comentario_em": agora.strftime("%d/%m/%Y %H:%M"), "anotacao_id": ""}
+    elif ativa:
+        hoje = agora.strftime("%d/%m/%Y")
+        do_dia = [a for a in _load_anotacoes().get(conta, {}).get(mlb, []) if (a.get("criado_em") or "")[:10] == hoje]
+        if not do_dia:
+            raise HTTPException(status_code=400, detail="escreva um comentário neste anúncio hoje antes de marcar a tag")
+        c = max(do_dia, key=lambda a: a.get("id", ""))
+        rec = {"ativa": True, "login": login, "nome": nome or login, "em": agora.isoformat(timespec="seconds"),
+               "comentario": c.get("texto", ""), "comentario_em": c.get("criado_em", ""), "anotacao_id": c.get("id", "")}
+    else:
+        rec = {"ativa": False, "login": login, "nome": nome or login, "em": agora.isoformat(timespec="seconds")}
+    db = _ler_tags()
+    if ativa:
+        db.setdefault(conta, {}).setdefault(mlb, {})[tipo] = rec
+    else:
+        db.get(conta, {}).get(mlb, {}).pop(tipo, None)
+    _gravar_tags(db)
+    shared_store.enviar_async("tags", f"{conta}|{mlb}|{tipo}", rec, login, removido=not ativa)
+    log_atividade(f"Tag {tipo} {'marcada' if ativa else 'removida'}: {mlb} ({conta}) por {login}")
+    return {"success": True, "tag": rec if ativa else None}
 
 
 @app.get("/anotacoes/{conta}/{mlb}")

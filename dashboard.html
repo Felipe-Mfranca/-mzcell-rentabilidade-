@@ -518,12 +518,23 @@ html:not([data-tema="claro"]) .mxt-pill.up{color:#4ade80;}html:not([data-tema="c
 .pivo-l.mini{width:17px;height:17px;font-size:10px;border-radius:5px;margin-right:2px;}
 .pivo-l.on-P{background:#2563eb;color:#fff;}.pivo-l.on-I{background:#7c3aed;color:#fff;}.pivo-l.on-V{background:#dc2626;color:#fff;}.pivo-l.on-O{background:#16a34a;color:#fff;}
 .pivo-l.clicavel{cursor:pointer;}
+html:not([data-tema="claro"]) .pivo-l.on-P{background:#2563eb;color:#fff;}html:not([data-tema="claro"]) .pivo-l.on-I{background:#7c3aed;color:#fff;}html:not([data-tema="claro"]) .pivo-l.on-V{background:#dc2626;color:#fff;}html:not([data-tema="claro"]) .pivo-l.on-O{background:#16a34a;color:#fff;}
 .mx-aviso.full-zerado{color:#991b1b;background:rgba(239,68,68,.14);border-color:rgba(239,68,68,.6);}
 .mx-aviso.full-critico{color:#991b1b;background:rgba(239,68,68,.10);border-color:rgba(239,68,68,.5);}
 .mx-aviso.full-atencao{color:#92400e;background:rgba(245,158,11,.16);border-color:rgba(245,158,11,.6);}
 .full-tag{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid;vertical-align:middle;}
 .full-tag.zerado,.full-tag.critico{color:#991b1b;background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.5);}
 .full-tag.atencao{color:#92400e;background:rgba(245,158,11,.16);border-color:rgba(245,158,11,.55);}
+.full-tag.ok,.full-tag.none{color:#374151;background:rgba(107,114,128,.10);border-color:rgba(107,114,128,.4);}
+.tag-anot{display:inline-block;margin:2px 4px 0 0;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700;border:1px solid;cursor:help;}
+.tag-anot.ranqueamento,.tag-btn.on.ranqueamento{color:#1d4ed8;background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.5);}
+.tag-anot.sazonalidade,.tag-btn.on.sazonalidade{color:#a16207;background:rgba(234,179,8,.14);border-color:rgba(234,179,8,.55);}
+.tag-anot.revisado,.tag-btn.on.revisado{color:#166534;background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.5);}
+.tag-anot.atencao,.tag-btn.on.atencao{color:#b91c1c;background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.5);}
+.mx-tags{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0;}
+.tag-btn{font:inherit;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;border:1px solid #d1d5db;background:transparent;color:#9ca3af;cursor:pointer;}
+.tag-btn:disabled{cursor:default;}
+.mx-aviso.full-ok{color:#374151;background:rgba(107,114,128,.10);border-color:rgba(107,114,128,.4);}
 html:not([data-tema="claro"]) .pivo-l{background:#2f3642;color:#6b7280;}
 .pivo-cel.ok{color:var(--green);}.pivo-cel.pouco{color:var(--gold);}.pivo-cel.ruim{color:var(--red);}
 .mx-col .kpi-badge-var::after{left:auto;right:0;transform:none;}
@@ -921,6 +932,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       </div>
     </div>
     <div class="mx-avisos" id="m-avisos"><span id="m-aviso-full"></span><span id="m-aviso-rebot"></span><span id="m-pivo"></span></div>
+    <div class="mx-tags" id="m-tags"></div>
     <div class="mx-strip-wrap">
       <div class="mx-strip-cap">Últimos 30 dias (fixo)</div>
       <div class="mx-strip" id="mx-strip"></div>
@@ -1663,7 +1675,8 @@ async function carregarSacConta(conta){
       <div class="sac-sec"><h3>Perguntas pendentes <span class="sac-pill">${d.perguntas.total}</span></h3>${perg}</div>
       <div class="sac-sec"><h3>Mensagens não lidas <span class="sac-pill">${d.mensagens.nao_lidas} de clientes</span> <span class="sac-pill">${d.mensagens.assistente_ml} do assistente ML</span></h3>${msgs}</div>
       <div class="sac-sec"><h3>Reclamações abertas <span class="sac-pill">${d.reclamacoes.total}</span> <span class="sac-pill">${d.reclamacoes.aguardam_voce} aguardam você</span></h3>${recl}</div>
-      <div class="sac-sec"><h3>Contestações de devolução <button class="btn-sync-produto" style="height:28px;padding:0 12px;font-size:11px" onclick="carregarContestacoes('${conta}')">Carregar contestações</button> <span class="sac-mut" id="sac-cont-st"></span></h3><div id="sac-cont"></div></div>`;
+      <div class="sac-sec"><h3>Contestações de devolução <span class="sac-mut" id="sac-cont-st"></span></h3><div id="sac-cont"></div></div>`;
+    carregarContestacoes(conta);
     st.textContent=(_sacDe||_sacAte?`período ${_sacDe||'início'} a ${_sacAte||'hoje'}`:'todas as pendências')+' · '+conta;
   }catch(e){ st.textContent='erro: '+e.message; }
 }
@@ -1775,6 +1788,8 @@ function renderPainel(conta) {
           <button class="marg-chip med-chip"   data-f="med" onclick="setMF('${conta}','med',this)">10–20%</button>
           <button class="marg-chip ok-chip"    data-f="ok"  onclick="setMF('${conta}','ok',this)">&gt;20%</button>
           <button class="marg-chip arq-chip"  data-f="arq" onclick="setMF('${conta}','arq',this)">Arquivados</button>
+          <button class="marg-chip" data-f="rank" onclick="setMF('${conta}','rank',this)">🏆 Ranqueamento</button>
+          <button class="marg-chip" data-f="sazon" onclick="setMF('${conta}','sazon',this)">🗓 Sazonalidade</button>
         </div>
         <div class="search-box" style="margin-left:auto">
           <input placeholder="Buscar produto, SKU ou MLB..." id="search-${conta}" oninput="filterTable('${conta}')"/>
@@ -1943,6 +1958,7 @@ async function buscarPeriodo(conta) {
     carregarPosicoes(conta);
     pivoCarregar(conta);
     fullCarregar(conta);
+    tagsCarregar(conta);
     fotoCarregar(conta);
   } catch(e){
     document.getElementById(`tbl-${conta}`).innerHTML='<div class="empty"><div class="empty-icon">⚡</div><div class="empty-text">Erro ao carregar dados</div></div>';
@@ -2151,6 +2167,8 @@ function renderTable(conta, produtos) {
   const naoArq=produtos.filter(p=>!p.arquivado);
   const cnt={all:naoArq.length,neg:0,low:0,med:0,ok:0,arq:produtos.length-naoArq.length};
   naoArq.forEach(p=>{const mp=p.periodo.margem_pct;if(mp<0)cnt.neg++;else if(mp<0.10)cnt.low++;else if(mp<0.20)cnt.med++;else cnt.ok++;});
+  cnt.rank=naoArq.filter(p=>_tags[conta]?.[p.mlb]?.ranqueamento).length;
+  cnt.sazon=naoArq.filter(p=>_tags[conta]?.[p.mlb]?.sazonalidade).length;
   document.querySelectorAll(`#mchips-${conta} .marg-chip`).forEach(b=>{const f=b.dataset.f;if(cnt[f]!=null)b.textContent=b.textContent.replace(/ \(\d+\)$/,'')+` (${cnt[f]})`;});
   // Aplica filtro de margem
   const f=marginFilter[conta]||'all';
@@ -2159,6 +2177,8 @@ function renderTable(conta, produtos) {
   else if(f==='low')lista=lista.filter(p=>p.periodo.margem_pct>=0&&p.periodo.margem_pct<0.10);
   else if(f==='med')lista=lista.filter(p=>p.periodo.margem_pct>=0.10&&p.periodo.margem_pct<0.20);
   else if(f==='ok')lista=lista.filter(p=>p.periodo.margem_pct>=0.20);
+  else if(f==='rank')lista=lista.filter(p=>_tags[conta]?.[p.mlb]?.ranqueamento);
+  else if(f==='sazon')lista=lista.filter(p=>_tags[conta]?.[p.mlb]?.sazonalidade);
   if(!lista.length){document.getElementById(`tbl-${conta}`).innerHTML='<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">Nenhum produto nesta faixa.</div></div>';return;}
   produtos=lista;
   const cols=[
@@ -2184,7 +2204,7 @@ function renderTable(conta, produtos) {
     return `
       <tr class="${per.margem_pct<0?'row-neg':''}" onclick="openModal('${p.mlb}','${conta}')">
         <td><div class="td-flex">${fotoHtml(p.mlb)}<div>
-          <div class="td-prod">${p.titulo||p.mlb}</div>
+          <div class="td-prod">${p.titulo||p.mlb}</div><span data-tagtable="${p.mlb}">${renderTagsLinha(conta, p.mlb)}</span>
           <div class="td-sku">${p.sku||''}<span data-fulltag="${p.mlb}">${renderFullTag(conta,p.mlb)}</span></div>
           ${p.arquivado?'<div class="td-arq">Arquivado</div>':''}
           <div class="td-mlb">${p.mlb}</div>
@@ -2350,6 +2370,7 @@ function renderModalContent(mlb, conta) {
   const _ar = document.getElementById('m-aviso-rebot'); if (_ar) _ar.innerHTML = '';
   mostrarPivoModal(conta, mlb);
   mostrarAvisoFull(conta, mlb);
+  mostrarTagsModal(conta, mlb);
   const de  = document.getElementById('modal-de')?.value || '';
   const ate = document.getElementById('modal-ate')?.value || '';
   const dbProd = db[conta]?.produtos?.find(x => x.mlb === mlb);
@@ -2495,6 +2516,55 @@ async function trocarSt(mlb, conta, sel) {
 
 // ── Full: aviso de estoque zerado ou perto de romper (média diária dos 7 dias contra o saldo) ──
 const _fullAl = {};
+// ── Tags de análise (Eduardo/Michel): visíveis para todos; marcar exige comentário do mesmo dia no anúncio ──
+const TAG_INFO = {
+  ranqueamento: {rot: 'Ranqueamento', icon: '🏆', perm: ['eduardo', 'michel', 'zicri']},
+  sazonalidade: {rot: 'Sazonalidade', icon: '🗓', perm: ['eduardo', 'michel', 'zicri']},
+  revisado:     {rot: 'Revisado', icon: '✓', perm: ['eduardo', 'zicri']},
+  atencao:      {rot: 'Atenção', icon: '{!}', perm: ['eduardo', 'zicri']}
+};
+const _tags = {};
+async function tagsCarregar(conta) {
+  try {
+    const d = await (await fetch(`${API}/tags/${conta}`)).json();
+    _tags[conta] = d.tags || {};
+    if (db[conta]) filterTable(conta);   // redesenha a tabela com as tags e atualiza os filtros
+    document.querySelectorAll(`#tab-${conta} span[data-tagtable]`).forEach(sp => { sp.innerHTML = renderTagsLinha(conta, sp.dataset.tagtable); });
+    const aberto = document.getElementById('m-tags')?.dataset.mlb;
+    if (aberto) mostrarTagsModal(conta, aberto);
+  } catch(e) {}
+}
+function renderTagsLinha(conta, mlb) {
+  const t = _tags[conta]?.[mlb] || {};
+  return Object.keys(TAG_INFO).filter(k => t[k]).map(k => {
+    const r = t[k];
+    const tip = `${TAG_INFO[k].rot} por ${r.nome} em ${r.comentario_em}\n${r.comentario}`;
+    return `<span class="tag-anot ${k}" title="${sacEsc(tip)}">${TAG_INFO[k].icon} ${TAG_INFO[k].rot}</span>`;
+  }).join('');
+}
+function mostrarTagsModal(conta, mlb) {
+  const box = document.getElementById('m-tags'); if (!box) return;
+  box.dataset.mlb = mlb;
+  const login = (user?.login || '').toLowerCase();
+  const t = _tags[conta]?.[mlb] || {};
+  box.innerHTML = Object.keys(TAG_INFO).map(k => {
+    const info = TAG_INFO[k], ativa = !!t[k], pode = info.perm.includes(login), r = t[k];
+    const tip = ativa ? `${info.rot} por ${r.nome} em ${r.comentario_em}\n${r.comentario}`
+      : (pode ? (k === 'revisado' || k === 'atencao' ? 'Clique para marcar (exige comentário de hoje neste anúncio)' : 'Clique para marcar')
+        : 'Só ' + info.perm.join(' e ') + ' marcam');
+    return `<button class="tag-btn ${k} ${ativa ? 'on' : ''}" ${pode ? '' : 'disabled'} title="${sacEsc(tip)}" onclick="marcarTag('${conta}','${mlb}','${k}',${!ativa})">${info.icon} ${info.rot}</button>`;
+  }).join('');
+}
+async function marcarTag(conta, mlb, tipo, ativa) {
+  try {
+    const r = await fetch(`${API}/tags/${conta}/${mlb}`, {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({tipo, ativa, login: user?.login || '', nome: user?.nome || ''})});
+    const d = await r.json();
+    if (!r.ok) { toast(d.detail || 'Não foi possível marcar a tag', 'error'); return; }
+    await tagsCarregar(conta);
+  } catch(e) { toast('Erro ao marcar tag: ' + e.message, 'error'); }
+}
+
 async function fullCarregar(conta) {
   try {
     const d = await (await fetch(`${API}/full/${conta}/alertas`)).json();
@@ -2511,18 +2581,23 @@ function detalheFull(a) {
   return `Saldo no Full: ${a.saldo} un (disponível + em transferência) · média dos últimos 7 dias: ${String(a.media_7d).replace('.', ',')} un/dia` +
     (a.anuncios_no_inventario > 1 ? ` (soma de ${a.anuncios_no_inventario} anúncios que dividem o mesmo estoque)` : '') + ' · crítico: cobertura menor que 10 dias; atenção: de 10 a 15 dias';
 }
+// Saldo do Full (disponível + em transferência) sempre inteiro; sem inventário no Full mostra traço
+const fullSaldo = a => Math.round(Number(a.saldo) || 0);
 function renderFullTag(conta, mlb) {
-  const a = _fullAl[conta]?.itens?.[mlb];
-  if (!a || !a.nivel) return '';
-  return `<span class="full-tag ${a.nivel}" title="${sacEsc(detalheFull(a))}">${a.nivel === 'zerado' ? 'Full zerado' : 'Full ' + String(a.dias_cobertura).replace('.', ',') + ' d'}</span>`;
+  if (!_fullAl[conta]) return '';
+  const a = _fullAl[conta].itens?.[mlb];
+  if (!a) return `<span class="full-tag none" title="Anúncio sem estoque no Full">—</span>`;
+  const dias = a.nivel && a.nivel !== 'zerado' ? ` · ${String(a.dias_cobertura).replace('.', ',')} d` : '';
+  return `<span class="full-tag ${a.nivel || 'ok'}" title="${sacEsc(detalheFull(a))}">Full ${fullSaldo(a)} un${dias}</span>`;
 }
 async function mostrarAvisoFull(conta, mlb) {
   const box = document.getElementById('m-aviso-full'); if (!box) return;
   box.innerHTML = '';
   if (!_fullAl[conta]) await fullCarregar(conta);
-  const a = _fullAl[conta]?.itens?.[mlb];
-  if (document.getElementById('m-aviso-full') !== box || !a || !a.nivel) return;
-  box.innerHTML = `<span class="mx-aviso full-${a.nivel}" title="${sacEsc(detalheFull(a))}">${textoFull(a)} · média ${String(a.media_7d).replace('.', ',')}/dia, saldo ${a.saldo}</span>`;
+  if (document.getElementById('m-aviso-full') !== box || !_fullAl[conta]) return;
+  const a = _fullAl[conta].itens?.[mlb];
+  if (!a) { box.innerHTML = `<span class="mx-aviso full-ok" title="Anúncio sem estoque no Full">Full —</span>`; return; }
+  box.innerHTML = `<span class="mx-aviso full-${a.nivel || 'ok'}" title="${sacEsc(detalheFull(a))}">Full ${fullSaldo(a)} un${a.nivel ? ' · ' + textoFull(a) : ''}</span>`;
 }
 
 // ── Aviso de novo rebot (compacto, no cabeçalho do modal) ───────────────────
@@ -2619,6 +2694,7 @@ async function pivoAlternarClip(conta, mlb) {
   try {
     const r = await (await fetch(`${API}/pivo/${conta}/${mlb}/clip`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tem_clip: prox, autor: user?.login || '', autor_nome: user?.nome || ''})})).json();
     if (r.item) { _pivo[conta].itens[mlb] = r.item; _pivo[conta].fora_do_pivo = Object.values(_pivo[conta].itens).filter(x => !x.passa).length; }
+    else await pivoCarregar(conta);   // sem item de retorno: relê o PIVO inteiro
     mostrarPivoModal(conta, mlb); pivoAtualizarCelulas(conta);
     toast(prox === true ? 'Clip confirmado' : prox === false ? 'Marcado sem clip' : 'Marcação de clip removida');
   } catch(e) { toast('Erro ao salvar a marcação', 'error'); }
