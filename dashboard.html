@@ -1759,6 +1759,8 @@ function renderPainel(conta) {
         </button>
         <button class="btn-sync" id="btn-pivo-${conta}" onclick="pivoAnalisar('${conta}')" title="Confere título, imagens, clip, descrição, promoção e ADS de cada anúncio"><span>✓</span> Analisar PIVO</button>
         <span id="pivo-st-${conta}" class="sac-mut" style="font-size:11px"></span>
+        <button class="btn-sync" id="btn-rebot-${conta}" onclick="verificarRebot('${conta}')" title="Mostra as oportunidades de rebot desta conta, no mesmo formato do e-mail (só leitura)">🏷 Verificar Rebot</button>
+        <span id="rebot-st-${conta}" class="sac-mut" style="font-size:11px"></span>
         <button class="btn-gold" onclick="buscarPeriodo('${conta}')">Buscar</button>
       </div>
     </div>
@@ -2546,6 +2548,42 @@ async function pivoCarregar(conta) {
     if (st) st.textContent = d.estado?.rodando ? `PIVO: ${d.estado.etapa}…` : (d.total ? `PIVO: ${d.fora_do_pivo} de ${d.total} fora do padrão` : 'PIVO: não analisado');
     if (d.estado?.rodando) setTimeout(() => pivoCarregar(conta), 6000);
   } catch(e) {}
+}
+async function verificarRebot(conta) {
+  const btn = document.getElementById(`btn-rebot-${conta}`);
+  const st = document.getElementById(`rebot-st-${conta}`);
+  if (btn) btn.disabled = true;
+  if (st) st.textContent = 'consultando o ML...';
+  try {
+    const res = await fetch(`${API}/rebot/${conta}`);
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.detail || `HTTP ${res.status}`);
+    if (st) st.textContent = `${d.total} oportunidade(s) · ${d.quando}`;
+    abrirRebot(conta, d);
+  } catch (e) {
+    if (st) st.textContent = '';
+    toast(`Rebot ${conta}: ${e.message}`, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+function abrirRebot(conta, d) {
+  let ov = document.getElementById('rebot-ov');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'rebot-ov';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px';
+    ov.onclick = e => { if (e.target === ov) ov.remove(); };
+    document.body.appendChild(ov);
+  }
+  ov.innerHTML = `<div style="background:#fff;border-radius:12px;width:min(900px,100%);height:min(85vh,800px);display:flex;flex-direction:column;overflow:hidden">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid #e5e7eb;font-weight:700;color:#111827">
+      <span>Rebot ${conta} · ${d.total} oportunidade(s) · ${d.quando}</span>
+      <button onclick="document.getElementById('rebot-ov').remove()" style="border:0;background:none;font-size:22px;cursor:pointer;color:#374151">×</button>
+    </div>
+    <iframe style="flex:1;border:0;background:#fff" sandbox=""></iframe>
+  </div>`;
+  ov.querySelector('iframe').srcdoc = d.html;
 }
 async function pivoAnalisar(conta) {
   try { await fetch(`${API}/pivo/${conta}/analisar`, {method:'POST'}); toast('Análise PIVO iniciada: leva alguns minutos'); } catch(e) { toast('Erro ao iniciar o PIVO', 'error'); return; }

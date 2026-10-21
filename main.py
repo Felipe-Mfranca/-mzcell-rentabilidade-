@@ -425,6 +425,25 @@ def pivo_analisar(conta: str):
     return pivo_ml.iniciar(conta, ML(conta))
 
 
+@app.get("/rebot/{conta}")
+async def rebot_verificar(conta: str):
+    """Oportunidades de rebot de UMA conta, no mesmo formato do e-mail. Só leitura (nunca escreve no ML)."""
+    if conta not in ("meli01", "meli02", "meli03"):
+        raise HTTPException(status_code=404, detail="conta desconhecida")
+    agenda = _modulo("rebot_agenda")
+    rv = _modulo("rebot_visual")
+    quando = datetime.now().strftime("%d/%m %H:%M")
+    try:
+        ops = await asyncio.to_thread(agenda.analisar_conta, conta)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"{conta}: {type(e).__name__}: {str(e)[:120]}")
+    avisadas = set(agenda._json(agenda.ESTADO, {"avisadas": []}).get("avisadas", []))
+    for o in ops:
+        o["repetida"] = o["chave"] in avisadas
+    return {"conta": conta, "quando": quando, "total": len(ops),
+            "texto": rv.texto(ops, {}, 0, quando, [conta]), "html": rv.html(ops, {}, 0, quando, [conta])}
+
+
 @app.get("/pivo/{conta}")
 def pivo_resultado(conta: str):
     pivo_ml = _modulo("pivo_ml")
