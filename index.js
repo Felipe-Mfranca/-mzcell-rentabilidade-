@@ -112,6 +112,16 @@ function downloadArquivo(url, destPath) {
   });
 }
 
+function versaoMaior(a, b) {
+  const pa = String(a || '').split('.').map(n => parseInt(n, 10) || 0);
+  const pb = String(b || '').split('.').map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] || 0, y = pb[i] || 0;
+    if (x !== y) return x > y;
+  }
+  return false;
+}
+
 async function verificarEAtualizar() {
   setProgress(5, 'Verificando atualizações...');
   let versaoOnline = null;
@@ -128,7 +138,8 @@ async function verificarEAtualizar() {
   const versionPath = path.join(RESOURCES, 'version.txt');
   let versaoLocal = '';
   try { versaoLocal = fs.readFileSync(versionPath, 'utf8').trim(); } catch(e) {}
-  if (versaoOnline === versaoLocal) {
+  // Só atualiza quando a versão do repositório é MAIOR que a instalada: nunca rebaixa
+  if (!versaoMaior(versaoOnline, versaoLocal)) {
     setProgress(100, 'Iniciando servidor...'); return;
   }
   houve_atualizacao = true;

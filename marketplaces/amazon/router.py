@@ -15,7 +15,7 @@ import io
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
-from marketplaces.amazon import api, custos_xlsx, diagnostico, painel, rentabilidade, reposicao
+from marketplaces.amazon import ads, api, custos_xlsx, diagnostico, painel, rentabilidade, reposicao
 
 router = APIRouter(prefix="/amazon", tags=["amazon"])
 
@@ -191,5 +191,16 @@ def trafego_do_sku(conta: str, asin: str, de: str, ate: str):
         api.conta_cfg(conta)
         painel._validar_trafego(de, ate)
         return painel.trafego_do_sku(conta, asin, de, ate)
+    except api.ErroAmazon as e:
+        raise _http(e)
+
+
+@router.get("/ads/{conta}")
+def ads_do_periodo(conta: str, de: str, ate: str):
+    """Investimento em Ads (Sponsored Products) por ASIN no período, pelo Data Kiosk. Somente leitura."""
+    try:
+        api.conta_cfg(conta)
+        painel._validar(de, ate)
+        return {"conta": conta, "periodo": {"de": de, "ate": ate}, "por_asin": ads.ads_por_asin(conta, de, ate)}
     except api.ErroAmazon as e:
         raise _http(e)

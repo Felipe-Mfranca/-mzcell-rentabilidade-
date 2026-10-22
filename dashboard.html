@@ -68,6 +68,13 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
 .nav-item:hover{background:var(--bg3);color:var(--text);}
 .nav-item.active{background:rgba(246,201,14,.1);color:var(--gold);border:1px solid rgba(246,201,14,.15);}
 .nav-item .icon{font-size:15px;width:18px;text-align:center;}
+/* Cor discreta por plataforma: só no ícone e no título do grupo */
+.plogo{width:14px;height:14px;flex-shrink:0;vertical-align:-2px;display:inline-block;}
+.nav-section .plogo{margin-right:4px;}
+.nav-item[data-mod="meli"] .icon,.nav-section[data-mod="meli"]{color:#ca8a04;}
+.nav-item[data-mod="amazon"] .icon,.nav-section[data-mod="amazon"]{color:#ea580c;}
+.nav-item[data-mod="shopee"] .icon,.nav-section[data-mod="shopee"]{color:#dc2626;}
+.nav-item[data-mod="magalu"] .icon,.nav-section[data-mod="magalu"]{color:#2563eb;}
 .sidebar-bottom{padding:16px;border-top:1px solid var(--border);}
 .btn-logout{width:100%;background:none;border:1px solid var(--border2);color:var(--muted2);padding:9px;border-radius:8px;cursor:pointer;font-size:12px;font-family:var(--font);transition:all .2s;}
 .btn-logout:hover{border-color:var(--red);color:var(--red);}
@@ -785,15 +792,17 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       <div class="user-role" id="urole">—</div>
     </div>
     <div class="sidebar-nav">
-      <div class="nav-section" data-mod="meli">Contas</div>
-      <button class="nav-item active" data-mod="meli" onclick="switchTab('meli01',this)"><span class="icon">◈</span> Meli01</button>
-      <button class="nav-item" data-mod="meli" onclick="switchTab('meli02',this)"><span class="icon">◈</span> Meli02</button>
-      <button class="nav-item" data-mod="meli" onclick="switchTab('meli03',this)"><span class="icon">◈</span> Meli03</button>
-      <div class="nav-section" data-mod="amazon">Amazon</div>
-      <button class="nav-item" data-mod="amazon" onclick="switchTab('amazon01',this)"><span class="icon">◈</span> Amazon 01</button>
-      <button class="nav-item" data-mod="amazon" onclick="switchTab('amazon02',this)"><span class="icon">◈</span> Amazon 02</button>
-      <div class="nav-section" data-mod="shopee">Shopee</div>
-      <button class="nav-item" data-mod="shopee" onclick="switchTab('shopee',this)"><span class="icon">◈</span> Shopee</button>
+      <div class="nav-section" data-mod="meli"><svg class="plogo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="#ffe600"/><text x="12" y="16" text-anchor="middle" font-size="9.5" font-weight="800" fill="#2d3277" font-family="Arial,sans-serif">ML</text></svg>Mercado Livre</div>
+      <button class="nav-item active" data-mod="meli" onclick="switchTab('meli01',this)"><span class="icon"><svg class="plogo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="#ffe600"/><text x="12" y="16" text-anchor="middle" font-size="9.5" font-weight="800" fill="#2d3277" font-family="Arial,sans-serif">ML</text></svg></span> Meli01</button>
+      <button class="nav-item" data-mod="meli" onclick="switchTab('meli02',this)"><span class="icon"><svg class="plogo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="#ffe600"/><text x="12" y="16" text-anchor="middle" font-size="9.5" font-weight="800" fill="#2d3277" font-family="Arial,sans-serif">ML</text></svg></span> Meli02</button>
+      <button class="nav-item" data-mod="meli" onclick="switchTab('meli03',this)"><span class="icon"><svg class="plogo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="#ffe600"/><text x="12" y="16" text-anchor="middle" font-size="9.5" font-weight="800" fill="#2d3277" font-family="Arial,sans-serif">ML</text></svg></span> Meli03</button>
+      <div class="nav-section" data-mod="amazon"><svg class="plogo" viewBox="0 0 24 24" aria-hidden="true"><path fill="#ea580c" d="M.045 18.02c.072-.116.187-.124.348-.022 3.636 2.11 7.594 3.166 11.87 3.166 2.852 0 5.668-.533 8.447-1.595l.315-.14c.138-.06.234-.1.293-.13.226-.088.39-.046.525.13.12.174.09.336-.12.48-.256.19-.6.41-1.006.654-1.244.743-2.64 1.316-4.185 1.726a17.617 17.617 0 01-10.951-.577 17.88 17.88 0 01-5.43-3.35c-.1-.074-.151-.15-.151-.22 0-.047.021-.09.051-.13zm6.565-6.218c0-1.005.247-1.863.743-2.577.495-.71 1.17-1.25 2.04-1.615.796-.335 1.756-.575 2.912-.72.39-.046 1.033-.103 1.92-.174v-.37c0-.93-.105-1.558-.3-1.875-.302-.43-.78-.65-1.44-.65h-.182c-.48.046-.896.196-1.246.46-.35.27-.575.63-.675 1.096-.06.3-.206.465-.435.51l-2.52-.315c-.248-.06-.372-.18-.372-.39 0-.046.007-.09.022-.15.247-1.29.855-2.25 1.82-2.88.976-.616 2.1-.975 3.39-1.05h.54c1.65 0 2.957.434 3.888 1.29.135.15.27.3.405.48.12.165.224.314.283.45.075.134.15.33.195.57.06.254.105.42.135.51.03.104.062.3.076.615.01.313.02.493.02.553v5.28c0 .376.06.72.165 1.036.105.313.21.54.315.674l.51.674c.09.136.136.256.136.36 0 .12-.06.226-.18.314-1.2 1.05-1.86 1.62-1.963 1.71-.165.135-.375.15-.63.045a6.062 6.062 0 01-.526-.496l-.31-.347a9.391 9.391 0 01-.317-.42l-.3-.435c-.81.886-1.603 1.44-2.4 1.665-.494.15-1.093.227-1.83.227-1.11 0-2.04-.343-2.76-1.034-.72-.69-1.08-1.665-1.08-2.94l-.05-.076zm3.753-.438c0 .566.14 1.02.425 1.364.285.34.675.512 1.155.512.045 0 .106-.007.195-.02.09-.016.134-.023.166-.023.614-.16 1.08-.553 1.424-1.178.165-.28.285-.58.36-.91.09-.32.12-.59.135-.8.015-.195.015-.54.015-1.005v-.54c-.84 0-1.484.06-1.92.18-1.275.36-1.92 1.17-1.92 2.43l-.035-.02zm9.162 7.027c.03-.06.075-.11.132-.17.362-.243.714-.41 1.05-.5a8.094 8.094 0 011.612-.24c.14-.012.28 0 .41.03.65.06 1.05.168 1.172.33.063.09.099.228.099.39v.15c0 .51-.149 1.11-.424 1.8-.278.69-.664 1.248-1.156 1.68-.073.06-.14.09-.197.09-.03 0-.06 0-.09-.012-.09-.044-.107-.12-.064-.24.54-1.26.806-2.143.806-2.64 0-.15-.03-.27-.087-.344-.145-.166-.55-.257-1.224-.257-.243 0-.533.016-.87.046-.363.045-.7.09-1 .135-.09 0-.148-.014-.18-.044-.03-.03-.036-.047-.02-.077 0-.017.006-.03.02-.063v-.06z"/></svg>Amazon</div>
+      <button class="nav-item" data-mod="amazon" onclick="switchTab('amazon01',this)"><span class="icon"><svg class="plogo" viewBox="0 0 24 24" aria-hidden="true"><path fill="#ea580c" d="M.045 18.02c.072-.116.187-.124.348-.022 3.636 2.11 7.594 3.166 11.87 3.166 2.852 0 5.668-.533 8.447-1.595l.315-.14c.138-.06.234-.1.293-.13.226-.088.39-.046.525.13.12.174.09.336-.12.48-.256.19-.6.41-1.006.654-1.244.743-2.64 1.316-4.185 1.726a17.617 17.617 0 01-10.951-.577 17.88 17.88 0 01-5.43-3.35c-.1-.074-.151-.15-.151-.22 0-.047.021-.09.051-.13zm6.565-6.218c0-1.005.247-1.863.743-2.577.495-.71 1.17-1.25 2.04-1.615.796-.335 1.756-.575 2.912-.72.39-.046 1.033-.103 1.92-.174v-.37c0-.93-.105-1.558-.3-1.875-.302-.43-.78-.65-1.44-.65h-.182c-.48.046-.896.196-1.246.46-.35.27-.575.63-.675 1.096-.06.3-.206.465-.435.51l-2.52-.315c-.248-.06-.372-.18-.372-.39 0-.046.007-.09.022-.15.247-1.29.855-2.25 1.82-2.88.976-.616 2.1-.975 3.39-1.05h.54c1.65 0 2.957.434 3.888 1.29.135.15.27.3.405.48.12.165.224.314.283.45.075.134.15.33.195.57.06.254.105.42.135.51.03.104.062.3.076.615.01.313.02.493.02.553v5.28c0 .376.06.72.165 1.036.105.313.21.54.315.674l.51.674c.09.136.136.256.136.36 0 .12-.06.226-.18.314-1.2 1.05-1.86 1.62-1.963 1.71-.165.135-.375.15-.63.045a6.062 6.062 0 01-.526-.496l-.31-.347a9.391 9.391 0 01-.317-.42l-.3-.435c-.81.886-1.603 1.44-2.4 1.665-.494.15-1.093.227-1.83.227-1.11 0-2.04-.343-2.76-1.034-.72-.69-1.08-1.665-1.08-2.94l-.05-.076zm3.753-.438c0 .566.14 1.02.425 1.364.285.34.675.512 1.155.512.045 0 .106-.007.195-.02.09-.016.134-.023.166-.023.614-.16 1.08-.553 1.424-1.178.165-.28.285-.58.36-.91.09-.32.12-.59.135-.8.015-.195.015-.54.015-1.005v-.54c-.84 0-1.484.06-1.92.18-1.275.36-1.92 1.17-1.92 2.43l-.035-.02zm9.162 7.027c.03-.06.075-.11.132-.17.362-.243.714-.41 1.05-.5a8.094 8.094 0 011.612-.24c.14-.012.28 0 .41.03.65.06 1.05.168 1.172.33.063.09.099.228.099.39v.15c0 .51-.149 1.11-.424 1.8-.278.69-.664 1.248-1.156 1.68-.073.06-.14.09-.197.09-.03 0-.06 0-.09-.012-.09-.044-.107-.12-.064-.24.54-1.26.806-2.143.806-2.64 0-.15-.03-.27-.087-.344-.145-.166-.55-.257-1.224-.257-.243 0-.533.016-.87.046-.363.045-.7.09-1 .135-.09 0-.148-.014-.18-.044-.03-.03-.036-.047-.02-.077 0-.017.006-.03.02-.063v-.06z"/></svg></span> Amazon 01</button>
+      <button class="nav-item" data-mod="amazon" onclick="switchTab('amazon02',this)"><span class="icon"><svg class="plogo" viewBox="0 0 24 24" aria-hidden="true"><path fill="#ea580c" d="M.045 18.02c.072-.116.187-.124.348-.022 3.636 2.11 7.594 3.166 11.87 3.166 2.852 0 5.668-.533 8.447-1.595l.315-.14c.138-.06.234-.1.293-.13.226-.088.39-.046.525.13.12.174.09.336-.12.48-.256.19-.6.41-1.006.654-1.244.743-2.64 1.316-4.185 1.726a17.617 17.617 0 01-10.951-.577 17.88 17.88 0 01-5.43-3.35c-.1-.074-.151-.15-.151-.22 0-.047.021-.09.051-.13zm6.565-6.218c0-1.005.247-1.863.743-2.577.495-.71 1.17-1.25 2.04-1.615.796-.335 1.756-.575 2.912-.72.39-.046 1.033-.103 1.92-.174v-.37c0-.93-.105-1.558-.3-1.875-.302-.43-.78-.65-1.44-.65h-.182c-.48.046-.896.196-1.246.46-.35.27-.575.63-.675 1.096-.06.3-.206.465-.435.51l-2.52-.315c-.248-.06-.372-.18-.372-.39 0-.046.007-.09.022-.15.247-1.29.855-2.25 1.82-2.88.976-.616 2.1-.975 3.39-1.05h.54c1.65 0 2.957.434 3.888 1.29.135.15.27.3.405.48.12.165.224.314.283.45.075.134.15.33.195.57.06.254.105.42.135.51.03.104.062.3.076.615.01.313.02.493.02.553v5.28c0 .376.06.72.165 1.036.105.313.21.54.315.674l.51.674c.09.136.136.256.136.36 0 .12-.06.226-.18.314-1.2 1.05-1.86 1.62-1.963 1.71-.165.135-.375.15-.63.045a6.062 6.062 0 01-.526-.496l-.31-.347a9.391 9.391 0 01-.317-.42l-.3-.435c-.81.886-1.603 1.44-2.4 1.665-.494.15-1.093.227-1.83.227-1.11 0-2.04-.343-2.76-1.034-.72-.69-1.08-1.665-1.08-2.94l-.05-.076zm3.753-.438c0 .566.14 1.02.425 1.364.285.34.675.512 1.155.512.045 0 .106-.007.195-.02.09-.016.134-.023.166-.023.614-.16 1.08-.553 1.424-1.178.165-.28.285-.58.36-.91.09-.32.12-.59.135-.8.015-.195.015-.54.015-1.005v-.54c-.84 0-1.484.06-1.92.18-1.275.36-1.92 1.17-1.92 2.43l-.035-.02zm9.162 7.027c.03-.06.075-.11.132-.17.362-.243.714-.41 1.05-.5a8.094 8.094 0 011.612-.24c.14-.012.28 0 .41.03.65.06 1.05.168 1.172.33.063.09.099.228.099.39v.15c0 .51-.149 1.11-.424 1.8-.278.69-.664 1.248-1.156 1.68-.073.06-.14.09-.197.09-.03 0-.06 0-.09-.012-.09-.044-.107-.12-.064-.24.54-1.26.806-2.143.806-2.64 0-.15-.03-.27-.087-.344-.145-.166-.55-.257-1.224-.257-.243 0-.533.016-.87.046-.363.045-.7.09-1 .135-.09 0-.148-.014-.18-.044-.03-.03-.036-.047-.02-.077 0-.017.006-.03.02-.063v-.06z"/></svg></span> Amazon 02</button>
+      <div class="nav-section" data-mod="shopee"><svg class="plogo" viewBox="0 0 24 24" aria-hidden="true"><path fill="#dc2626" d="M15.9414 17.9633c.229-1.879-.981-3.077-4.1758-4.0969-1.548-.528-2.277-1.22-2.26-2.1719.065-1.056 1.048-1.825 2.352-1.85a5.2898 5.2898 0 0 1 2.8838.89c.116.072.197.06.263-.039.09-.145.315-.494.39-.62.051-.081.061-.187-.068-.281-.185-.1369-.704-.4149-.983-.5319a6.4697 6.4697 0 0 0-2.5118-.514c-1.909.008-3.4129 1.215-3.5389 2.826-.082 1.1629.494 2.1078 1.73 2.8278.262.152 1.6799.716 2.2438.892 1.774.552 2.695 1.5419 2.478 2.6969-.197 1.047-1.299 1.7239-2.818 1.7439-1.2039-.046-2.2878-.537-3.1278-1.19l-.141-.11c-.104-.08-.218-.075-.287.03-.05.077-.376.547-.458.67-.077.108-.035.168.045.234.35.293.817.613 1.134.775a6.7097 6.7097 0 0 0 2.8289.727 4.9048 4.9048 0 0 0 2.0759-.354c1.095-.465 1.8029-1.394 1.9449-2.554zM11.9986 1.4009c-2.068 0-3.7539 1.95-3.8329 4.3899h7.6657c-.08-2.44-1.765-4.3899-3.8328-4.3899zm7.8516 22.5981-.08.001-15.7843-.002c-1.074-.04-1.863-.91-1.971-1.991l-.01-.195L1.298 6.2858a.459.459 0 0 1 .45-.494h4.9748C6.8448 2.568 9.1607 0 11.9996 0c2.8388 0 5.1537 2.5689 5.2757 5.7898h4.9678a.459.459 0 0 1 .458.483l-.773 15.5883-.007.131c-.094 1.094-.979 1.9769-2.0709 2.0059z"/></svg>Shopee</div>
+      <button class="nav-item" data-mod="shopee" onclick="switchTab('shopee',this)"><span class="icon"><svg class="plogo" viewBox="0 0 24 24" aria-hidden="true"><path fill="#dc2626" d="M15.9414 17.9633c.229-1.879-.981-3.077-4.1758-4.0969-1.548-.528-2.277-1.22-2.26-2.1719.065-1.056 1.048-1.825 2.352-1.85a5.2898 5.2898 0 0 1 2.8838.89c.116.072.197.06.263-.039.09-.145.315-.494.39-.62.051-.081.061-.187-.068-.281-.185-.1369-.704-.4149-.983-.5319a6.4697 6.4697 0 0 0-2.5118-.514c-1.909.008-3.4129 1.215-3.5389 2.826-.082 1.1629.494 2.1078 1.73 2.8278.262.152 1.6799.716 2.2438.892 1.774.552 2.695 1.5419 2.478 2.6969-.197 1.047-1.299 1.7239-2.818 1.7439-1.2039-.046-2.2878-.537-3.1278-1.19l-.141-.11c-.104-.08-.218-.075-.287.03-.05.077-.376.547-.458.67-.077.108-.035.168.045.234.35.293.817.613 1.134.775a6.7097 6.7097 0 0 0 2.8289.727 4.9048 4.9048 0 0 0 2.0759-.354c1.095-.465 1.8029-1.394 1.9449-2.554zM11.9986 1.4009c-2.068 0-3.7539 1.95-3.8329 4.3899h7.6657c-.08-2.44-1.765-4.3899-3.8328-4.3899zm7.8516 22.5981-.08.001-15.7843-.002c-1.074-.04-1.863-.91-1.971-1.991l-.01-.195L1.298 6.2858a.459.459 0 0 1 .45-.494h4.9748C6.8448 2.568 9.1607 0 11.9996 0c2.8388 0 5.1537 2.5689 5.2757 5.7898h4.9678a.459.459 0 0 1 .458.483l-.773 15.5883-.007.131c-.094 1.094-.979 1.9769-2.0709 2.0059z"/></svg></span> Shopee</button>
+      <div class="nav-section" data-mod="magalu"><svg class="plogo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="#2563eb"/><text x="12" y="16.5" text-anchor="middle" font-size="13" font-weight="800" fill="#fff" font-family="Arial,sans-serif">m</text></svg>Magalu</div>
+      <button class="nav-item" data-mod="magalu" onclick="switchTab('magalu',this)"><span class="icon"><svg class="plogo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="#2563eb"/><text x="12" y="16.5" text-anchor="middle" font-size="13" font-weight="800" fill="#fff" font-family="Arial,sans-serif">m</text></svg></span> Magalu</button>
       <div class="nav-section">Módulos</div>
       <button class="nav-item" data-mod="expedicao" onclick="switchTab('expedicao',this)"><span class="icon">▤</span> Expedição</button>
       <button class="nav-item" data-mod="sac" onclick="switchTab('sac',this)"><span class="icon">✉</span> SAC</button>
@@ -838,11 +847,18 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
           <button onclick="sacIr('meli02',this)">Meli02</button>
           <button onclick="sacIr('meli03',this)">Meli03</button>
         </div>
+        <div class="sac-subtabs" id="sac-tipos" style="margin-top:-8px">
+          <button class="active" onclick="sacTipo('tudo',this)">Tudo</button>
+          <button onclick="sacTipo('mensagens',this)">Mensagens e perguntas</button>
+          <button onclick="sacTipo('reclamacoes',this)">Reclamações</button>
+          <button onclick="sacTipo('contestacoes',this)">Contestações</button>
+        </div>
         <div id="sac-corpo"></div>
       </div>
       <div class="tab" id="tab-amazon01"><div id="painel-amazon01"></div></div>
       <div class="tab" id="tab-amazon02"><div id="painel-amazon02"></div></div>
       <div class="tab" id="tab-shopee"><div id="painel-shopee"></div></div>
+      <div class="tab" id="tab-magalu"><div class="periodo-card" style="margin:24px"><span class="periodo-label">Magalu</span><span class="sac-mut">Em construção</span></div></div>
       <div class="tab" id="tab-config">
         <div class="config-card" id="cfg-cmv-card" style="max-width:760px;margin-bottom:24px">
           <div class="config-card-title">CMV e imposto</div>
@@ -1109,7 +1125,7 @@ async function fazerLogin() {
       initApp();
       aplicarModulos();
       fetch('/sistema/houve-atualizacao').then(r => r.json()).then(d => {
-        if (d.houve) setTimeout(() => mostrarPopupChangelog(), 800);
+        if (d.houve) setTimeout(() => mostrarPopupChangelog(d.versao), 800);
       }).catch(() => {});
     }
   } catch(e) { mostrarErroLogin('Erro de conexão com o servidor'); }
@@ -1260,7 +1276,7 @@ function switchTab(tab, btn) {
   document.getElementById(`tab-${tab}`).classList.add('active');
   btn.classList.add('active');
   contaAtiva = tab;
-  const titles = {meli01:'Meli01 — Rentabilidade',meli02:'Meli02 — Rentabilidade',meli03:'Meli03 — Rentabilidade',config:'Configurações',expedicao:'Expedição — Galpão',amazon01:'Amazon 01 — Rentabilidade',amazon02:'Amazon 02 — Rentabilidade',shopee:'Shopee',sac:'SAC — Pendências e contestações'};
+  const titles = {meli01:'Meli01 — Rentabilidade',meli02:'Meli02 — Rentabilidade',meli03:'Meli03 — Rentabilidade',config:'Configurações',expedicao:'Expedição — Galpão',amazon01:'Amazon 01 — Rentabilidade',amazon02:'Amazon 02 — Rentabilidade',shopee:'Shopee',magalu:'Magalu — Em construção',sac:'SAC — Pendências e contestações'};
   document.getElementById('topbar-title').textContent = titles[tab] || tab;
   if(tab==='config'){ loadConfig(); cmvCarregarStatus(); }
   if(tab==='amazon01'||tab==='amazon02') amzAbrirAba(tab);
@@ -1459,6 +1475,24 @@ async function amzModalBuscar() {
     _amz.d = d; amzDesenharModal(d);
   } catch(e) { document.getElementById('amz-body').innerHTML = `<div class="sac-mut">Erro: ${sacEsc(e.message)}</div>`; }
 }
+// Investimento em Ads por ASIN (Data Kiosk): preenche Investimento e TACOS; ACOS e ROAS seguem indisponíveis
+async function amzCarregarAds(d) {
+  const cells = document.querySelectorAll('#amz-strip .mx-kpi-v');
+  if (cells.length < 7 || !d.asin || !d.periodo) return;
+  try {
+    const r = await fetch(`${API}/amazon/ads/${d.conta}?de=${d.periodo.de}&ate=${d.periodo.ate}`);
+    const j = await r.json(); if (!r.ok) throw new Error(j.detail || r.status);
+    if (document.getElementById('amz-title').textContent !== (d.titulo || d.sku)) return;   // o modal mudou de SKU
+    const inv = Number(j.por_asin[d.asin] || 0);
+    const rec = (d.atual.receita || 0) * (d.atual.un || 0);
+    cells[3].textContent = brl2(inv);
+    cells[3].title = 'Gasto de Sponsored Products por ASIN no período (Data Kiosk)';
+    cells[5].textContent = rec > 0 ? (inv / rec * 100).toFixed(2).replace('.', ',') + '%' : '—';
+    cells[5].title = 'Investimento em Ads ÷ receita do período';
+  } catch(e) {
+    cells[3].title = 'Não foi possível carregar o investimento em Ads: ' + e.message;
+  }
+}
 function amzDesenharModal(d) {
   const a = d.atual, p = d.periodo_anterior, conta = d.conta, sku = d.sku;
   document.getElementById('amz-title').textContent = d.titulo || sku;
@@ -1468,6 +1502,7 @@ function amzDesenharModal(d) {
   document.getElementById('amz-strip').style.setProperty('--cols', 7);
   document.getElementById('amz-strip').innerHTML = ['Vendas por ADS', 'Vendas orgânicas', 'Receita por ADS', 'Investimento', 'ACOS', 'TACOS', 'ROAS']
     .map(l => `<div class="mx-kpi"><div class="mx-kpi-l">${l}</div><div class="mx-kpi-v">${nd}</div></div>`).join('');
+  amzCarregarAds(d);   // Investimento e TACOS vêm do Data Kiosk (gasto por ASIN)
   if (!a) { document.getElementById('amz-body').innerHTML = '<div class="sac-mut">Sem vendas deste SKU no período selecionado.</div>'; return; }
   const un = a.un_liquidas || 0, rl = a.receita_liquida || 0;
   const c = d.custo || {}, al = d.aliquotas;
@@ -1614,6 +1649,13 @@ const SAC_DESFECHO = {
 };
 const SAC_TIPO = {mediations:'Mediação', returns:'Devolução', claims:'Reclamação', cancel_purchase:'Cancelamento'};
 let _sacAba = 'geral', _sacDe = '', _sacAte = '';
+let _sacTipoSel = 'tudo';   // tudo | mensagens | reclamacoes | contestacoes
+function sacTipo(t, btn){
+  _sacTipoSel = t;
+  document.querySelectorAll('#sac-tipos button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  sacIr(_sacAba);
+}
 function sacEsc(x){ return String(x==null?'':x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function sacDmy(iso){ if(!iso) return ''; const d=new Date(iso); return d.toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'}); }
 function sacQS(){ const q=[]; if(_sacDe) q.push('de='+_sacDe); if(_sacAte) q.push('ate='+_sacAte); return q.length?'?'+q.join('&'):''; }
@@ -1671,12 +1713,17 @@ async function carregarSacConta(conta){
     const perg=d.perguntas.itens.map(p=>`<div class="sac-linha ${p.dias>=1?'alerta':''}"><span>${sacEsc(p.texto)}</span><span class="sac-mut">${sacEsc(p.mlb)} · ${sacDmy(p.data)} · há ${p.dias} dia(s)</span></div>`).join('')||'<div class="sac-mut">Nenhuma pergunta pendente.</div>';
     const msgs=d.mensagens.itens.map(m=>`<div class="sac-linha"><span>Pacote ${sacEsc(m.pack)}</span><span><span class="sac-pill">${m.nao_lidas} não lida(s)</span> ${m.assistente_ml?'<span class="sac-pill">assistente ML</span>':'<span class="sac-pill">cliente</span>'}</span></div>`).join('')||'<div class="sac-mut">Nenhuma mensagem não lida.</div>';
     const recl=d.reclamacoes.itens.map(c=>`<div class="sac-linha ${c.aguarda_voce?'alerta':''}"><span><b>${sacEsc(SAC_TIPO[c.tipo]||c.tipo)}</b> · ${sacEsc(c.etapa)} · motivo ${sacEsc(c.motivo)} · pedido ${sacEsc(c.pedido)}</span><span class="sac-mut">${sacDmy(c.data)} · há ${c.dias} dia(s) ${c.aguarda_voce?'<span class="sac-pill">aguarda você</span>':''}${c.prazo?` · prazo ${sacDmy(c.prazo)}`:''}</span></div>`).join('')||'<div class="sac-mut">Nenhuma reclamação aberta no período.</div>';
-    corpo.innerHTML=`
+    const mostra=t=>_sacTipoSel==='tudo'||_sacTipoSel===t;
+    let secoes='';
+    if(mostra('mensagens')) secoes+=`
       <div class="sac-sec"><h3>Perguntas pendentes <span class="sac-pill">${d.perguntas.total}</span></h3>${perg}</div>
-      <div class="sac-sec"><h3>Mensagens não lidas <span class="sac-pill">${d.mensagens.nao_lidas} de clientes</span> <span class="sac-pill">${d.mensagens.assistente_ml} do assistente ML</span></h3>${msgs}</div>
-      <div class="sac-sec"><h3>Reclamações abertas <span class="sac-pill">${d.reclamacoes.total}</span> <span class="sac-pill">${d.reclamacoes.aguardam_voce} aguardam você</span></h3>${recl}</div>
+      <div class="sac-sec"><h3>Mensagens não lidas <span class="sac-pill">${d.mensagens.nao_lidas} de clientes</span> <span class="sac-pill">${d.mensagens.assistente_ml} do assistente ML</span></h3>${msgs}</div>`;
+    if(mostra('reclamacoes')) secoes+=`
+      <div class="sac-sec"><h3>Reclamações abertas <span class="sac-pill">${d.reclamacoes.total}</span> <span class="sac-pill">${d.reclamacoes.aguardam_voce} aguardam você</span></h3>${recl}</div>`;
+    if(mostra('contestacoes')) secoes+=`
       <div class="sac-sec"><h3>Contestações de devolução <span class="sac-mut" id="sac-cont-st"></span></h3><div id="sac-cont"></div></div>`;
-    carregarContestacoes(conta);
+    corpo.innerHTML=secoes;
+    if(mostra('contestacoes')) carregarContestacoes(conta);   // começa a buscar assim que o grupo é escolhido
     st.textContent=(_sacDe||_sacAte?`período ${_sacDe||'início'} a ${_sacAte||'hoje'}`:'todas as pendências')+' · '+conta;
   }catch(e){ st.textContent='erro: '+e.message; }
 }
@@ -3068,9 +3115,23 @@ async function trocarCodigo(conta) {
   else{const e=await res.json();toast('Erro: '+(e.detail||''),'error');}
 }
 
-function mostrarPopupChangelog() {
+// Novidades por versão: só aparecem na primeira abertura depois da atualização (ver /sistema/houve-atualizacao).
+const NOTAS_VERSAO = {
+  '1.3.6': ['Tags de análise no anúncio: Ranqueamento e Sazonalidade (só marcação) e Revisado e Atenção (com comentário do dia)',
+            'Filtros de Ranqueamento e Sazonalidade na tabela, com a contagem de anúncios',
+            'PIVO: o V marcado aparece para toda a equipe e atualiza na tela',
+            'Expedição: montagem para embaladores, situação do envio em português e logística (pedidos e unidades)',
+            'Full: saldo sempre visível na tabela e no modal',
+            'SAC: contestações carregam automaticamente'],
+  '1.3.5': ['Botão Verificar Rebot por conta, mostrando o aviso do rebot na tela (somente leitura)']
+};
+function mostrarPopupChangelog(versao) {
+  const notas = NOTAS_VERSAO[versao];
+  if (!notas || !notas.length) return;   // sem novidades cadastradas para esta versão: não mostra
   const ex = document.getElementById('modal-changelog');
   if (ex) ex.remove();
+  const itens = `<ul style="list-style:none;padding:0;margin:0 0 26px;display:flex;flex-direction:column;gap:12px;">` + notas.map(t =>
+    `<li style="display:flex;gap:12px;align-items:flex-start;"><span style="color:var(--gold);font-size:16px;line-height:1.4;flex-shrink:0">•</span><span style="color:var(--text);font-size:13px;line-height:1.5">${t}</span></li>`).join('') + '</ul>';
   const overlay = document.createElement('div');
   overlay.id = 'modal-changelog';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:9999;';
@@ -3078,27 +3139,10 @@ function mostrarPopupChangelog() {
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:32px;width:440px;max-width:92vw;box-shadow:0 24px 64px rgba(0,0,0,.6);">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f6c90e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-        <span style="color:var(--gold);font-size:17px;font-weight:700;letter-spacing:-.02em">MZ-app atualizado</span>
+        <span style="color:var(--gold);font-size:17px;font-weight:700;letter-spacing:-.02em">MZ-app atualizado · v${versao}</span>
       </div>
       <p style="color:var(--muted2);font-size:12px;margin:0 0 18px 30px;letter-spacing:.02em;text-transform:uppercase">Novidades desta versão</p>
-      <ul style="list-style:none;padding:0;margin:0 0 26px;display:flex;flex-direction:column;gap:12px;">
-        <li style="display:flex;gap:12px;align-items:flex-start;">
-          <span style="color:var(--gold);font-size:16px;line-height:1.4;flex-shrink:0">•</span>
-          <span style="color:var(--text);font-size:13px;line-height:1.5">Modais redesenhados: simulador, ADS e vendas com períodos Atual, P2, P3 e P4, seletor de colunas de ADS e foto do anúncio</span>
-        </li>
-        <li style="display:flex;gap:12px;align-items:flex-start;">
-          <span style="color:var(--gold);font-size:16px;line-height:1.4;flex-shrink:0">•</span>
-          <span style="color:var(--text);font-size:13px;line-height:1.5">Mapa de alterações: cada registro guarda quem fez, quando e os indicadores do momento</span>
-        </li>
-        <li style="display:flex;gap:12px;align-items:flex-start;">
-          <span style="color:var(--gold);font-size:16px;line-height:1.4;flex-shrink:0">•</span>
-          <span style="color:var(--text);font-size:13px;line-height:1.5">Novo aviso de rebot e PIVO em todos os anúncios; o V marcado manualmente agora vale para toda a equipe</span>
-        </li>
-        <li style="display:flex;gap:12px;align-items:flex-start;">
-          <span style="color:var(--gold);font-size:16px;line-height:1.4;flex-shrink:0">•</span>
-          <span style="color:var(--text);font-size:13px;line-height:1.5">PIVO e contestações do SAC passam a ser compartilhados pelo banco da equipe</span>
-        </li>
-      </ul>
+      ${itens}
       <button onclick="document.getElementById('modal-changelog').remove()"
         style="width:100%;background:var(--gold);color:var(--bg);font-weight:700;padding:13px;border:none;border-radius:10px;cursor:pointer;font-size:14px;font-family:var(--font);letter-spacing:.02em;transition:opacity .2s;"
         onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
