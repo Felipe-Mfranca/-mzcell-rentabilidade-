@@ -992,6 +992,9 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
         <div class="modal-prod" id="amz-title"></div>
         <div class="modal-meta"><span class="modal-sku" id="amz-sku"></span><span style="color:var(--border2)">·</span><span class="modal-mlb" id="amz-asin"></span></div>
       </div>
+      <div class="modal-header-actions">
+        <button class="btn-sync-produto btn-azul" id="amz-btn-link" title="Abre o anúncio na Amazon">Link do anúncio ↗</button>
+      </div>
     </div>
     <div class="mx-strip-wrap">
       <div class="mx-strip-cap">Últimos 30 dias (fixo)</div>
@@ -1530,7 +1533,8 @@ async function amzCarregarAds(d) {
   if (document.getElementById('amz-title').textContent !== (d.titulo || d.sku)) return;   // o modal mudou de SKU
   const rlA = d.atual?.receita_liquida || 0;
   cells[3].textContent = brl2(invs.A);
-  cells[3].title = 'Gasto de Sponsored Products por ASIN no período (Data Kiosk)';
+  const diasP = _amz?.tab?.diasP || 1;
+  cells[3].title = `Gasto de Sponsored Products por ASIN no período (Data Kiosk) · Média diária: ${brl2(invs.A / diasP)}/dia`;
   cells[5].textContent = rlA > 0 ? (invs.A / rlA * 100).toFixed(2).replace('.', ',') + '%' : '—';
   cells[5].title = 'Investimento em Ads ÷ receita líquida do período';
   if (_amz) _amz.invs = invs;
@@ -1539,7 +1543,7 @@ async function amzCarregarAds(d) {
 // Monta a tabela de ADS (Atual, P2, P3 e P4). A Amazon só entrega investimento por ASIN: cliques e receita de ADS seguem '—'
 function amzMontarAdsTab(d) {
   const inv = _amz?.invs, t = _amz?.tab; if (!inv || !t) return;
-  const obj = (k, rl) => ({ads_total: inv[k] || 0, tacos: rl > 0 ? (inv[k] || 0) / rl : 0, receita: rl});
+  const obj = (k, rl) => ({ads_total: inv[k] || 0, tacos: rl > 0 ? (inv[k] || 0) / rl : 0, receita: rl, dias: t.diasP});
   const rlA = d.atual?.receita_liquida || 0, rlB = d.periodo_anterior?.receita_liquida || 0;
   const rlC = t.rl3 || 0, rlD = t.rl4 || 0;
   _adsDiaModo = true;
@@ -1553,8 +1557,12 @@ function amzDesenharModal(d) {
   document.getElementById('amz-sku').textContent = sku; document.getElementById('amz-asin').textContent = d.asin || '';
   // Faixa fixa (30D): a Amazon não entrega Ads por SKU sem a Advertising API
   const nd = '<span title="Indisponível: falta a Advertising API da Amazon">—</span>';
-  document.getElementById('amz-strip').style.setProperty('--cols', 7);
-  document.getElementById('amz-strip').innerHTML = ['Vendas por ADS', 'Vendas orgânicas', 'Receita por ADS', 'Investimento', 'ACOS', 'TACOS', 'ROAS']
+  // link do anúncio na Amazon: página do ASIN (sem ASIN, o botão fica desabilitado)
+  const btnLink = document.getElementById('amz-btn-link');
+  btnLink.disabled = !d.asin;
+  btnLink.onclick = () => abrirLink('https://www.amazon.com.br/dp/' + d.asin);
+  document.getElementById('amz-strip').style.setProperty('--cols', 8);
+  document.getElementById('amz-strip').innerHTML = ['Vendas por ADS', 'Vendas orgânicas', 'Receita por ADS', 'Investimento', 'ACOS', 'TACOS', 'ROAS', 'ROAS objetivo']
     .map(l => `<div class="mx-kpi"><div class="mx-kpi-l">${l}</div><div class="mx-kpi-v">${nd}</div></div>`).join('');
   if (!a) { document.getElementById('amz-body').innerHTML = '<div class="sac-mut">Sem vendas deste SKU no período selecionado.</div>'; amzCarregarAds(d); return; }
   const un = a.un_liquidas || 0, rl = a.receita_liquida || 0;
@@ -2485,6 +2493,13 @@ function _setModalPresetActive(de, ate) {
   });
 }
 
+// abre o anúncio no navegador padrão (pelo backend); se o backend não responder, tenta abrir em aba
+function abrirLink(url) {
+  fetch(`${API}/sistema/abrir-link`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({url})})
+    .then(r => { if (!r.ok) throw new Error(r.status); })
+    .catch(() => window.open(url, '_blank'));
+}
+
 function openModal(mlb, conta) {
   _modalMlb = mlb; _modalConta = conta;
   const data = db[conta]; if (!data) return;
@@ -2507,13 +2522,7 @@ function openModal(mlb, conta) {
   btnArq.onclick = () => arquivarProduto(_modalMlb, _modalConta);
 
   // página de vendas: o MLB-número abre o anúncio no Mercado Livre
-  // abre no navegador padrão (pelo backend); se o backend não responder, tenta abrir em aba
-  document.getElementById('btn-pag-venda').onclick = () => {
-    const url = 'https://produto.mercadolivre.com.br/' + mlb.replace(/^MLB/, 'MLB-');
-    fetch(`${API}/sistema/abrir-link`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({url})})
-      .then(r => { if (!r.ok) throw new Error(r.status); })
-      .catch(() => window.open(url, '_blank'));
-  };
+  document.getElementById('btn-pag-venda').onclick = () => abrirLink('https://produto.mercadolivre.com.br/' + mlb.replace(/^MLB/, 'MLB-'));
 
   renderModalContent(mlb, conta);
   document.getElementById('modal-prod').classList.add('open');

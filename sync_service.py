@@ -397,3 +397,41 @@ async def sincronizar_historico(conta: str, date_from: str, date_to: str, dias_t
     finally:
         _historicos_rodando.discard(conta)
         update_sync_status(conta, historico_rodando=False)
+
+
+def _gravar_roas(lote: dict):
+    """Grava o ROAS objetivo de um lote de anúncios, relendo o produtos.json para não perder outra gravação."""
+    db = _load(PRODUTOS_PATH) or {}
+    for mlb, valor in lote.items():
+        if mlb in db:
+            db[mlb]["roas_objetivo_ml"] = valor
+    _save(PRODUTOS_PATH, db)
+
+
+async def preencher_roas_faltando():
+    """Ao iniciar, preenche o ROAS objetivo (campanha do ML) dos anúncios que ainda não têm o campo.
+    Cada instalação tem o próprio produtos.json, e o auto-update só atualiza o código; sem isso o valor
+    só apareceria depois do sync de cada anúncio. Roda em segundo plano e só consulta o que falta."""
+    ate = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    de = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+    db = _load(PRODUTOS_PATH) or {}
+    pendentes = [(mlb, p["conta"]) for mlb, p in db.items()
+                 if p.get("conta") in ("meli01", "meli02", "meli03") and "roas_objetivo_ml" not in p and not p.get("arquivado")]
+    lote = {}
+    for mlb, conta in pendentes:
+        try:
+            r = await ml_api.metricas_ads(conta, mlb, de, ate)
+        except Exception:
+            continue                      # erro de rede: tenta de novo na próxima inicialização
+        if r.get("success"):
+            lote[mlb] = r.get("data", {}).get("roas_target") or None
+        elif r.get("error") == "organico":
+            lote[mlb] = None              # sem campanha: fica sem objetivo
+        else:
+            continue
+        if len(lote) >= 20:
+            _gravar_roas(lote)
+            lote = {}
+    if lote:
+        _gravar_roas(lote)
+    _log(f"ROAS objetivo: {len(pendentes)} anúncio(s) verificados ao iniciar")

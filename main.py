@@ -125,6 +125,8 @@ async def _sync_background(conta: str):
 async def startup():
     asyncio.create_task(loop_refresh())
     asyncio.create_task(loop_sync_diario())
+    # ROAS objetivo dos anúncios que ainda não têm o campo (segundo plano; não espera o ML)
+    asyncio.create_task(sync_service.preencher_roas_faltando())
     # Verifica e renova token imediatamente no startup
     try:
         from refresh_ml_token import verificar_e_renovar
@@ -1021,7 +1023,10 @@ async def abrir_link(payload: dict):
     """Abre um anúncio do Mercado Livre no navegador padrão do Windows (fora da janela do app)."""
     import webbrowser
     url = str(payload.get("url", ""))
-    if not url.startswith("https://produto.mercadolivre.com.br/MLB-"):
+    # só páginas de anúncio: MLB no Mercado Livre e ASIN (10 caracteres) na Amazon
+    asin = url[len("https://www.amazon.com.br/dp/"):] if url.startswith("https://www.amazon.com.br/dp/") else ""
+    permitido = url.startswith("https://produto.mercadolivre.com.br/MLB-") or (len(asin) == 10 and asin.isalnum())
+    if not permitido:
         raise HTTPException(status_code=400, detail="Endereço não permitido")
     webbrowser.open(url, new=2)
     return {"success": True}
