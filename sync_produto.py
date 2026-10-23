@@ -42,8 +42,10 @@ async def sincronizar_e_retornar(
     # ── Custos cadastrados pelo usuário (não vêm da API) ──────────────────────
     produtos_db = _load_produtos()
     p = produtos_db.get(mlb, {})
+    import cmv_base
+    cmv_base_unit = cmv_base.cmv_de(p.get("sku"))   # base de CMV pelo SKU tem prioridade sobre o valor antigo do produto
     custos = {
-        "cmv_unit":      p.get("cmv_unit", 0.0),
+        "cmv_unit":      cmv_base_unit if cmv_base_unit is not None else p.get("cmv_unit", 0.0),
         "imposto_pct":   p.get("imposto_pct", parser.get_aliquota(conta)),
         "comissao_pct":  p.get("comissao_pct", 0.11),
         "frete_unit":    p.get("frete_unit", 0.0),
@@ -187,12 +189,18 @@ async def sincronizar_e_retornar(
         datetime.fromisoformat(date_to) - datetime.fromisoformat(date_from)
     ).days + 1
 
-    # Persiste catalog_listing e variacoes_count no produtos.json
-    if catalog_listing:
+    # Persiste catalog_listing, variacoes_count e o ROAS objetivo da campanha no produtos.json.
+    # O ROAS objetivo é gravado a cada sync de ADS (sem campanha = orgânico = None).
+    gravar_roas = ads_res["success"] or is_organic
+    roas_alvo = (ads.get("roas_target") or None) if ads_res["success"] else None
+    if catalog_listing or gravar_roas:
         produtos_db_fresh = _load_produtos()
         if mlb in produtos_db_fresh:
-            produtos_db_fresh[mlb]["catalog_listing"] = catalog_listing
-            produtos_db_fresh[mlb]["variacoes_count"] = variacoes_count
+            if catalog_listing:
+                produtos_db_fresh[mlb]["catalog_listing"] = catalog_listing
+                produtos_db_fresh[mlb]["variacoes_count"] = variacoes_count
+            if gravar_roas:
+                produtos_db_fresh[mlb]["roas_objetivo_ml"] = roas_alvo
             import parser_rentabilidade as _parser
             _parser.save_produtos(produtos_db_fresh)
 
@@ -257,3 +265,38 @@ async def sincronizar_e_retornar(
         "erros": erros,
         "sincronizado_em": datetime.now().isoformat(),
     }
+
+
+async def ads_por_dia(conta: str, mlb: str, datas: list) -> list:
+    """ADS e vendas de cada dia (um dia por consulta, sem média). Devolve na mesma ordem de `datas`.
+    Campos: investimento, cliques, impressões, receita de ADS, receita e unidades do dia, CTR e CPC."""
+    async def um(dia: str) -> dict:
+        ads_res, orders_res = await asyncio.gather(
+            ml_api.metricas_ads(conta, mlb, dia, dia),
+            ml_api.orders_produto(conta, mlb, dia, dia),
+        )
+        ads = ads_res.get("data", {}) if ads_res.get("success") else {}
+        dados = parser.processar_orders(orders_res.get("data", {}), dia, dia) if orders_res.get("success") else {}
+        dados.pop("_periodo_stats_", None)
+        receita = sum(v.get("receita", 0.0) for v in dados.values())
+        unidades = sum(v.get("unidades", 0) for v in dados.values())
+        unidades_pagas = sum(v.get("unidades_pagas", 0) for v in dados.values())
+        vendas_publi_total = ads.get("vendas_publi_total", 0)
+        impressoes = ads.get("impressoes", 0)
+        cliques = ads.get("cliques", 0)
+        return {
+            "data":               dia,
+            "ads_total":          round(ads.get("ads_total", 0.0), 2),
+            "cliques":            cliques,
+            "impressoes":         impressoes,
+            "receita_publi":      round(ads.get("receita_publi", 0.0), 2),
+            "vendas_publi":       ads.get("vendas_publi", 0),
+            "vendas_indiretas":   ads.get("vendas_indiretas", 0),
+            "vendas_sem_publi":   max(0, unidades_pagas - vendas_publi_total),
+            "receita":            round(receita, 2),
+            "unidades":           unidades,
+            "ctr_c":              round(cliques / impressoes, 6) if impressoes else 0.0,
+            "cpc":                round(ads.get("cpc", 0.0), 2),
+        }
+
+    return list(await asyncio.gather(*[um(d) for d in datas]))

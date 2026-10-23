@@ -9,6 +9,8 @@ import json
 import os
 from datetime import datetime, timedelta
 
+import httpx
+
 import ml_api
 import parser_rentabilidade as parser
 
@@ -43,6 +45,46 @@ def _log(msg: str):
     logs = _load(LOG_PATH) or []
     logs.append({"ts": datetime.now().isoformat(), "msg": msg})
     _save(LOG_PATH, logs[-500:])
+
+
+async def _custos_vigentes(conta: str, mlb: str, detalhe: dict) -> dict:
+    """Preço vigente (com promoção), frete do ML nesse preço, comissão do ML e rebote da campanha ativa.
+    Tudo vem do ML a cada sincronização. Campos que o ML não devolver ficam None."""
+    out = {"preco": None, "frete": None, "comissao_pct": None, "rebot_unit": None}
+    try:
+        async with httpx.AsyncClient(timeout=30, verify=False) as client:
+            sp = await ml_api._get_json(client, conta, f"/items/{mlb}/sale_price?context=channel_marketplace")
+            promos = await ml_api._get_json(client, conta, f"/seller-promotions/items/{mlb}?app_version=v2")
+    except Exception:
+        sp, promos = None, None
+    vigente = (sp or {}).get("amount") or detalhe.get("price")
+    if not vigente:
+        return out
+    vigente = float(vigente)
+    out["preco"] = vigente
+    frete = await ml_api.frete_para_preco(conta, mlb, vigente)
+    if frete.get("success"):
+        out["frete"] = frete.get("frete")
+    lt, cat = detalhe.get("listing_type_id"), detalhe.get("category_id")
+    if lt and cat:
+        try:
+            async with httpx.AsyncClient(timeout=30, verify=False) as client:
+                lp = await ml_api._get_json(client, conta,
+                    f"/sites/MLB/listing_prices?price={vigente}&listing_type_id={lt}&category_id={cat}")
+            row = (lp[0] if isinstance(lp, list) and lp else lp) or {}
+            fee = (row.get("sale_fee_details") or {}).get("percentage_fee")
+            if fee is not None:
+                out["comissao_pct"] = round(float(fee) / 100, 6)
+        except Exception:
+            pass
+    if isinstance(promos, list):
+        ativa = ml_api.campanha_efetiva(promos, sp)
+        cheio = (sp or {}).get("regular_amount") or detalhe.get("price") or vigente
+        if ativa:
+            out["rebot_unit"] = round(((ativa.get("meli_percentage") or 0) / 100) * (ativa.get("original_price") or cheio), 2)
+        else:
+            out["rebot_unit"] = 0.0
+    return out
 
 
 async def _sync_mlb(conta: str, mlb: str, detalhe: dict,
@@ -127,6 +169,9 @@ async def _sync_mlb(conta: str, mlb: str, detalhe: dict,
             "_periodo_de": date_from, "_periodo_ate": date_to,
         }
 
+    vig = await _custos_vigentes(conta, mlb, detalhe)
+    preco_vigente, frete_vigente = vig["preco"], vig["frete"]
+
     custos_existentes = {}
     if mlb in produtos_db:
         p = produtos_db[mlb]
@@ -137,6 +182,19 @@ async def _sync_mlb(conta: str, mlb: str, detalhe: dict,
             "frete_unit":  p.get("frete_unit", 0.0),
             "rebot_unit":  p.get("rebot_unit", 0.0),
         }
+
+    # frete, comissão e rebote são sempre os do ML no momento da sincronização (nunca dados antigos)
+    if frete_vigente is not None:
+        custos_existentes["frete_unit"] = frete_vigente
+    if vig["comissao_pct"] is not None:
+        custos_existentes["comissao_pct"] = vig["comissao_pct"]
+    if vig["rebot_unit"] is not None:
+        custos_existentes["rebot_unit"] = vig["rebot_unit"]
+    # CMV: a base de CMV (importada) pelo SKU é a referência; sobrescreve o valor antigo do produto
+    import cmv_base
+    cmv_ref = cmv_base.cmv_de(sku)
+    if cmv_ref is not None:
+        custos_existentes["cmv_unit"] = cmv_ref
 
     for dia, vals in dados_dias.items():
         if dia == "_ads_":
@@ -161,11 +219,35 @@ async def _sync_mlb(conta: str, mlb: str, detalhe: dict,
         produtos_db[mlb]["dias"]          = {**antigos, **dados_dias}
         produtos_db[mlb]["titulo"]        = titulo
         produtos_db[mlb]["atualizado_em"] = datetime.now().isoformat()
+        if frete_vigente is not None:
+            produtos_db[mlb]["frete_unit"] = frete_vigente
+        if vig["comissao_pct"] is not None:
+            produtos_db[mlb]["comissao_pct"] = vig["comissao_pct"]
+        if vig["rebot_unit"] is not None:
+            produtos_db[mlb]["rebot_unit"] = vig["rebot_unit"]
+        if cmv_ref is not None:
+            produtos_db[mlb]["cmv_unit"] = cmv_ref
     else:
         produtos_db[mlb] = parser.montar_produto_db(
             mlb=mlb, titulo=titulo, sku=sku, variacao=variacao,
             conta=conta, dados_dias=dados_dias, custos=custos_existentes
         )
+    # ROAS objetivo vigente da campanha no ML; anúncio orgânico (sem campanha) fica sem objetivo
+    if ads_res["success"]:
+        produtos_db[mlb]["roas_objetivo_ml"] = ads_res["data"].get("roas_target") or None
+    elif ads_res.get("error") == "organico":
+        produtos_db[mlb]["roas_objetivo_ml"] = None
+    if preco_vigente is not None:
+        produtos_db[mlb]["preco_vigente"] = preco_vigente
+    # vínculo de catálogo: o anúncio vencedor do catálogo e se este é ele (só quando o detalhe traz o catálogo)
+    cpid = detalhe.get("catalog_product_id")
+    if cpid:
+        try:
+            produtos_db[mlb]["catalogo"] = await ml_api.vinculo_catalogo(conta, cpid, mlb)
+        except Exception:
+            pass
+    elif detalhe and "catalog_product_id" in detalhe:
+        produtos_db[mlb]["catalogo"] = None      # detalhe completo sem catálogo: desfaz vínculo antigo
     return True
 
 
@@ -220,11 +302,23 @@ async def sincronizar_conta_func(conta: str, dias: int = 30,
     produtos_db = _load(PRODUTOS_PATH) or {}
     atualizados = 0
 
+    falhas = []
     for mlb in mlbs:
         detalhe = detalhes["data"].get(mlb, {})
-        ok = await _sync_mlb(conta, mlb, detalhe, date_from, date_to, produtos_db)
+        try:                       # um anúncio com erro de rede não derruba a sincronização da conta inteira
+            ok = await _sync_mlb(conta, mlb, detalhe, date_from, date_to, produtos_db)
+        except Exception as e:
+            ok = False
+            falhas.append(mlb)
+            _log(f"Falha ao sincronizar {mlb} ({conta}): {type(e).__name__}")
         if ok:
             atualizados += 1
+
+    # anúncios da conta que não estão mais ativos no ML: não entram na validade (não há o que sincronizar)
+    ativos = set(mlbs)
+    for m, p in produtos_db.items():
+        if p.get("conta") == conta:
+            p["inativo_no_ml"] = m not in ativos
 
     _save(PRODUTOS_PATH, produtos_db)
     ts = datetime.now().isoformat()
@@ -243,6 +337,7 @@ async def sincronizar_conta_func(conta: str, dias: int = 30,
         "success":           True,
         "conta":             conta,
         "total_atualizados": atualizados,
+        "falhas":            falhas,
         "ultimo_sync":       ts,
         "periodo":           {"de": date_from, "ate": date_to},
     }

@@ -476,7 +476,17 @@ html:not([data-tema="claro"]) .mxt-pill.up{color:#4ade80;}html:not([data-tema="c
 .mx-pivo .n{font-size:11px;font-weight:700;}
 .mx-pivo .n.ok{color:var(--green);}.mx-pivo .n.atencao{color:#b45309;}
 .pivo-l.lg{width:28px;height:28px;font-size:14px;border-radius:9px;margin-right:2px;}
+/* azul vence também o tema claro (que usa html[data-tema] com maior especificidade) */
+html .btn-sync-produto.btn-azul{border-color:var(--blue);color:var(--blue);background:var(--bg3);}
+html .btn-sync-produto.btn-azul:hover:not(:disabled){background:var(--blue);color:#fff;border-color:var(--blue);}
 /* mapa de alterações */
+.mapa-filtro{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-2px 0 10px;font-size:12px;color:var(--muted2);}
+.mapa-filtro input[type=date]{background:var(--bg2);border:1px solid var(--border2);color:var(--text);border-radius:8px;height:28px;padding:0 6px;font:12px var(--font);}
+.mapa-filtro label{display:flex;gap:5px;align-items:center;cursor:pointer;}
+.mapa-filtro .mapa-limpar{cursor:pointer;color:var(--gold);}
+.mapa-fav{background:none;border:0;cursor:pointer;color:var(--muted2);font-size:15px;line-height:1;padding:0 2px;margin-left:auto;}
+.mapa-fav.on{color:var(--gold);}
+.mapa-fav:hover{color:var(--gold);}
 .mapa-form{display:flex;gap:8px;align-items:flex-start;margin-bottom:10px;}
 .mapa-form textarea{flex:1;min-width:0;height:44px;resize:none;background:var(--bg2);border:1px solid var(--border2);color:var(--text);border-radius:10px;padding:8px 10px;font:12.5px/1.4 var(--font);}
 .mapa-form textarea:focus{border-color:var(--gold);outline:none;}
@@ -865,7 +875,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
           <div class="config-card-sub">Um único arquivo de CMV do Grupo vale para todas as plataformas (Mercado Livre, Amazon e, depois, Shopee). O imposto usa a alíquota de cada conta.</div>
           <div id="cmv-status" class="sac-mut" style="margin:8px 0">Carregando…</div>
           <div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0">
-            <button class="btn-save" style="margin:0" onclick="document.getElementById('cmv-arquivo').click()">Importar CMV (arquivo do Grupo)</button>
+            <button id="btn-cmv-importar" class="btn-save" style="margin:0" onclick="document.getElementById('cmv-arquivo').click()">Importar CMV (arquivo do Grupo)</button>
             <input type="file" id="cmv-arquivo" accept=".xlsx" style="display:none" onchange="cmvImportar(this)"/>
             <button class="btn-sync-produto" style="height:34px" onclick="cmvAplicar(false)">Simular aplicação nos produtos</button>
             <button class="btn-sync-produto" style="height:34px;border-color:var(--gold);color:var(--gold)" onclick="cmvAplicar(true)">Aplicar CMV e imposto</button>
@@ -940,9 +950,11 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
           <span class="modal-sku" id="m-sku"></span>
           <span style="color:var(--border2)">·</span>
           <span class="modal-mlb" id="m-mlb"></span>
+          <span id="m-catalogo-icone" style="display:none"></span>
         </div>
       </div>
       <div class="modal-header-actions">
+        <button class="btn-sync-produto btn-azul" id="btn-pag-venda" title="Abre o anúncio no Mercado Livre">Link do anúncio ↗</button>
         <button class="btn-sync-produto" id="btn-arq-produto" style="border-color:var(--border2);color:var(--muted2)">Arquivar</button>
         <button class="btn-sync-produto" id="btn-sync-produto"><span id="sync-icon">↻</span> Sincronizar MLB</button>
       </div>
@@ -954,6 +966,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       <div class="mx-strip" id="mx-strip"></div>
     </div>
     <div class="modal-period-bar">
+      <button class="modal-preset" id="mpb-d1" onclick="setModalDia(1,this)">D1</button>
       <button class="modal-preset active" id="mpb-7" onclick="setModalPreset(7,this)">7D</button>
       <button class="modal-preset" id="mpb-15" onclick="setModalPreset(15,this)">15D</button>
       <button class="modal-preset" id="mpb-30" onclick="setModalPreset(30,this)">30D</button>
@@ -985,6 +998,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       <div class="mx-strip" id="amz-strip"></div>
     </div>
     <div class="modal-period-bar">
+      <button class="modal-preset" id="amzp-d1" onclick="amzModalDia(1,this)">D1</button>
       <button class="modal-preset active" id="amzp-7" onclick="amzModalPeriodo(7,this)">7D</button>
       <button class="modal-preset" id="amzp-15" onclick="amzModalPeriodo(15,this)">15D</button>
       <button class="modal-preset" id="amzp-30" onclick="amzModalPeriodo(30,this)">30D</button>
@@ -1017,8 +1031,8 @@ const _mil = v => Number(v||0).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3}
 const _dec2 = v => Number(v||0).toFixed(2).replace('.', ',');
 const pct2 = v => (Number(v||0) * 100).toFixed(2).replace('.', ',') + '%';
 const fmt2 = e => { const v = parseFloat(e.value); if (!isNaN(v)) e.value = v.toFixed(2); };
-const brl = v => 'R$ ' + r(v,0);
-const pct1 = v => (Number(v||0)*100).toFixed(1).replace('.',',') + '%';
+const brl = v => 'R$ ' + r(v,2);
+const pct1 = v => (Number(v||0)*100).toFixed(2).replace('.',',') + '%';
 const brl2 = v => 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const pct = (v,d=2) => (Number(v||0)*100).toFixed(d)+'%';
 const mono = v => `<span class="mono">${v}</span>`;
@@ -1027,7 +1041,7 @@ const mono = v => `<span class="mono">${v}</span>`;
 function vb(cur, prv, inv=false) {
   if(prv==null||prv===0||isNaN(prv)) return '';
   const p=Math.abs((cur-prv)/Math.abs(prv)*100), up=inv?cur<prv:cur>prv;
-  return ` <span class="${up?'vb-up':'vb-dn'}">${up?'▲':'▼'}${p.toFixed(1)}%</span>`;
+  return ` <span class="${up?'vb-up':'vb-dn'}">${up?'▲':'▼'}${p.toFixed(2)}%</span>`;
 }
 
 // Badge inline para KPIs do modal (ao lado do valor)
@@ -1035,7 +1049,7 @@ function badge(atual, anterior, inverso=false, tooltip='') {
   if(!anterior || anterior===0 || !atual) return '';
   const diff = atual - anterior;
   if(Math.abs(diff) < 0.0001) return '';
-  const pct  = Math.abs(diff/anterior*100).toFixed(1);
+  const pct  = Math.abs(diff/anterior*100).toFixed(2);
   const subiu = diff > 0;
   const bom   = inverso ? !subiu : subiu;
   const cls   = bom ? 'kpi-badge-up' : 'kpi-badge-dn';
@@ -1078,7 +1092,7 @@ function cBar(label, val, receita, color) {
   const p=receita>0?val/receita*100:0;
   return `<div class="cbar-row"><span class="cbar-lbl">${label}</span>
     <div class="cbar-track"><div class="cbar-fill" style="width:${Math.min(Math.abs(p),100)}%;background:${color}"></div></div>
-    <span class="cbar-pct">${p.toFixed(1)}%</span></div>`;
+    <span class="cbar-pct">${p.toFixed(2)}%</span></div>`;
 }
 
 function toast(msg, tipo='success') {
@@ -1295,15 +1309,25 @@ async function cmvCarregarStatus() {
     st.textContent = b.skus ? `Base atual: ${b.skus} SKUs · atualizada em ${(b.atualizado_em||'').replace('T',' ')} · arquivo: ${b.arquivo||'-'}` : 'Nenhum arquivo de CMV importado ainda.';
   } catch(e) { st.textContent = 'Base de CMV indisponível.'; }
   const box = document.getElementById('cmv-aliquotas'); if (!box) return;
+  const btn = document.getElementById('btn-cmv-importar');
+  const liberado = ['zicri'].includes((user?.login || '').toLowerCase());
+  if (btn) { btn.disabled = !liberado; btn.title = liberado ? '' : 'Importação de CMV liberada só para o responsável'; }
   const linhas = [];
-  for (const c of [...CMV_CONTAS_ML, ...CMV_CONTAS_AMAZON]) {
-    try { const a = await (await fetch(`${API}/impostos/${c}`)).json(); linhas.push(`${c}: ${(a.com_st*100).toFixed(2).replace('.',',')}% / ${(a.sem_st*100).toFixed(2).replace('.',',')}%`); } catch(e) {}
-  }
+  try {
+    const imp = (await (await fetch(`${API}/impostos`)).json()).itens || {};
+    const pc = v => (Number(v) * 100).toFixed(2).replace('.', ',') + '%';
+    for (const c of [...CMV_CONTAS_ML, ...CMV_CONTAS_AMAZON]) {
+      const u = imp[c + '|unica'];
+      const com = imp[c + '|com_st'], sem = imp[c + '|sem_st'];
+      if (u) linhas.push(`${c}: alíquota única ${pc(u.aliquota)}`);
+      else if (com || sem) linhas.push(`${c}: com ST ${com ? pc(com.aliquota) : '—'} / sem ST ${sem ? pc(sem.aliquota) : '—'}`);
+    }
+  } catch(e) {}
   box.textContent = linhas.join('  ·  ');
 }
 async function cmvImportar(input) {
   const f = input.files[0]; if (!f) return;
-  const fd = new FormData(); fd.append('file', f);
+  const fd = new FormData(); fd.append('file', f); fd.append('autor', user?.login || '');
   const out = document.getElementById('cmv-resultado'); out.textContent = 'Importando…';
   try {
     const r = await fetch(`${API}/cmv/importar`, {method:'POST', body: fd}); const d = await r.json();
@@ -1311,8 +1335,9 @@ async function cmvImportar(input) {
     out.innerHTML = `Importado: <b>${d.skus}</b> SKUs (${d.abas.map(a=>sacEsc(a.aba)+': '+a.skus_lidos).join(' · ')})` +
       (d.conflitos.length ? ` · <span style="color:var(--gold)">${d.conflitos.length} conflito(s): valia a primeira aba</span>` : '') +
       (d.ignorados.length ? ` · ${d.ignorados.length} linha(s) sem CMV válido ignorada(s)` : '');
-    toast('CMV importado');
+    toast('CMV importado e aplicado nos anúncios do Mercado Livre');
     cmvCarregarStatus();
+    ['meli01','meli02','meli03'].forEach(c => { if (document.getElementById(`de-${c}`)) buscarPeriodo(c); });   // tabelas com o CMV novo
   } catch(e) { out.textContent = 'Erro ao importar: ' + e.message; toast('Erro ao importar o CMV', 'error'); }
   input.value = '';
 }
@@ -1398,7 +1423,7 @@ function amzSeta(atual, ant, inverso) {
   if (ant == null || !ant || atual == null) return '';
   const diff = atual - ant; if (Math.abs(diff) < 0.0001) return '';
   const bom = inverso ? diff < 0 : diff > 0;
-  return `<span class="kpi-badge-var ${bom?'kpi-badge-up':'kpi-badge-dn'}">${diff>0?'▲':'▼'}${Math.abs(diff/ant*100).toFixed(1).replace('.',',')}%</span>`;
+  return `<span class="kpi-badge-var ${bom?'kpi-badge-up':'kpi-badge-dn'}">${diff>0?'▲':'▼'}${Math.abs(diff/ant*100).toFixed(2).replace('.',',')}%</span>`;
 }
 function amzDesenhar(conta, d) {
   const x = d.dre, a = d.dre_anterior;
@@ -1465,6 +1490,14 @@ function amzModalPeriodo(dias, btn) {
   document.getElementById('amz-de').value = f.de; document.getElementById('amz-ate').value = f.ate;
   amzModalBuscar();
 }
+function amzModalDia(n, btn) {
+  document.querySelectorAll('#modal-amz .modal-preset').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const dia = diaBRT(n);
+  document.getElementById('amz-de').value = dia;
+  document.getElementById('amz-ate').value = dia;
+  amzModalBuscar();   // carrega só este dia, sob demanda
+}
 async function amzModalBuscar() {
   if (!_amz) return;
   const de = document.getElementById('amz-de').value, ate = document.getElementById('amz-ate').value;
@@ -1476,22 +1509,43 @@ async function amzModalBuscar() {
   } catch(e) { document.getElementById('amz-body').innerHTML = `<div class="sac-mut">Erro: ${sacEsc(e.message)}</div>`; }
 }
 // Investimento em Ads por ASIN (Data Kiosk): preenche Investimento e TACOS; ACOS e ROAS seguem indisponíveis
+// Investimento em Ads por ASIN nas quatro janelas (Atual, P2, P3, P4) e o TACOS de cada uma (investimento ÷ receita líquida)
 async function amzCarregarAds(d) {
   const cells = document.querySelectorAll('#amz-strip .mx-kpi-v');
   if (cells.length < 7 || !d.asin || !d.periodo) return;
+  const t = _amz?.tab;
+  const janelas = {A: [d.periodo.de, d.periodo.ate], B: [d.anterior.de, d.anterior.ate]};
+  if (t?.r3) { janelas.C = t.r3; janelas.D = t.r4; }
+  const invs = {};
   try {
-    const r = await fetch(`${API}/amazon/ads/${d.conta}?de=${d.periodo.de}&ate=${d.periodo.ate}`);
-    const j = await r.json(); if (!r.ok) throw new Error(j.detail || r.status);
-    if (document.getElementById('amz-title').textContent !== (d.titulo || d.sku)) return;   // o modal mudou de SKU
-    const inv = Number(j.por_asin[d.asin] || 0);
-    const rec = (d.atual.receita || 0) * (d.atual.un || 0);
-    cells[3].textContent = brl2(inv);
-    cells[3].title = 'Gasto de Sponsored Products por ASIN no período (Data Kiosk)';
-    cells[5].textContent = rec > 0 ? (inv / rec * 100).toFixed(2).replace('.', ',') + '%' : '—';
-    cells[5].title = 'Investimento em Ads ÷ receita do período';
+    for (const [k, [de, ate]] of Object.entries(janelas)) {
+      const r = await fetch(`${API}/amazon/ads/${d.conta}?de=${de}&ate=${ate}`);
+      const j = await r.json(); if (!r.ok) throw new Error(j.detail || r.status);
+      invs[k] = Number(j.por_asin[d.asin] || 0);
+    }
   } catch(e) {
     cells[3].title = 'Não foi possível carregar o investimento em Ads: ' + e.message;
+    return;
   }
+  if (document.getElementById('amz-title').textContent !== (d.titulo || d.sku)) return;   // o modal mudou de SKU
+  const rlA = d.atual?.receita_liquida || 0;
+  cells[3].textContent = brl2(invs.A);
+  cells[3].title = 'Gasto de Sponsored Products por ASIN no período (Data Kiosk)';
+  cells[5].textContent = rlA > 0 ? (invs.A / rlA * 100).toFixed(2).replace('.', ',') + '%' : '—';
+  cells[5].title = 'Investimento em Ads ÷ receita líquida do período';
+  if (_amz) _amz.invs = invs;
+  amzMontarAdsTab(d);
+}
+// Monta a tabela de ADS (Atual, P2, P3 e P4). A Amazon só entrega investimento por ASIN: cliques e receita de ADS seguem '—'
+function amzMontarAdsTab(d) {
+  const inv = _amz?.invs, t = _amz?.tab; if (!inv || !t) return;
+  const obj = (k, rl) => ({ads_total: inv[k] || 0, tacos: rl > 0 ? (inv[k] || 0) / rl : 0, receita: rl});
+  const rlA = d.atual?.receita_liquida || 0, rlB = d.periodo_anterior?.receita_liquida || 0;
+  const rlC = t.rl3 || 0, rlD = t.rl4 || 0;
+  _adsDiaModo = true;
+  _adsDia = {A: obj('A', rlA), B: obj('B', rlB), C: obj('C', rlC), D: obj('D', rlD),
+             rotA: t.rotA, rotB: t.rotB, rotC: t.rotC, rotD: t.rotD};
+  const box = document.getElementById('ads-tab'); if (box) box.innerHTML = adsTabela();
 }
 function amzDesenharModal(d) {
   const a = d.atual, p = d.periodo_anterior, conta = d.conta, sku = d.sku;
@@ -1502,8 +1556,7 @@ function amzDesenharModal(d) {
   document.getElementById('amz-strip').style.setProperty('--cols', 7);
   document.getElementById('amz-strip').innerHTML = ['Vendas por ADS', 'Vendas orgânicas', 'Receita por ADS', 'Investimento', 'ACOS', 'TACOS', 'ROAS']
     .map(l => `<div class="mx-kpi"><div class="mx-kpi-l">${l}</div><div class="mx-kpi-v">${nd}</div></div>`).join('');
-  amzCarregarAds(d);   // Investimento e TACOS vêm do Data Kiosk (gasto por ASIN)
-  if (!a) { document.getElementById('amz-body').innerHTML = '<div class="sac-mut">Sem vendas deste SKU no período selecionado.</div>'; return; }
+  if (!a) { document.getElementById('amz-body').innerHTML = '<div class="sac-mut">Sem vendas deste SKU no período selecionado.</div>'; amzCarregarAds(d); return; }
   const un = a.un_liquidas || 0, rl = a.receita_liquida || 0;
   const c = d.custo || {}, al = d.aliquotas;
   const preco = un > 0 ? rl / un : 0;
@@ -1527,6 +1580,7 @@ function amzDesenharModal(d) {
               <option value="1" ${temSt?'selected':''}>COM ST</option><option value="0" ${temSt?'':'selected'}>SEM ST</option></select>
             <input type="number" id="as-imp" value="${(impPct*100).toFixed(2)}" step="0.01" oninput="amzCalc()" style="min-width:0"/></div></div>
           ${fld('Comissão (%)','as-com',(comPct*100).toFixed(2))}
+          <div id="amz-com-pct" class="sac-mut" style="font-size:11px;margin:-4px 0 6px"></div>
           ${fld('Taxa FBA (R$)','as-fba',un>0?(Math.abs(a.taxa_fba)/un).toFixed(2):'0.00')}
           ${fld('Outras taxas (R$)','as-out',un>0?(Math.abs(a.outras_taxas)/un).toFixed(2):'0.00')}
           ${fld('TACOS (%)','as-tacos','0.00')}
@@ -1538,7 +1592,7 @@ function amzDesenharModal(d) {
     <div class="mx-main">
       <div class="mx-left">
         <section class="mx-card2"><h4>Dados de ADS${adsBotao()}</h4><div id="ads-tab"></div>
-          <div class="sac-mut" style="font-size:11px;margin-top:6px">Sem dados de ADS por SKU ainda (falta a Advertising API da Amazon); virão em breve.</div></section>
+          <div class="sac-mut" style="font-size:11px;margin-top:6px">Investimento e TACOS por ASIN (Data Kiosk). Cliques e receita de ADS por SKU dependem da Advertising API da Amazon, ainda não disponível.</div></section>
         <section class="mx-card2"><h4>Dados de vendas</h4><div id="amz-vendas"></div>
           <div id="amz-trafego" style="margin-top:8px"><div class="sac-mut" style="font-size:11px">Buscando visitas e conversão no relatório da Amazon (30 a 60 s)…</div></div></section>
       </div>
@@ -1548,7 +1602,8 @@ function amzDesenharModal(d) {
   _mapa = {conta, chave: sku, snapshot: () => ({
     periodo: d.periodo, preco_medio: preco, margem_pct: a.completo ? (a.margem_pct || 0) / 100 : null,
     unidades: a.un_liquidas, receita: a.receita, visitas: _amz?.visitas ?? null, conversao: _amz?.conversao ?? null }) };
-  amzCalc(); mapaCarregar(); amzRenderTabelas(); amzCarregarTrafego(d); amzCarregarExtras(d);
+  _adsDiaModo = true; _adsDia = null;   // ADS dos períodos: aparece quando o Data Kiosk responder
+  amzCalc(); mapaCarregar(); amzRenderTabelas(); amzCarregarTrafego(d); amzCarregarExtras(d); amzCarregarAds(d);
 }
 // Visitas e conversão: relatório Sales and Traffic (por ASIN e período), buscado em segundo plano e consultado até ficar pronto
 async function amzCarregarTrafego(d) {
@@ -1589,7 +1644,9 @@ async function amzCarregarExtras(d) {
       const x = await (await fetch(`${API}/amazon/sku/${d.conta}?sku=${encodeURIComponent(d.sku)}&de=${de}&ate=${ate}`)).json();
       if (_amz?.tab !== t) return;
       if (x.atual) t[campo] = {unidades: x.atual.un_liquidas, media_dia: x.atual.un_liquidas / t.diasP, visitas: null, conv_c: null};
+      t[campo === 'P3' ? 'rl3' : 'rl4'] = x.atual?.receita_liquida || 0;   // receita líquida do período: base do TACOS
       amzRenderTabelas();
+      if (_amz?.invs) amzMontarAdsTab(d);
     } catch(e) {}
   }
 }
@@ -1611,6 +1668,8 @@ function amzCalc() {
   const preco = n('as-preco'), cmv = n('as-cmv'), imp = n('as-imp')/100, com = n('as-com')/100, fba = n('as-fba'), out = n('as-out'), tacos = n('as-tacos')/100;
   const res = preco - cmv - preco*imp - preco*com - fba - out - preco*tacos;
   const mp = preco > 0 ? res/preco : 0, cor = res < 0 ? 'var(--red)' : 'var(--green)';
+  const cpctEl = document.getElementById('amz-com-pct');   // comissão em % e o valor em R$ sobre o preço
+  if (cpctEl) cpctEl.textContent = preco > 0 ? `${(com * 100).toFixed(2).replace('.', ',')}% do preço · R$ ${(preco * com).toFixed(2).replace('.', ',')}` : '';
   const el = document.getElementById('amz-sim-out'); if (!el) return;
   el.innerHTML = `<div class="mx-row"><span class="mx-lbl">Resultado unitário</span><span class="mx-val" style="color:${cor}">${brl2(res)}</span></div>
     <div class="mx-row"><span class="mx-lbl">Margem simulada</span><span class="mx-val" style="color:${cor}">${pct2(mp)}</span></div>
@@ -1910,14 +1969,18 @@ function iniciarPollSync(contas) {
 }
 
 // ── SYNC ──────────────────────────────────────────────────────────────────
+// Sincroniza a conta no MESMO período que a tela mostra: o ADS e as vendas gravados ficam iguais ao modal
+const _autoSyncFeito = {};
 async function syncConta(conta) {
   const btn = document.getElementById(`btn-sync-${conta}`);
   const hoje = new Date(), ateBase = hoje.toISOString().split('T')[0];
   const deBase = new Date(hoje-29*86400000).toISOString().split('T')[0];
+  const de  = document.getElementById(`de-${conta}`)?.value || deBase;
+  const ate = document.getElementById(`ate-${conta}`)?.value || ateBase;
   if(btn){ btn.disabled=true; btn.innerHTML='<span class="loader"></span> Sincronizando...'; }
   setSyncIndicator('syncing');
   try {
-    await fetch(`${API}/sync/${conta}?dias=30&date_from=${deBase}&date_to=${ateBase}`,{method:'POST'});
+    await fetch(`${API}/sync/${conta}?dias=30&date_from=${de}&date_to=${ate}`,{method:'POST'});
     toast(`✓ Sync concluído`);
     setSyncIndicator('done');
   } catch(e){ toast('Erro de conexão','error'); }
@@ -2002,6 +2065,12 @@ async function buscarPeriodo(conta) {
     if(resRaw.ok){const d=await resRaw.json();rawDB[conta]=d.produtos||{};}
     renderKPIs(conta, data.kpis, prevDB[conta]?.kpis);
     renderTable(conta, data.produtos);
+    // dados vencidos (mais de 24h): pede a sincronização na plataforma uma vez por carregamento da página
+    if ((data.kpis?.desatualizados || 0) > 0 && !_autoSyncFeito[conta]) {
+      _autoSyncFeito[conta] = true;
+      toast(`Atualizando ${data.kpis.desatualizados} anúncio(s) com dados vencidos…`);
+      syncConta(conta);
+    }
     carregarPosicoes(conta);
     pivoCarregar(conta);
     fullCarregar(conta);
@@ -2034,7 +2103,10 @@ async function syncProduto(mlb, conta) {
       prod.catalog_listing  = data.catalog_listing  ?? prod.catalog_listing  ?? false;
       prod.variacoes_count  = data.variacoes_count  ?? prod.variacoes_count  ?? 0;
     }
-    renderModalContent(mlb, conta);
+    // recarrega os dados salvos (período, 30D, ROAS objetivo) para a tela não mostrar o valor antigo
+    _autoSyncFeito[conta] = true;   // não dispara outro sync automático por causa deste recarregamento
+    await buscarPeriodo(conta);
+    if (_modalMlb === mlb && _modalConta === conta) renderModalContent(mlb, conta);
   } catch(e) {
     toast('Erro de conexão no sync', 'error');
   } finally {
@@ -2122,7 +2194,7 @@ function renderKPIs(conta, k, kp) {
   const mp=(k.margem_pct_global*100), tc=(k.tacos_global*100);
   const kpiData = [
     {label:'Receita Total',    val:brl(k.receita_total), sub:'período',    var:vb(k.receita_total,kp?.receita_total),        color:'var(--blue)'},
-    {label:'Margem Líquida',   val:brl(k.margem_total),  sub:mp.toFixed(1)+'%', var:vb(k.margem_total,kp?.margem_total),    color:mp<0?'var(--red)':mp<10?'var(--gold)':'var(--green)'},
+    {label:'Margem Líquida',   val:brl(k.margem_total),  sub:mp.toFixed(2)+'%', var:vb(k.margem_total,kp?.margem_total),    color:mp<0?'var(--red)':mp<10?'var(--gold)':'var(--green)'},
     {label:'Invest. ADS',      val:brl(k.ads_total),     sub:'publicidade', var:vb(k.ads_total,kp?.ads_total,true),          color:'var(--purple)'},
     {label:'TACOS Global',     val:tc.toFixed(2)+'%',    sub:'sobre receita',var:vb(-tc,kp?-(kp.tacos_global*100):null),    color:tc>10?'var(--red)':tc>6?'var(--gold)':'var(--green)'},
     {label:'Unidades Vendidas',val:r(k.unidades_total),  sub:'unidades',    var:vb(k.unidades_total,kp?.unidades_total),     color:'var(--text)'},
@@ -2205,6 +2277,11 @@ function fotoModal(mlb) {
   const im = document.getElementById('m-foto'); if (!im) return;
   const u = _fotos[mlb]; im.style.display = u ? '' : 'none'; if (u) im.src = u;
 }
+// Validade dos dados sincronizados: depois de 24h a tela pede novo sync (espelha VALIDADE_SYNC_HORAS no main.py)
+const VALIDADE_SYNC_HORAS_JS = 24;
+function syncData(iso) {
+  return iso && iso.length >= 16 ? `${iso.slice(8,10)}/${iso.slice(5,7)}/${iso.slice(0,4)} ${iso.slice(11,16)}` : 'data desconhecida';
+}
 function renderTable(conta, produtos) {
   if(!produtos||!produtos.length){
     document.getElementById(`tbl-${conta}`).innerHTML='<div class="empty"><div class="empty-icon">📦</div><div class="empty-text">Nenhum produto. Sincronize primeiro.</div></div>';
@@ -2255,6 +2332,8 @@ function renderTable(conta, produtos) {
           <div class="td-sku">${p.sku||''}<span data-fulltag="${p.mlb}">${renderFullTag(conta,p.mlb)}</span></div>
           ${p.arquivado?'<div class="td-arq">Arquivado</div>':''}
           <div class="td-mlb">${p.mlb}</div>
+          ${p.catalogo?`<div class="td-mlb" title="Vínculo de catálogo" style="color:var(--gold)">🔗 ${p.catalogo.eh_vencedor?'anúncio vencedor do catálogo':'vinculado a '+(p.catalogo.vencedor||'—')}</div>`:''}
+          ${p.validade?.vencido?`<div class="td-arq" style="color:var(--red)">Sincronizado em ${syncData(p.validade.sincronizado_em)} · sincronizar</div>`:''}
         </div></div></td>
         <td class="mono">${brl(per.receita)}</td>
         <td class="mono">${per.unidades||0}<div style="font-size:10px;color:var(--muted2);margin-top:2px;font-family:var(--mono)">${((per.conversao||0)*100).toFixed(2)}%</div></td>
@@ -2267,12 +2346,16 @@ function renderTable(conta, produtos) {
         </td>
         <td class="mono">${per.roas?.toFixed(2)||'—'}</td>
         <td class="mono ${mCls}">${brl(per.margem_total)}</td>
-        <td class="mono ${mCls}">${mp.toFixed(1)}%</td>
+        <td class="mono ${mCls}">${mp.toFixed(2)}%</td>
         <td style="text-align:center">${renderPosBadge(p.mlb)}</td>
         <td style="text-align:center" data-pivo="${p.mlb}">${renderPivoCel(conta,p.mlb)}</td>
       </tr>`;
   }).join('');
-  document.getElementById(`tbl-${conta}`).innerHTML=`<table class="tbl"><thead><tr>${thead}</tr></thead><tbody id="tbody-${conta}">${tbody}</tbody></table>`;
+  const vencidos = db[conta]?.kpis?.desatualizados || 0;
+  const avisoSync = vencidos > 0
+    ? `<div class="sync-aviso" style="margin:0 0 10px;padding:8px 12px;border:1px solid var(--gold);border-radius:8px;font-size:12px;color:var(--gold)">⚠ ${vencidos} anúncio${vencidos>1?'s':''} com dados de mais de ${VALIDADE_SYNC_HORAS_JS}h. Clique em Sincronizar conta para atualizar frete, comissão, rebot e vendas.</div>`
+    : '';
+  document.getElementById(`tbl-${conta}`).innerHTML=`${avisoSync}<table class="tbl"><thead><tr>${thead}</tr></thead><tbody id="tbody-${conta}">${tbody}</tbody></table>`;
 }
 
 function filterTable(conta) {
@@ -2344,6 +2427,20 @@ function agregarPeriodoLocal(prod, de, ate) {
   return total;
 }
 
+// D1 = ontem, D2 = anteontem, D3 e D4: um dia por vez, carregado sob demanda no próprio modal
+function diaBRT(n) {
+  const agoraBRT = new Date(new Date().toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
+  return new Date(agoraBRT - n * 86400000).toISOString().split('T')[0];
+}
+function setModalDia(n, btn) {
+  document.querySelectorAll('.modal-preset').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const datas = document.getElementById('modal-datas'); if (datas) datas.style.display = 'none';
+  const dia = diaBRT(n);
+  document.getElementById('modal-de').value = dia;
+  document.getElementById('modal-ate').value = dia;
+  if (_modalMlb && _modalConta) syncProduto(_modalMlb, _modalConta);
+}
 function setModalPreset(dias, btn) {
   document.querySelectorAll('.modal-preset').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
@@ -2409,12 +2506,34 @@ function openModal(mlb, conta) {
   const btnArq = document.getElementById('btn-arq-produto');
   btnArq.onclick = () => arquivarProduto(_modalMlb, _modalConta);
 
+  // página de vendas: o MLB-número abre o anúncio no Mercado Livre
+  document.getElementById('btn-pag-venda').onclick = () =>
+    window.open('https://produto.mercadolivre.com.br/' + mlb.replace(/^MLB/, 'MLB-'), '_blank');
+
   renderModalContent(mlb, conta);
   document.getElementById('modal-prod').classList.add('open');
 }
 
 function renderModalContent(mlb, conta) {
   const _ar = document.getElementById('m-aviso-rebot'); if (_ar) _ar.innerHTML = '';
+  // vínculo de catálogo: ícone de corrente ao lado do MLB, com o anúncio vencedor no tooltip
+  const _mci = document.getElementById('m-catalogo-icone');
+  if (_mci) {
+    const cat = db[conta]?.produtos?.find(x => x.mlb === mlb)?.catalogo;
+    let dica = '';
+    if (cat) {
+      if (cat.eh_vencedor) {   // vencedor: mostra os orgânicos vinculados ao mesmo catálogo
+        const organicos = (db[conta]?.produtos || [])
+          .filter(x => x.mlb !== mlb && x.catalogo?.catalog_product_id === cat.catalog_product_id).map(x => x.mlb);
+        dica = organicos.length ? `Anúncio vencedor do catálogo · orgânico(s) vinculado(s): ${organicos.join(', ')}`
+                                : 'Anúncio vencedor do catálogo';
+      } else {                 // orgânico: mostra o MLB do anúncio vencedor do catálogo
+        dica = `Orgânico vinculado ao anúncio vencedor do catálogo: ${cat.vencedor || '—'}`;
+      }
+    }
+    _mci.style.display = cat ? '' : 'none';
+    _mci.innerHTML = cat ? `<span title="${dica}" style="color:var(--gold);font-size:14px;cursor:help">🔗</span>` : '';
+  }
   mostrarPivoModal(conta, mlb);
   mostrarAvisoFull(conta, mlb);
   mostrarTagsModal(conta, mlb);
@@ -2448,12 +2567,15 @@ function renderModalContent(mlb, conta) {
   if (!vAds30 && un30 > 0 && rec30 > 0 && recAds30 > 0) { vAds30 = Math.round(un30 * Math.min(1, recAds30 / rec30)); aprox = true; }
   const vOrg30 = Math.max(0, un30 - vAds30);
   _tacos30 = rec30 > 0 ? ads30 / rec30 : 0;
-  document.getElementById('mx-strip').style.setProperty('--cols', 7);
+  // ROAS objetivo: o que está setado na campanha do ML (vem do último sync do anúncio)
+  const roasObj = dbProd.roas_objetivo_ml;
+  document.getElementById('mx-strip').style.setProperty('--cols', 8);
   document.getElementById('mx-strip').innerHTML = [
     ['Vendas por ADS', un30 > 0 ? r(vAds30) + (aprox ? ' ~' : '') : '—'], ['Vendas orgânicas', un30 > 0 ? r(vOrg30) + (aprox ? ' ~' : '') : '—'],
     ['Receita por ADS', brl2(recAds30)], ['Investimento', brl2(ads30)],
     ['ACOS', recAds30 > 0 ? pct1(ads30 / recAds30) : '—'], ['TACOS', rec30 > 0 ? pct1(ads30 / rec30) : '—'],
-    ['ROAS', ads30 > 0 ? (recAds30 / ads30).toFixed(2).replace('.', ',') : '—']
+    ['ROAS', ads30 > 0 ? (recAds30 / ads30).toFixed(2).replace('.', ',') : '—'],
+    ['ROAS objetivo', roasObj > 0 ? Number(roasObj).toFixed(2).replace('.', ',') : '—']
   ].map(([l, v]) => `<div class="mx-kpi"><div class="mx-kpi-l">${l}</div><div class="mx-kpi-v">${v}</div></div>`).join('');
 
   // ── Períodos (selecionado e anterior) ──
@@ -2465,8 +2587,11 @@ function renderModalContent(mlb, conta) {
   const cpcDe = o => (o.cpc_medio||0) > 0 ? o.cpc_medio : (o.cliques > 0 ? (o.ads_total||0) / o.cliques : 0);
   const comAds = o => o.vendas_com_ads || ((o.vendas_publi||0) + (o.vendas_indiretas||0));
   const conv = o => o.conversao > 0 ? o.conversao : (o.visitas > 0 ? o.qtd_vendas / o.visitas : 0);
-  const preparar = o => ({...o, ctr_c: ctrDe(o)/100, cpc_c: cpcDe(o), vads: comAds(o), preco_c: o.unidades > 0 ? o.receita/o.unidades : 0, conv_c: conv(o)});
-  const A = preparar(per), B = preparar(prev);
+  const preparar = o => ({...o, ctr_c: ctrDe(o)/100, cpc_c: cpcDe(o), vads: comAds(o), preco_c: o.unidades > 0 ? o.receita/o.unidades : 0, conv_c: conv(o), dias: diasPer});
+  // P2 (período anterior): usa o sync da sessão quando existe; senão monta pelos dias já salvos (não depende de novo sync)
+  const prevSync = dbProd.anterior && Object.keys(dbProd.anterior).length ? dbProd.anterior : null;
+  const prevAgg = prevSync || (prevDe && prevAte ? agregarPeriodoLocal(rawDB[conta]?.[mlb], prevDe, prevAte) : null) || {};
+  const A = preparar(per), B = preparar(prevAgg);
   const dec2 = v => Number(v||0).toFixed(2).replace('.', ',');
   // P3 e P4: os dois períodos anteriores ao P2, agregados dos dias já sincronizados (sem dados -> traço)
   const iso = d => d.toISOString().split('T')[0];
@@ -2486,6 +2611,8 @@ function renderModalContent(mlb, conta) {
   const diasB = diasPer || 1;
   A.media_dia = diasPer ? (A.unidades || 0) / diasPer : 0; B.media_dia = diasPer ? (B.unidades || 0) / diasB : 0;
   _adsCtx = {A, B, rotA, rotB, extras: [{o: P3, rot: rotC}, {o: P4, rot: rotD}], todas: adsTodas()};
+  _adsDiaModo = diasPer === 1; _adsDia = null;
+  if (_adsDiaModo) carregarAdsDias(mlb, conta, de);
   A.cvr_ads = A.cliques > 0 ? (A.vads || 0) / A.cliques : 0; B.cvr_ads = B.cliques > 0 ? (B.vads || 0) / B.cliques : 0;
   const colsVendas = [
     {k:'media_dia', l:'Média diária (un.)', f:dec2}, {k:'unidades', l:'Unidades', f:v=>r(v)}, {k:'visitas', l:'Visitas', f:v=>r(v)},
@@ -2495,7 +2622,8 @@ function renderModalContent(mlb, conta) {
   const posTxt = pos.posicao ? `p${pos.pagina||1} #${pos.posicao}` : 'Sem registro';
 
   // ── Simulação do cenário (à direita; ids preservados para calcSim/custos reais) ──
-  const sim = c.simulador || {};
+  // cenário salvo não entra mais na análise: o simulador sempre parte dos dados reais do ML e do sync do período
+  const sim = {};
   const precoUnit = per.unidades > 0 ? per.receita / per.unidades : 0;
   const fld = (lbl, id, val, step, ph='') =>
     `<div class="sim-field"><label>${lbl}</label><input type="number" id="${id}" value="${val}" step="${step}" ${ph?`placeholder="${ph}"`:''} oninput="simEdit('${mlb}','${conta}',this)" onblur="fmt2(this)"/></div>`;
@@ -2508,7 +2636,9 @@ function renderModalContent(mlb, conta) {
           <option value="1" ${(dbProd.tem_st??true)?'selected':''}>COM ST</option><option value="0" ${(dbProd.tem_st??true)?'':'selected'}>SEM ST</option></select>
         <input type="number" id="s-imp" value="${((c.imposto_pct||0.10)*100).toFixed(2)}" step="0.01" oninput="simEdit('${mlb}','${conta}',this)" onblur="fmt2(this)" style="min-width:0"/></div></div>
       ${fld('Comissão (%)','s-com',((sim.comissao_pct??(c.comissao_pct||0.11))*100).toFixed(2),'0.01')}
+      <div id="s-com-pct" class="sac-mut" style="font-size:11px;margin:-4px 0 6px"></div>
       ${fld('Frete (R$)','s-frete',(sim.frete_unit??(c.frete_unit||0)).toFixed(2),'0.01','0,00')}
+      <div id="s-frete-pct" class="sac-mut" style="font-size:11px;margin:-4px 0 6px"></div>
       ${fld('TACOS 30 dias (%)','s-tacos',((rec30 > 0 ? ads30 / rec30 : 0)*100).toFixed(2),'0.01')}
       ${fld('Rebot (R$/un)','s-rebot',(sim.rebot_unit??(per.rebot_unit||c.rebot_unit||0)).toFixed(2),'0.01','0,00')}
       <div class="sim-field"><label>Rebot início</label><input type="date" id="s-rebot-ini" value="${sim.rebot_inicio??(per.rebot_inicio||'')}" oninput="simEdit('${mlb}','${conta}',this)"/></div>
@@ -2667,7 +2797,14 @@ async function pivoCarregar(conta) {
     const d = await (await fetch(`${API}/pivo/${conta}`)).json();
     _pivo[conta] = d; pivoAtualizarCelulas(conta);
     const st = document.getElementById(`pivo-st-${conta}`);
-    if (st) st.textContent = d.estado?.rodando ? `PIVO: ${d.estado.etapa}…` : (d.total ? `PIVO: ${d.fora_do_pivo} de ${d.total} fora do padrão` : 'PIVO: não analisado');
+    if (st) {
+      // a análise do PIVO não se renova sozinha: mostra a data e avisa quando passa de 24h
+      const quando = d.gerado_em ? new Date(d.gerado_em) : null;
+      const vencida = !quando || (Date.now() - quando) > 24 * 3600 * 1000;
+      const data = quando ? ` · análise de ${quando.toLocaleDateString('pt-BR')} ${quando.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}` : '';
+      st.textContent = d.estado?.rodando ? `PIVO: ${d.estado.etapa}…` : (d.total ? `PIVO: ${d.fora_do_pivo} de ${d.total} fora do padrão${data}${vencida ? ' · vencida, analisar de novo' : ''}` : 'PIVO: não analisado');
+      st.style.color = !d.estado?.rodando && d.total && vencida ? 'var(--gold)' : '';
+    }
     if (d.estado?.rodando) setTimeout(() => pivoCarregar(conta), 6000);
   } catch(e) {}
 }
@@ -2772,6 +2909,10 @@ function calcSim(mlb, conta, persistir=true) {
   const com      = num('s-com', 11)/100;
   const imp      = num('s-imp', 10)/100;
   const frete    = num('s-frete');
+  const fpct = document.getElementById('s-frete-pct');
+  if (fpct) fpct.textContent = preco > 0 ? `${(frete / preco * 100).toFixed(2).replace('.', ',')}% do preço · R$ ${frete.toFixed(2).replace('.', ',')}` : '';
+  const cpctEl = document.getElementById('s-com-pct');   // comissão em % e o valor em R$ que ela dá sobre o preço
+  if (cpctEl) cpctEl.textContent = preco > 0 ? `${(com * 100).toFixed(2).replace('.', ',')}% do preço · R$ ${(preco * com).toFixed(2).replace('.', ',')}` : '';
   const tacos    = num('s-tacos')/100;
   const rebotUnit= num('s-rebot');
   const rebotIni = document.getElementById('s-rebot-ini')?.value||'';
@@ -2802,20 +2943,7 @@ function calcSim(mlb, conta, persistir=true) {
     <div class="mx-row"><span class="mx-lbl">Margem simulada</span><span class="mx-val" style="color:${margSim<0?'var(--red)':'var(--green)'}">${pct2(mpSim)}</span></div>
 `;
 
-  if(!persistir) return;   // só grava quando o usuário altera algo
-  const simPayload = {
-    mlb,
-    simulador: {preco, cmv_unit:cmv, frete_unit:frete, comissao_pct:com,
-                imposto_pct:imp, tacos, rebot_unit:rebotUnit,
-                rebot_inicio:rebotIni, rebot_fim:rebotFim}
-  };
-  clearTimeout(window._simSaveTimer);
-  window._simSaveTimer = setTimeout(() => {
-    fetch(`${API}/produtos/custos`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(simPayload)})
-      .then(r=>r.json())
-      .then(d=>{ if(d.success && p.custos) p.custos.simulador = simPayload.simulador; })
-      .catch(()=>{});
-  }, 800);
+  // o cenário não é gravado: vale só enquanto o modal está aberto (corrompia a análise ao reaproveitar valores antigos)
 }
 
 // ── CUSTOS REAIS DO ML NO SIMULADOR ──────────────────────────────────────────
@@ -2849,6 +2977,7 @@ function aplicarCustosReais(mlb, conta) {
   const d=_custosML[mlb]; if(!d) return;
   const set=(id,v)=>{const e=document.getElementById(id); if(e && v!=null) e.value=v;};
   set('s-preco', d.preco.toFixed(2));
+  if(d.cmv_referencia!=null) set('s-cmv', d.cmv_referencia.toFixed(2));   // CMV da base pelo SKU (editável)
   set('s-com', (d.comissao_pct*100).toFixed(2));
   if(d.frete!=null) set('s-frete', d.frete.toFixed(2));
   set('s-rebot', d.rebot_un.toFixed(2));
@@ -2888,12 +3017,12 @@ async function carregarCustosML(mlb, conta) {
     const origem = v ? `última venda de ${v.data} (${v.logistica==='fulfillment'?'Full':v.logistica})` : 'dados do anúncio (sem venda recente)';
     const camp = c ? `Campanha ativa: <b>${c.nome||c.tipo}</b> <small>(${c.tipo}${c.meli_pct?`, ML paga ${c.meli_pct}%`:', sem rebot'})</small>` : 'Sem campanha ativa';
     const rebotReal = v && v.rebot_real_un>0 ? ` · rebot dessa venda: ${brl2(v.rebot_real_un)}` : '';
-    const salvo = !!p?.custos?.simulador;
     const txt = (`Custos reais do ML — base: ${origem}${rebotReal}
-${camp} · Rebot ativo hoje: ${brl2(d.rebot_un)} · Frete: ${d.frete!=null?brl2(d.frete):'n/d'}${d.peso_g?` (${d.peso_g} g)`:''}`).replace(/<[^>]+>/g, '');
-    box.innerHTML = `<a href="#" onclick="aplicarCustosReais('${mlb}','${conta}');return false;" style="color:var(--gold);">${salvo?'Cenário salvo: usar valores reais':'Restaurar valores reais'}</a><span class="info-i" data-tip="${sacEsc(txt)}">i</span>`;
+${camp} · Rebot ativo hoje: ${brl2(d.rebot_un)} · Frete: ${d.frete!=null?brl2(d.frete):'n/d'}${d.peso_g?` (${d.peso_g} g)`:''}
+CMV base do SKU: ${d.cmv_referencia!=null?brl2(d.cmv_referencia):'sem base (importe a planilha de CMV)'}${v?` · última venda em ${v.data} a ${brl2(v.preco)}`:''}`).replace(/<[^>]+>/g, '');
+    box.innerHTML = `<a href="#" onclick="aplicarCustosReais('${mlb}','${conta}');return false;" style="color:var(--gold);">Usar valores reais do ML</a><span class="info-i" data-tip="${sacEsc(txt)}">i</span>`;
     mostrarAvisoRebot(d.oportunidade);
-    if(!salvo) aplicarCustosReais(mlb, conta);
+    aplicarCustosReais(mlb, conta);   // sempre: preço vigente, comissão, frete e rebot do ML (mesmo com cenário salvo)
   } catch(e) {
     if(document.getElementById('sim-real')===box)
       box.textContent='Custos reais do ML indisponíveis — usando os valores cadastrados.';
@@ -2907,13 +3036,15 @@ function mxVar(atual, ant, inverso, neutro) {
   if (Math.abs(diff) < 0.0001) return '<span class="mxt-pill neu">0,0%</span>';
   const bom = inverso ? diff < 0 : diff > 0;
   const cls = neutro ? 'neu' : (bom ? 'up' : 'dn');
-  return `<span class="mxt-pill ${cls}">${diff > 0 ? '▲' : '▼'} ${Math.abs(diff / ant * 100).toFixed(1).replace('.', ',')}%</span>`;
+  return `<span class="mxt-pill ${cls}">${diff > 0 ? '▲' : '▼'} ${Math.abs(diff / ant * 100).toFixed(2).replace('.', ',')}%</span>`;
 }
 function adsTodas() {
   const n = v => r(v);
   return [
     {k:'tacos', l:'TACOS', f:pct2, inv:true}, {k:'acos', l:'ACOS', f:pct2, inv:true}, {k:'roas', l:'ROAS', f:_dec2},
-    {k:'ads_total', l:'Investimento (R$)', f:_mil, neu:true}, {k:'receita_publi', l:'Receita ADS (R$)', f:_mil},
+    {k:'ads_total', l:'Investimento (R$)', f:_mil, neu:true,
+      dica: o => `Média diária: ${brl2(o.ads_total / o.dias)}/dia (${brl2(o.ads_total)} em ${o.dias} ${o.dias === 1 ? 'dia' : 'dias'})`},
+    {k:'receita_publi', l:'Receita ADS (R$)', f:_mil},
     {k:'vads', l:'Vendas ADS (un.)', f:n}, {k:'vendas_sem_publi', l:'Sem ADS (un.)', f:n},
     {k:'impressoes', l:'Impressões', f:n}, {k:'cliques', l:'Cliques', f:n}, {k:'ctr_c', l:'CTR', f:pct2},
     {k:'cpc_c', l:'CPC (R$)', f:_dec2, inv:true}, {k:'cvr_ads', l:'Conversão do ADS', f:pct2}];
@@ -2932,7 +3063,38 @@ function adsTabela() {
   const x = _adsCtx; if (!x) return '';
   const esc = adsEscolha();
   const cols = x.todas.filter(c => esc.includes(c.k));      // sempre na ordem do catálogo
-  return mxTabela(cols, x.A, x.B, x.rotA, x.rotB, null, x.extras);
+  if (_adsDiaModo) {                                         // D1: Atual + P2, P3, P4 dia a dia (ADS do próprio dia)
+    if (!_adsDia) return '<div class="sac-mut" style="font-size:12px;padding:8px 0">Carregando ADS dos dias…</div>';
+    return mxTabela(cols, _adsDia.A, _adsDia.B, _adsDia.rotA, _adsDia.rotB, null,
+                    [{o: _adsDia.C, rot: _adsDia.rotC}, {o: _adsDia.D, rot: _adsDia.rotD}], true);
+  }
+  return mxTabela(cols, x.A, x.B, x.rotA, x.rotB, null, x.extras, true);   // ADS: Atual + P2, P3 e P4 com variação
+}
+// Modo D1: o ADS é do dia (sem média); P2, P3 e P4 são os três dias anteriores
+let _adsDiaModo = false, _adsDia = null;
+function adsDiaObj(d) {
+  const ads = d.ads_total || 0, rec = d.receita || 0, rp = d.receita_publi || 0, cl = d.cliques || 0;
+  const vads = (d.vendas_publi || 0) + (d.vendas_indiretas || 0);
+  return {dias: 1, ads_total: ads, receita_publi: rp, receita: rec, unidades: d.unidades || 0, cliques: cl,
+    impressoes: d.impressoes || 0, tacos: rec > 0 ? ads / rec : 0, acos: rp > 0 ? ads / rp : 0,
+    roas: ads > 0 ? rp / ads : 0, vads, vendas_sem_publi: d.vendas_sem_publi || 0,
+    ctr_c: d.ctr_c || 0, cpc_c: d.cpc || 0, cvr_ads: cl > 0 ? vads / cl : 0};
+}
+async function carregarAdsDias(mlb, conta, de) {
+  const dias = [0, 1, 2, 3].map(n => new Date(new Date(de + 'T00:00:00Z') - n * 86400000).toISOString().split('T')[0]);
+  try {
+    const res = await fetch(`${API}/ads/${conta}/${mlb}/dias?datas=${dias.join(',')}`);
+    if (!res.ok) throw new Error('ads');
+    const d = await res.json();
+    // só aplica se o modal ainda mostra este anúncio e este dia (o usuário pode ter trocado o período)
+    if (_modalMlb !== mlb || _modalConta !== conta || document.getElementById('modal-de')?.value !== de || !_adsDiaModo) return;
+    const [A, B, C, D] = d.dias.map(adsDiaObj);
+    _adsDia = {A, B, C, D, rotA: mxDmy(dias[0]), rotB: mxDmy(dias[1]), rotC: mxDmy(dias[2]), rotD: mxDmy(dias[3])};
+    const box = document.getElementById('ads-tab'); if (box) box.innerHTML = adsTabela();
+  } catch(e) {
+    const box = document.getElementById('ads-tab');
+    if (box) box.innerHTML = '<div class="sac-mut" style="font-size:12px;padding:8px 0">Não foi possível carregar o ADS dos dias.</div>';
+  }
 }
 function adsMenuHtml() {
   const esc = adsEscolha(), cheio = esc.length >= 7;
@@ -2955,15 +3117,19 @@ function adsToggle(k, on) {
   adsSalvar(esc);
 }
 function adsRestaurar() { adsSalvar(ADS_PADRAO.slice()); }
-function mxTabela(cols, atual, ant, rotAtual, rotAnt, hdr, extras) {
+function mxTabela(cols, atual, ant, rotAtual, rotAnt, hdr, extras, comAnteriores = true) {
   const g = `style="--n:${cols.length}"`;
-  const cel = (o, c) => `<div>${o && o[c.k] != null ? c.f(o[c.k]) : '—'}</div>`;
+  // coluna com dica (ex.: média diária do Investimento) mostra o texto só ao passar o mouse
+  const cel = (o, c) => {
+    const dica = c.dica && o && o.dias > 0 ? c.dica(o) : '';
+    return `<div${dica ? ` title="${dica}" style="cursor:help"` : ''}>${o && o[c.k] != null ? c.f(o[c.k]) : '—'}</div>`;
+  };
   const ex = (extras || []).map((e, n) => `<div class="mxt-row ant p34${n === 0 ? ' p3' : ''}" ${g}><div class="lab" title="${e.rot}"><b>P${n + 3}</b></div>${cols.map(c => cel(e.o, c)).join('')}</div>`).join('');
   return `<div class="mxt" ${g}>
     <div class="mxt-row mxt-head" ${g}><div></div>${cols.map((c, i) => hdr ? hdr(c, i) : `<div>${c.l}</div>`).join('')}</div>
     <div class="mxt-row sel" ${g}><div class="lab" title="${rotAtual}"><b>Atual</b></div>${cols.map(c => cel(atual, c)).join('')}</div>
-    <div class="mxt-row ant" ${g}><div class="lab" title="${rotAnt}"><b>P2</b></div>${cols.map(c => cel(ant, c)).join('')}</div>
-    <div class="mxt-row var" ${g}><div class="lab"><b>Variação</b></div>${cols.map(c => `<div>${mxVar(atual?.[c.k], ant?.[c.k], c.inv, c.neu)}</div>`).join('')}</div>${ex}
+    ${comAnteriores ? `<div class="mxt-row ant" ${g}><div class="lab" title="${rotAnt}"><b>P2</b></div>${cols.map(c => cel(ant, c)).join('')}</div>
+    <div class="mxt-row var" ${g}><div class="lab"><b>Variação</b></div>${cols.map(c => `<div>${mxVar(atual?.[c.k], ant?.[c.k], c.inv, c.neu)}</div>`).join('')}</div>${ex}` : ''}
   </div>`;
 }
 const mxDmy = x => x ? x.split('-').reverse().join('/') : '';
@@ -2995,22 +3161,67 @@ function mapaHtml(titulo) {
   return `<section class="mx-card2" style="margin-top:14px"><h4>${titulo}<small id="mapa-st"></small></h4>
     <div class="mapa-form"><textarea id="mapa-texto" placeholder="Descreva a alteração feita (título, imagens, preço, campanha, ADS...)"></textarea>
       <button class="btn-sm" onclick="mapaSalvar()">Registrar alteração</button></div>
+    <div class="mapa-filtro">
+      <label><input type="checkbox" id="mapa-so-fav" onchange="mapaFiltrar()"> ★ Somente favoritos</label>
+      <span>Data do comentário:</span>
+      <input type="date" id="mapa-de" onchange="mapaFiltrar()" title="De"> a <input type="date" id="mapa-ate" onchange="mapaFiltrar()" title="Até">
+      <a class="mapa-limpar" onclick="mapaLimparFiltro()">limpar</a></div>
     <div class="mapa-lista" id="mapa-lista"><div class="sac-mut">Carregando…</div></div></section>`;
 }
 function mapaItemHtml(a) {
+  const fav = (a.favoritos || []).includes(user?.login);
   return `<div class="mapa-item"><div class="mapa-av" title="${sacEsc(a.autor_nome || a.autor || '')}">${sacEsc(mapaIniciais(a.autor_nome || a.autor))}</div>
-      <div><div class="mapa-top"><b>${sacEsc(a.autor_nome || a.autor || 'Usuário não identificado')}</b><span>${sacEsc(mapaFmtData(a))}</span></div>
+      <div><div class="mapa-top"><b>${sacEsc(a.autor_nome || a.autor || 'Usuário não identificado')}</b><span>${sacEsc(mapaFmtData(a))}</span>
+      <button class="mapa-fav${fav ? ' on' : ''}" title="${fav ? 'Remover dos favoritos' : 'Favoritar'}" onclick="mapaFavoritar('${a.id}')">${fav ? '★' : '☆'}</button></div>
       <div class="mapa-txt">${sacEsc(a.texto)}</div>${mapaChips(a.dados)}</div></div>`;
+}
+// data do comentário no formato AAAA-MM-DD (para comparar com o filtro de datas)
+function mapaDataIso(a) {
+  if (a.criado_ts) return String(a.criado_ts).slice(0, 10);
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(a.criado_em || '');
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : '';
+}
+function mapaFiltrados() {
+  const m = _mapa, so = document.getElementById('mapa-so-fav')?.checked;
+  const de = document.getElementById('mapa-de')?.value || '', ate = document.getElementById('mapa-ate')?.value || '';
+  return (m.lista || []).filter(a => (!so || (a.favoritos || []).includes(user?.login))
+    && (!de || mapaDataIso(a) >= de) && (!ate || mapaDataIso(a) <= ate));
 }
 function mapaDesenhar() {
   const m = _mapa, box = document.getElementById('mapa-lista'); if (!m || !box) return;
-  const lista = m.lista || [], n = m.mostrar || 2;
+  const todos = m.lista || [], lista = mapaFiltrados(), n = m.mostrar || 2;
   const resto = lista.length - n;
-  box.innerHTML = (lista.slice(0, n).map(mapaItemHtml).join('') || '<div class="sac-mut">Nenhuma alteração registrada ainda.</div>') +
+  box.innerHTML = (lista.slice(0, n).map(mapaItemHtml).join('') || '<div class="sac-mut">Nenhuma alteração encontrada com este filtro.</div>') +
     (resto > 0 ? `<a class="mapa-mais" onclick="mapaMais()">Carregar mais (${Math.min(5, resto)} de ${resto} restantes)</a>` : '');
-  const st = document.getElementById('mapa-st'); if (st) st.textContent = `${Math.min(n, lista.length)} de ${lista.length} registro(s)`;
+  const st = document.getElementById('mapa-st');
+  if (st) st.textContent = `${Math.min(n, lista.length)} de ${lista.length} registro(s)` + (lista.length !== todos.length ? ` · filtro (${todos.length} no total)` : '');
 }
 function mapaMais() { if (_mapa) { _mapa.mostrar = (_mapa.mostrar || 2) + 5; mapaDesenhar(); } }
+function mapaFiltrar() { if (_mapa) { _mapa.mostrar = 2; mapaDesenhar(); } }
+function mapaLimparFiltro() {
+  const so = document.getElementById('mapa-so-fav'), de = document.getElementById('mapa-de'), ate = document.getElementById('mapa-ate');
+  if (so) so.checked = false; if (de) de.value = ''; if (ate) ate.value = '';
+  mapaFiltrar();
+}
+// favorito por usuário: marca na tela na hora e grava; se o servidor recusar, desfaz
+async function mapaFavoritar(id) {
+  const m = _mapa; if (!m) return;
+  const a = (m.lista || []).find(x => x.id === id); if (!a) return;
+  if (!user?.login) { toast('Entre com seu usuário para favoritar', 'error'); return; }
+  const fav = !(a.favoritos || []).includes(user.login);
+  const antes = a.favoritos || [];
+  a.favoritos = fav ? [...antes, user.login] : antes.filter(x => x !== user.login);
+  mapaDesenhar();
+  try {
+    const res = await fetch(`${API}/anotacoes/${m.conta}/${encodeURIComponent(m.chave)}/${encodeURIComponent(id)}/favorito`, {method:'POST',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify({login: user.login, favorito: fav})});
+    if (!res.ok) throw new Error(res.status);
+    const d = await res.json(); a.favoritos = d.favoritos || a.favoritos;
+    mapaDesenhar();
+  } catch(e) {
+    a.favoritos = antes; mapaDesenhar(); toast('Erro ao favoritar o comentário', 'error');
+  }
+}
 async function mapaCarregar() {
   if (!_mapa) return;
   const box = document.getElementById('mapa-lista'); if (!box) return;

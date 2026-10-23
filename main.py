@@ -1,6 +1,6 @@
 """
 main.py — Backend FastAPI
-MZCell Rentabilidade
+MZ App
 """
 
 import json
@@ -9,7 +9,7 @@ import asyncio
 from datetime import datetime
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File
+from fastapi import FastAPI, Form, HTTPException, Request, UploadFile, File
 import io
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -74,7 +74,9 @@ ALERTAS_PATH    = os.path.join(BASE_DIR, "alertas.json")
 DASHBOARD_PATH  = os.path.join(BASE_DIR, "dashboard.html")
 
 # ─── APP ─────────────────────────────────────────────────────────────────────
-app = FastAPI(title="MZCell Rentabilidade API", version="1.0.0")
+app = FastAPI(title="MZ App API", version="1.0.0")
+from fastapi.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)   # HTML e JSON comprimidos: a tela carrega mais rápido
 # Só origens locais: com "*", qualquer site aberto no navegador conseguiria ler/chamar
 # o backend em 127.0.0.1 (inclusive /amazon/* e as rotas de custos).
 app.add_middleware(
@@ -162,8 +164,9 @@ def log_atividade(msg: str):
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_dashboard():
+    # sem cache: depois de uma atualização a tela não pode continuar com o JS antigo
     with open(DASHBOARD_PATH, "r", encoding="utf-8") as f:
-        return f.read()
+        return HTMLResponse(f.read(), headers={"Cache-Control": "no-store"})
 
 
 # ─── AUTH ─────────────────────────────────────────────────────────────────────
@@ -375,6 +378,11 @@ async def custos_ml(conta: str, mlb: str, preco: Optional[float] = None):
     res = await ml_api.custos_anuncio(conta, mlb, preco)
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("error", "erro"))
+    # CMV de referência: a base de CMV pelo SKU (importada); o salvo no produto é só o que estava antes
+    import cmv_base
+    produto = load_json(PRODUTOS_PATH).get(mlb, {})
+    res["cmv_referencia"] = cmv_base.cmv_de(produto.get("sku"))
+    res["cmv_salvo"] = produto.get("cmv_unit")
     return res
 
 
@@ -434,14 +442,14 @@ async def rebot_verificar(conta: str):
     rv = _modulo("rebot_visual")
     quando = datetime.now().strftime("%d/%m %H:%M")
     try:
-        ops = await asyncio.to_thread(agenda.analisar_conta, conta)
+        ops, baixa = await asyncio.to_thread(agenda.analisar_conta, conta, True)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"{conta}: {type(e).__name__}: {str(e)[:120]}")
     avisadas = set(agenda._json(agenda.ESTADO, {"avisadas": []}).get("avisadas", []))
     for o in ops:
         o["repetida"] = o["chave"] in avisadas
-    return {"conta": conta, "quando": quando, "total": len(ops),
-            "texto": rv.texto(ops, {}, 0, quando, [conta]), "html": rv.html(ops, {}, 0, quando, [conta])}
+    return {"conta": conta, "quando": quando, "total": len(ops), "total_baixa": len(baixa),
+            "texto": rv.texto(ops, {}, 0, quando, [conta], baixa), "html": rv.html(ops, {}, 0, quando, [conta], baixa)}
 
 
 @app.get("/pivo/{conta}")
@@ -482,6 +490,16 @@ def fotos_conta(conta: str):
     if conta not in ("meli01", "meli02", "meli03"):
         raise HTTPException(status_code=404, detail="conta inválida")
     cache = _ler_json(FOTOS_PATH)
+    # fotos mudam no ML: o cache de cada conta vale 7 dias; depois disso é refeito
+    from datetime import datetime, timedelta
+    datas = cache.setdefault("_datas", {})
+    try:
+        vencido = (datetime.now() - datetime.fromisoformat(datas.get(conta, ""))) > timedelta(days=7)
+    except ValueError:
+        vencido = True
+    if vencido:
+        cache[conta] = {}
+        datas[conta] = datetime.now().isoformat(timespec="seconds")
     da_conta = cache.setdefault(conta, {})
     try:
         with open(os.path.join(BASE_DIR, "produtos.json"), encoding="utf-8") as f:
@@ -510,13 +528,62 @@ def fotos_conta(conta: str):
 
 
 # ─── Base central de CMV (um arquivo para todas as plataformas) ──────────────────
+@app.get("/impostos")
+def impostos_tabela():
+    """Alíquotas por conta e regime (Techseller, MIZI, SELLER INFO)."""
+    return _modulo("impostos").carregar()
+
+
+@app.post("/impostos/importar")
+async def impostos_importar(file: UploadFile = File(...), autor: str = ""):
+    """Importa a planilha de alíquotas (Conta, Regime, Alíquota, Data) e publica no banco compartilhado."""
+    conteudo = await file.read()
+    try:
+        return _modulo("impostos").importar(conteudo, autor[:40])
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/impostos/publicar")
+def impostos_publicar():
+    """Sobe a tabela de impostos atual para o banco compartilhado (semente para as outras máquinas)."""
+    imp = _modulo("impostos")
+    itens = imp.carregar().get("itens", {})
+    imp.publicar(itens, "")
+    return {"success": True, "linhas": len(itens)}
+
+
+def _aplicar_impostos(registros: list):
+    _modulo("impostos").aplicar_remoto(registros)
+
+
+CMV_IMPORTAR_PERMITIDOS = {"zicri"}   # só o responsável importa e publica o CMV; liberar outros aqui
+
+
+@app.post("/cmv/publicar")
+def cmv_publicar(autor: str = ""):
+    """Sobe toda a base de CMV local para o banco compartilhado (semente inicial para as outras máquinas)."""
+    if autor.strip().lower() not in CMV_IMPORTAR_PERMITIDOS:
+        raise HTTPException(status_code=403, detail="publicação de CMV liberada só para o responsável")
+    cmv_base = _modulo("cmv_base")
+    base = cmv_base.carregar()
+    cmv_base.publicar(base.get("itens", {}), "")
+    return {"success": True, "skus": len(base.get("itens", {}))}
+
+
+def _aplicar_cmv(registros: list):
+    _modulo("cmv_base").aplicar_remoto(registros)
+
+
 @app.post("/cmv/importar")
-async def cmv_importar(file: UploadFile = File(...)):
+async def cmv_importar(file: UploadFile = File(...), autor: str = Form("")):
     """Importa o arquivo de CMV do Grupo (abas com colunas SKU e CMV/Custo) para a base central cmv_base.json."""
+    if autor.strip().lower() not in CMV_IMPORTAR_PERMITIDOS:
+        raise HTTPException(status_code=403, detail="importação de CMV liberada só para o responsável")
     cmv_base = _modulo("cmv_base")
     conteudo = await file.read()
     try:
-        return cmv_base.importar(conteudo, file.filename or "")
+        return cmv_base.importar(conteudo, file.filename or "", autor[:40])
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -548,10 +615,8 @@ def cmv_aplicar(conta: str, confirmar: bool = False, tem_st_padrao: Optional[boo
 @app.get("/impostos/{conta}")
 async def aliquotas_da_conta(conta: str):
     """Alíquotas COM ST e SEM ST da conta (config.json > impostos), em fração (0.1072 = 10,72%)."""
-    imp = parser.load_config().get("impostos", {})
-    return {"conta": conta,
-            "com_st": imp.get(f"{conta}_com_st", {}).get("aliquota", 0.10),
-            "sem_st": imp.get(f"{conta}_sem_st", {}).get("aliquota", 0.08)}
+    com_st, sem_st = _modulo("impostos").por_conta(conta, parser.load_config().get("impostos", {}), (0.10, 0.08))
+    return {"conta": conta, "com_st": com_st, "sem_st": sem_st}
 
 
 @app.post("/produtos/custos")
@@ -615,9 +680,7 @@ async def baixar_modelo_custos(conta: str):
     from openpyxl.styles import PatternFill, Font, Alignment
 
     cfg      = parser.load_config()
-    impostos = cfg.get("impostos", {})
-    aliq_com_st = impostos.get(f"{conta}_com_st", {}).get("aliquota", 0.10)
-    aliq_sem_st = impostos.get(f"{conta}_sem_st", {}).get("aliquota", 0.08)
+    aliq_com_st, aliq_sem_st = _modulo("impostos").por_conta(conta, cfg.get("impostos", {}), (0.10, 0.08))
 
     produtos_db    = parser.load_produtos()
     produtos_conta = sorted(
@@ -820,13 +883,11 @@ async def importar_custos_xlsx(conta: str, file: UploadFile = File(...)):
                 pass
         return d
 
-    # Alíquotas: planilha (B2/D2) tem prioridade sobre config.json
+    # Alíquotas: planilha (B2/D2) tem prioridade sobre a tabela de impostos
     cfg      = parser.load_config()
-    impostos = cfg.get("impostos", {})
-    aliq_com_st = aliq_com_st_override if aliq_com_st_override is not None \
-        else impostos.get(f"{conta}_com_st", {}).get("aliquota", 0.10)
-    aliq_sem_st = aliq_sem_st_override if aliq_sem_st_override is not None \
-        else impostos.get(f"{conta}_sem_st", {}).get("aliquota", 0.08)
+    tab_com, tab_sem = _modulo("impostos").por_conta(conta, cfg.get("impostos", {}), (0.10, 0.08))
+    aliq_com_st = aliq_com_st_override if aliq_com_st_override is not None else tab_com
+    aliq_sem_st = aliq_sem_st_override if aliq_sem_st_override is not None else tab_sem
 
     atualizados, nao_encontrados = [], []
 
@@ -943,8 +1004,30 @@ async def sincronizar_produto_comparar(conta: str, mlb: str, date_from: str = No
     if not atual["success"]:
         raise HTTPException(status_code=400, detail=atual.get("error", "Erro no sync"))
 
+    # grava no produtos.json o que o sync trouxe (dias do período, ADS, ROAS objetivo): sem isso a tela
+    # continuava mostrando os valores salvos antes do sync
+    import sync_service
+    try:
+        gravado = await sync_service.sincronizar_produto_func(conta, mlb, date_from, date_to)
+    except Exception as e:
+        gravado = {"success": False, "error": str(e)}
+
     log_atividade(f"Sync comparar: {mlb} ({conta}) {date_from}→{date_to} vs {prev_from}→{prev_to}")
-    return {**atual, "anterior": anterior}
+    return {**atual, "anterior": anterior, "gravado": bool(gravado.get("success"))}
+
+
+@app.get("/ads/{conta}/{mlb}/dias")
+async def ads_dias(conta: str, mlb: str, datas: str):
+    """ADS e vendas dia a dia (AAAA-MM-DD separados por vírgula, até 7 dias)."""
+    import sync_produto
+    from datetime import datetime
+    lista = [d.strip() for d in datas.split(",") if d.strip()][:7]
+    try:
+        for d in lista:
+            datetime.fromisoformat(d)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="data inválida")
+    return {"success": True, "dias": await sync_produto.ads_por_dia(conta, mlb, lista)}
 
 
 @app.get("/sync/status")
@@ -990,7 +1073,10 @@ def _aplicar_comentarios(registros: list):
         elif existente is None and d.get("texto"):
             lista.append({"id": cid, "texto": d["texto"], "criado_em": d.get("criado_em", ""),
                           "criado_ts": d.get("criado_ts", r.get("atualizado_em", "")), "autor": d.get("autor", r.get("autor", "")),
-                          "autor_nome": d.get("autor_nome", ""), "dados": d.get("dados")})
+                          "autor_nome": d.get("autor_nome", ""), "dados": d.get("dados"),
+                          "favoritos": d.get("favoritos", [])})
+        elif existente is not None and "favoritos" in d:   # favoritar em outro computador: a lista vem da planilha
+            existente["favoritos"] = d["favoritos"]
     _save_anotacoes(db)
 
 
@@ -1096,7 +1182,7 @@ def _aplicar_usuarios(registros: list):
 
 _APLICADORES_COMPARTILHADOS = {"comentarios": _aplicar_comentarios, "posicoes": _aplicar_posicoes, "clips": _aplicar_clips,
                                "pivo": _aplicar_pivo, "contestacoes": _aplicar_contestacoes, "usuarios": _aplicar_usuarios,
-                               "tags": _aplicar_tags}
+                               "tags": _aplicar_tags, "cmv": _aplicar_cmv, "impostos": _aplicar_impostos}
 
 
 @app.post("/compartilhado/sincronizar")
@@ -1224,6 +1310,25 @@ async def salvar_anotacao(conta: str, mlb: str, payload: dict):
     return {"success": True, "anotacao": anotacao}
 
 
+@app.post("/anotacoes/{conta}/{mlb}/{anotacao_id}/favorito")
+async def favoritar_anotacao(conta: str, mlb: str, anotacao_id: str, payload: dict):
+    """Marca ou desmarca o comentário como favorito de um usuário (lista de logins em `favoritos`)."""
+    login = str(payload.get("login", "")).strip()[:40]
+    if not login:
+        raise HTTPException(status_code=400, detail="Usuário não informado")
+    db = _load_anotacoes()
+    anotacao = next((a for a in db.get(conta, {}).get(mlb, []) if a.get("id") == anotacao_id), None)
+    if anotacao is None:
+        raise HTTPException(status_code=404, detail="Anotação não encontrada")
+    favoritos = [x for x in anotacao.get("favoritos", []) if x != login]
+    if payload.get("favorito", True):
+        favoritos.append(login)
+    anotacao["favoritos"] = favoritos
+    _save_anotacoes(db)
+    shared_store.enviar_async("comentarios", f"{conta}|{mlb}|{anotacao_id}", anotacao, login)
+    return {"success": True, "favoritos": favoritos}
+
+
 @app.delete("/anotacoes/{conta}/{mlb}/{anotacao_id}")
 async def deletar_anotacao(conta: str, mlb: str, anotacao_id: str):
     """Remove uma anotação pelo id."""
@@ -1239,6 +1344,22 @@ async def deletar_anotacao(conta: str, mlb: str, anotacao_id: str):
 
 
 # ─── RENTABILIDADE — Agrega por período ──────────────────────────────────────
+
+VALIDADE_SYNC_HORAS = 24   # dados de frete, comissão, rebot e vendas valem por 24h; depois a tela pede novo sync
+
+
+def _validade_sync(produto: dict) -> dict:
+    """Quando o anúncio foi sincronizado pela última vez e se os dados já venceram."""
+    from datetime import datetime
+    marca = produto.get("atualizado_em") or ""
+    try:
+        horas = (datetime.now() - datetime.fromisoformat(marca)).total_seconds() / 3600
+    except ValueError:
+        return {"sincronizado_em": marca or None, "horas": None, "vencido": True}
+    fora = bool(produto.get("inativo_no_ml"))   # não está mais ativo no ML: não há o que sincronizar
+    return {"sincronizado_em": marca, "horas": round(horas, 1), "vencido": horas > VALIDADE_SYNC_HORAS and not fora,
+            "inativo_no_ml": fora}
+
 
 @app.get("/rentabilidade/{conta}")
 async def rentabilidade(conta: str, date_from: str, date_to: str):
@@ -1259,6 +1380,9 @@ async def rentabilidade(conta: str, date_from: str, date_to: str):
             "variacao":  produto.get("variacao"),
             "arquivado": produto.get("arquivado", False),
             "tem_st":    produto.get("tem_st", True),
+            "validade":  _validade_sync(produto),
+            "catalogo":  produto.get("catalogo"),
+            "roas_objetivo_ml": produto.get("roas_objetivo_ml"),
             "custos": {
                 "cmv_unit":    produto.get("cmv_unit"),
                 "frete_unit":  produto.get("frete_unit"),
@@ -1281,6 +1405,7 @@ async def rentabilidade(conta: str, date_from: str, date_to: str):
         "ads_total":       round(sum(r["periodo"]["ads_total"] for r in resultado), 2),
         "unidades_total":  sum(r["periodo"]["unidades"] for r in resultado),
         "produtos_ativos": len(resultado),
+        "desatualizados":  sum(1 for r in resultado if r["validade"]["vencido"]),
     }
     kpis["margem_pct_global"] = round(kpis["margem_total"] / kpis["receita_total"], 6) if kpis["receita_total"] > 0 else 0
     kpis["tacos_global"]      = round(kpis["ads_total"] / kpis["receita_total"], 6) if kpis["receita_total"] > 0 else 0
