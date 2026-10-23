@@ -2507,8 +2507,13 @@ function openModal(mlb, conta) {
   btnArq.onclick = () => arquivarProduto(_modalMlb, _modalConta);
 
   // página de vendas: o MLB-número abre o anúncio no Mercado Livre
-  document.getElementById('btn-pag-venda').onclick = () =>
-    window.open('https://produto.mercadolivre.com.br/' + mlb.replace(/^MLB/, 'MLB-'), '_blank');
+  // abre no navegador padrão (pelo backend); se o backend não responder, tenta abrir em aba
+  document.getElementById('btn-pag-venda').onclick = () => {
+    const url = 'https://produto.mercadolivre.com.br/' + mlb.replace(/^MLB/, 'MLB-');
+    fetch(`${API}/sistema/abrir-link`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({url})})
+      .then(r => { if (!r.ok) throw new Error(r.status); })
+      .catch(() => window.open(url, '_blank'));
+  };
 
   renderModalContent(mlb, conta);
   document.getElementById('modal-prod').classList.add('open');

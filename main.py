@@ -1016,6 +1016,17 @@ async def sincronizar_produto_comparar(conta: str, mlb: str, date_from: str = No
     return {**atual, "anterior": anterior, "gravado": bool(gravado.get("success"))}
 
 
+@app.post("/sistema/abrir-link")
+async def abrir_link(payload: dict):
+    """Abre um anúncio do Mercado Livre no navegador padrão do Windows (fora da janela do app)."""
+    import webbrowser
+    url = str(payload.get("url", ""))
+    if not url.startswith("https://produto.mercadolivre.com.br/MLB-"):
+        raise HTTPException(status_code=400, detail="Endereço não permitido")
+    webbrowser.open(url, new=2)
+    return {"success": True}
+
+
 @app.get("/ads/{conta}/{mlb}/dias")
 async def ads_dias(conta: str, mlb: str, datas: str):
     """ADS e vendas dia a dia (AAAA-MM-DD separados por vírgula, até 7 dias)."""

@@ -91,7 +91,7 @@ def recomendacao(novas: list) -> list:
 
 # ─── TEXTO (Slack / fallback do e-mail) ──────────────────────────────────────
 
-def texto(novas: list, erros: dict, abertas: int, quando: str, contas: list) -> str:
+def texto(novas: list, erros: dict, abertas: int, quando: str, contas: list, baixa: list = None) -> str:
     total = sum(o["impacto_mes"] for o in novas if not o["empate"] and o["un_30d"])
     p = [f"🔔 *REBOT · {quando}*", f"*{len(novas)} OPORTUNIDADE(S)*{_origem(novas)} · potencial ≈ *{brl(total)}/mês*", ""]
     for conta in contas:
@@ -118,6 +118,13 @@ def texto(novas: list, erros: dict, abertas: int, quando: str, contas: list) -> 
             p.append("")
     for conta, e in erros.items():
         p += [f"❌ *{conta.upper()}* · erro na verificação ({e}) — conta NÃO analisada nesta rodada.", ""]
+    if baixa:
+        p += ["━━━━━━━━━━━━━━━━", f"⬇️ *BAIXA PRIORIDADE* · {len(baixa)}", ""]
+        for b in baixa:
+            p.append(f"   📦 *{b['conta'].upper()}* · `{b['mlb']}` · {b['titulo'][:48]}")
+            p.append(f"   🏷️ {b['nome']} · {brl(b['atual_preco'])} → {brl(b['preco'])} · {ganho_fmt(b['ganho_un'])}/un")
+            p.append(f"   ⚠️ {b['motivo_baixa']}")
+            p.append("")
     p += ["━━━━━━━━━━━━━━━━", "💡 *RECOMENDAÇÃO*", ""]
     for n, titulo, itens in recomendacao(novas):
         p.append(f"{NIVEIS[n]['emoji']} *{titulo}*")
@@ -169,7 +176,7 @@ def _card(o: dict) -> str:
 </td></tr>'''
 
 
-def html(novas: list, erros: dict, abertas: int, quando: str, contas: list) -> str:
+def html(novas: list, erros: dict, abertas: int, quando: str, contas: list, baixa: list = None) -> str:
     total = sum(o["impacto_mes"] for o in novas if not o["empate"] and o["un_30d"])
     contagem = {k: 0 for k in NIVEIS}
     for o in novas:
@@ -190,6 +197,13 @@ def html(novas: list, erros: dict, abertas: int, quando: str, contas: list) -> s
     for conta, e in erros.items():
         corpo.append(f'<tr><td style="padding:10px 14px;background:#fee2e2;border-radius:8px;color:#991b1b;font-size:13px;">❌ <b>{conta.upper()}</b> — erro na verificação ({escape(e)}). Conta <b>NÃO</b> analisada nesta rodada.</td></tr>')
 
+    if baixa:
+        lis = "".join(f'<li style="margin:4px 0;"><b>{escape(b["conta"].upper())}</b> · <span style="font-family:Consolas,monospace;">{escape(b["mlb"])}</span> · '
+                      f'{escape(b["titulo"][:60])} · {escape(b["nome"])} · {escape(brl(b["atual_preco"]))} → {escape(brl(b["preco"]))} · '
+                      f'{escape(ganho_fmt(b["ganho_un"]))}/un · <b>{escape(b["motivo_baixa"])}</b></li>' for b in baixa)
+        corpo.append(f'<tr><td style="padding:18px 0 10px 0;"><div style="font-size:13px;font-weight:800;letter-spacing:.12em;color:#6b7280;'
+                     f'border-bottom:2px solid #9ca3af;padding-bottom:6px;">⬇️ BAIXA PRIORIDADE <span style="font-weight:400;">· {len(baixa)}</span></div>'
+                     f'<ul style="margin:8px 0 0 0;padding-left:18px;font-size:13px;color:#374151;">{lis}</ul></td></tr>')
     rec = []
     for n, titulo, itens in recomendacao(novas):
         nv = NIVEIS[n]
@@ -205,7 +219,7 @@ def html(novas: list, erros: dict, abertas: int, quando: str, contas: list) -> s
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:20px 10px;">
  <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;">
   <tr><td style="background:#1f2937;border-radius:10px 10px 0 0;padding:22px 24px;">
-    <div style="font-size:11px;letter-spacing:.18em;color:#9ca3af;font-weight:700;">MZCELL · RENTABILIDADE</div>
+    <div style="font-size:11px;letter-spacing:.18em;color:#9ca3af;font-weight:700;">MZ APP · RENTABILIDADE</div>
     <div style="font-size:24px;font-weight:800;color:#ffffff;margin-top:4px;">🔔 REBOT DISPONÍVEL</div>
     <div style="font-size:13px;color:#d1d5db;margin-top:4px;">{escape(quando)}</div>
   </td></tr>
