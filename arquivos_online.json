@@ -50,11 +50,5 @@
  "marketplaces/shopee/validar.py",
  "impostos.py",
  "marketplaces/amazon/ads.py",
- "marketplaces/amazon/promocoes.py",
- "marketplaces/radar/__init__.py",
- "marketplaces/radar/pagina.html",
- "marketplaces/radar/parse.py",
- "marketplaces/radar/robo.py",
- "marketplaces/radar/router.py",
- "marketplaces/radar/store.py"
+ "marketplaces/amazon/promocoes.py"
 ]
