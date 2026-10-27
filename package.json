@@ -1,7 +1,7 @@
 {
   "name": "mzcell-rentabilidade",
-  "version": "1.3.7",
-  "description": "MZCell — Painel de Rentabilidade Mercado Livre",
+  "version": "1.3.13",
+  "description": "MZ App — Painel de Rentabilidade Mercado Livre",
   "main": "index.js",
   "author": "Felipe Mfranca",
   "scripts": {
@@ -10,7 +10,7 @@
   },
   "build": {
     "appId": "com.mzcell.rentabilidade",
-    "productName": "MZCell Rentabilidade",
+    "productName": "MZ App",
     "win": {
       "target": "nsis",
       "icon": "icon.ico"
@@ -35,6 +35,7 @@
           "main.py",
           "sync_service.py",
           "sync_produto.py",
+          "produtos_store.py",
           "ml_api.py",
           "parser_rentabilidade.py",
           "refresh_ml_token.py",
@@ -51,10 +52,20 @@
           "pivo_ml.py",
           "full_alerta.py",
           "shared_store.py",
+          "rebot_agenda.py",
+          "rebot_visual.py",
+          "buybox_monitor.py",
           "marketplaces/**",
           "!marketplaces/**/__pycache__/**",
           "!marketplaces/shopee/*.zip",
           "shared_config.json",
+          "cmv_base.json",
+          "amazon_config.json",
+          "amazon_custos.json",
+          "anotacoes.json",
+          "posicoes.json",
+          "impostos.json",
+          "impostos.py",
           "email_config.json",
           "python-embed/**",
           "version.txt"

@@ -1,5 +1,5 @@
 ; installer.nsh — Script NSIS personalizado
-; MZCell Rentabilidade
+; MZ App
 ; Verifica Python, instala se necessário, recria venv no PC destino
 
 !macro customInstall
@@ -41,7 +41,7 @@
   DetailPrint "Configurando permissões..."
   nsExec::ExecToLog 'icacls "$INSTDIR\resources" /grant *S-1-1-0:F /T /Q'
 
-  DetailPrint "MZCell Rentabilidade instalado com sucesso!"
+  DetailPrint "MZ App instalado com sucesso!"
 !macroend
 
 !macro customUnInstall

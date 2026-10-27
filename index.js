@@ -52,8 +52,17 @@ const ARQUIVOS_ONLINE = [
   'marketplaces/shopee/lojas.py',
   'marketplaces/shopee/marketplace.py',
   'marketplaces/shopee/router.py',
-  'marketplaces/shopee/validar.py'
+  'marketplaces/shopee/validar.py',
+  'impostos.py',
+  'marketplaces/amazon/ads.py',
+  'marketplaces/amazon/promocoes.py',
+  'produtos_store.py',
+  'marketplaces/shopee/precificador.py'
 ];
+// Arquivo novo não precisa mais de instalador: a lista também vem do GitHub (arquivos_online.json) e é somada a esta.
+// Só caminhos relativos de .py/.html do projeto; nunca config, token ou dados (esses ficam só na máquina).
+const LISTA_ONLINE = 'arquivos_online.json';
+const caminhoPermitido = a => typeof a === 'string' && /^[A-Za-z0-9_\-]+(\/[A-Za-z0-9_\-]+)*\.(py|html)$/.test(a);
 
 let mainWindow = null;
 let backendProc = null;
@@ -75,7 +84,7 @@ function criarJanela() {
     .bar{height:100%;background:%23f6c90e;border-radius:99px;transition:width .4s ease;width:0%;}
     .status{color:%236b7280;font-size:11px;margin-top:12px;letter-spacing:.02em;}
   </style></head><body>
-    <h1>MZCell Rentabilidade</h1>
+    <h1>MZ App</h1>
     <p>Mercado Livre &middot; An&aacute;lise em tempo real</p>
     <div class="bar-bg"><div class="bar" id="bar"></div></div>
     <div class="status" id="status">Verificando atualizações...</div>
@@ -112,6 +121,15 @@ function downloadArquivo(url, destPath) {
   });
 }
 
+function baixarTexto(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, { rejectUnauthorized: false }, res => {
+      if (res.statusCode !== 200) { res.resume(); return reject(new Error('HTTP ' + res.statusCode)); }
+      let d = ''; res.on('data', c => d += c); res.on('end', () => resolve(d));
+    }).on('error', reject);
+  });
+}
+
 function versaoMaior(a, b) {
   const pa = String(a || '').split('.').map(n => parseInt(n, 10) || 0);
   const pb = String(b || '').split('.').map(n => parseInt(n, 10) || 0);
@@ -144,9 +162,16 @@ async function verificarEAtualizar() {
   }
   houve_atualizacao = true;
   setProgress(10, `Atualizando para versão ${versaoOnline}...`);
-  for (let i = 0; i < ARQUIVOS_ONLINE.length; i++) {
-    const arquivo = ARQUIVOS_ONLINE[i];
-    const pct = 10 + Math.round((i / ARQUIVOS_ONLINE.length) * 80);
+  // lista embutida + lista do GitHub (se o arquivo da lista falhar, segue só com a embutida)
+  const arquivos = new Set(ARQUIVOS_ONLINE);
+  try {
+    const extra = JSON.parse(await baixarTexto(GITHUB_RAW + '/' + LISTA_ONLINE));
+    (Array.isArray(extra) ? extra : []).filter(caminhoPermitido).forEach(a => arquivos.add(a));
+  } catch(e) { console.error('Lista online indisponível:', e.message); }
+  const lista = [...arquivos];
+  for (let i = 0; i < lista.length; i++) {
+    const arquivo = lista[i];
+    const pct = 10 + Math.round((i / lista.length) * 80);
     setProgress(pct, `Baixando ${arquivo}...`);
     try {
       await downloadArquivo(GITHUB_RAW + '/' + arquivo, path.join(RESOURCES, arquivo));
@@ -216,7 +241,7 @@ app.whenReady().then(async () => {
   if (houve_atualizacao) {
     await dialog.showMessageBox(mainWindow, {
       type: 'info',
-      title: 'MZ Rentabilidade v1.1.3 — atualizado ✓',
+      title: 'MZ App v1.1.3 — atualizado ✓',
       message: 'Novidades desta versão:',
       detail: '• Receita bruta agora alinhada com o Seller Center do ML\n• Pedidos internos do ML não inflam mais os números de vendas\n• Validado em múltiplos anúncios e períodos',
       buttons: ['Entendi, continuar'],
