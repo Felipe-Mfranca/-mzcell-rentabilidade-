@@ -1,6 +1,6 @@
 """
 marketplaces/base.py — Interface comum dos módulos de marketplace (rascunho v0)
-MZCell Rentabilidade
+MZ App
 
 Cada marketplace (ML, Amazon, Shopee, Bling...) vive em marketplaces/<nome>/ e expõe:
   - uma classe que herda de Marketplace

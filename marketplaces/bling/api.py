@@ -1,6 +1,6 @@
 """
 marketplaces/bling/api.py — Acesso à API v3 do Bling (somente leitura por enquanto)
-MZCell Rentabilidade
+MZ App
 
 Credenciais e tokens ficam em bling_config.json (no .gitignore).
 Regra do projeto: dados do Bling NÃO entram no cálculo de margem/CMV.

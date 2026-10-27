@@ -73,7 +73,102 @@ def vendas_30d(ml: ML, sid: str) -> dict:
     return un
 
 
-def analisar_conta(conta: str) -> list:
+def _m(v) -> str:
+    """Valor em moeda com duas casas e vírgula (padrão do app)."""
+    return f"{float(v or 0):.2f}".replace(".", ",")
+
+
+def _tarifador(ml: ML):
+    """Tarifa % do ML por (preço, tipo de anúncio, categoria), com cache dentro da análise."""
+    tarifas = {}
+
+    def tarifa(preco, it):
+        k = (round(preco, 2), it["listing_type_id"], it["category_id"])
+        if k not in tarifas:
+            st, lp = ml.get("/sites/MLB/listing_prices", price=preco,
+                            listing_type_id=k[1], category_id=k[2])
+            lp = lp[0] if isinstance(lp, list) else (lp or {})
+            tarifas[k] = ((lp.get("sale_fee_details") or {}).get("percentage_fee") or 0) / 100
+        return tarifas[k]
+    return tarifa
+
+
+def _avaliar_item(conta, mlb, it, ml, tarifa, vendas):
+    """Compara a promoção atual do anúncio com as candidatas (mesma regra da agenda).
+    Devolve (melhor, situacao, candidatas): melhor só tem o que vale a pena; candidatas traz todas, com 'vale' e 'motivo'."""
+    st, sp = ml.get(f"/items/{mlb}/sale_price", context="channel_marketplace")
+    st2, pr = ml.get(f"/seller-promotions/items/{mlb}", app_version="v2")
+    if not isinstance(sp, dict) or not isinstance(pr, list):
+        return None, None, []
+    atual_preco = sp.get("amount") or it["price"]
+    cheio = sp.get("regular_amount") or it["price"]
+    meta = sp.get("metadata") or {}
+    pid, cid = meta.get("promotion_id"), meta.get("campaign_id")
+    ativa = next((p for p in pr if p.get("status") == "started"
+                  and (p.get("ref_id") == pid or p.get("id") == cid)), None)
+    a_tipo = (ativa or {}).get("type") or ("SEM_PROMOCAO" if not pid else "PROPRIA")
+    a_rebot = ((ativa or {}).get("meli_percentage") or 0) / 100 * ((ativa or {}).get("original_price") or cheio)
+    a_liq = atual_preco - (tarifa(atual_preco, it) * atual_preco - a_rebot)
+    a_nome = (ativa or {}).get("name") or ("sem promoção" if not pid else "promoção própria")
+    situacao = {"promocao": a_nome, "tipo": a_tipo, "preco": atual_preco,
+                "rebot": round(a_rebot, 2), "liquido": round(a_liq, 2)}
+
+    melhor, candidatas = None, []
+    for p in pr:
+        if p.get("status") != "candidate" or not p.get("price"):
+            continue  # pending/started: já inscrita ou aplicada
+        preco = p["price"]
+        rebot = (p.get("meli_percentage") or 0) / 100 * (p.get("original_price") or cheio)
+        liq = preco - (tarifa(preco, it) * preco - rebot)
+        ganho, dp = round(liq - a_liq, 2), round(preco - atual_preco, 2)
+        empate = abs(ganho) < 0.01 and abs(dp) < 0.01
+        vale, motivo = True, ""
+        if empate:
+            if not (a_tipo in NOSSAS and p.get("type") not in NOSSAS):
+                vale, motivo = False, "empate sem vantagem"
+        elif ganho <= 0:
+            vale, motivo = False, "líquido não melhora"
+        if vale and dp > 0 and rebot - a_rebot <= 0.005:
+            vale, motivo = False, "ganho só pelo preço mais alto (rebot não aumenta)"
+        # aumento de preço não é oportunidade: a promoção existe para vender mais, e subir o preço vai contra isso,
+        # mesmo que o rebot compense no líquido (regra do usuário, 27/10/2026)
+        if vale and dp > 0:
+            vale, motivo = False, "aumento de preço: não é oportunidade (sobe R$ %.2f)" % dp
+        c = {"conta": conta, "mlb": mlb, "titulo": it["title"], "un_30d": vendas.get(mlb, 0),
+             "atual_nome": a_nome, "atual_preco": atual_preco, "atual_rebot": round(a_rebot, 2),
+             "tipo": p.get("type"), "promo_id": p.get("id") or p.get("type"),
+             "nome": p.get("name") or p.get("type"), "preco": preco, "rebot": round(rebot, 2),
+             "ganho_un": ganho, "delta_preco": dp, "empate": empate,
+             "estoque": p.get("stock"), "fim": (p.get("finish_date") or "")[:10], "vale": vale, "motivo": motivo}
+        c["impacto_mes"] = round(ganho * c["un_30d"], 2)
+        candidatas.append(c)
+        if vale and (melhor is None or (ganho, c["un_30d"]) > (melhor["ganho_un"], melhor["un_30d"])):
+            melhor = c
+    return melhor, situacao, candidatas
+
+
+PRECO_MINIMO_FRETE = 19.0   # abaixo disto a conta perde o frete grátis: não compensa
+
+
+def _motivo_baixa(c: dict):
+    """Motivo para a oportunidade ficar em baixa prioridade, ou None se é prioridade normal.
+    Baixa prioridade: preço alvo abaixo de R$ 19,00 (perde o frete grátis), ou qualquer aumento de preço
+    (a promoção serve para vender mais; subir o preço vai contra isso, mesmo que seja de centavos)."""
+    if c["preco"] < PRECO_MINIMO_FRETE:
+        return "abaixo de R$ 19,00: perde o frete grátis"
+    if c["delta_preco"] > 0:
+        return f"aumenta o preço em R$ {c['delta_preco']:.2f}".replace(".", ",")
+    return None
+
+
+def _item_baixa(c: dict, motivo: str) -> dict:
+    return {"conta": c["conta"], "mlb": c["mlb"], "titulo": c["titulo"], "nome": c["nome"],
+            "atual_preco": c["atual_preco"], "preco": c["preco"], "ganho_un": c["ganho_un"],
+            "motivo_baixa": motivo}
+
+
+def analisar_conta(conta: str, com_baixa: bool = False):
+    """Com com_baixa=True devolve (principais, baixa_prioridade); senão, só as principais (como antes)."""
     ml = ML(conta)
     sid = str(ml_api.load_config()["contas"][conta]["seller_id"])
     ids, off = [], 0
@@ -96,64 +191,28 @@ def analisar_conta(conta: str) -> list:
         raise RuntimeError("nenhum detalhe de anúncio retornado")
 
     vendas = vendas_30d(ml, sid)
-    tarifas = {}
+    tarifa = _tarifador(ml)
 
-    def tarifa(preco, it):
-        k = (round(preco, 2), it["listing_type_id"], it["category_id"])
-        if k not in tarifas:
-            st, lp = ml.get("/sites/MLB/listing_prices", price=preco,
-                            listing_type_id=k[1], category_id=k[2])
-            lp = lp[0] if isinstance(lp, list) else (lp or {})
-            tarifas[k] = ((lp.get("sale_fee_details") or {}).get("percentage_fee") or 0) / 100
-        return tarifas[k]
-
-    achados = []
+    achados, baixa = [], []
     for mlb, it in itens.items():
-        st, sp = ml.get(f"/items/{mlb}/sale_price", context="channel_marketplace")
-        st2, pr = ml.get(f"/seller-promotions/items/{mlb}", app_version="v2")
-        if not isinstance(sp, dict) or not isinstance(pr, list):
+        melhor, _, cands = _avaliar_item(conta, mlb, it, ml, tarifa, vendas)
+        if com_baixa:
+            if melhor and _motivo_baixa(melhor) is None:
+                melhor["chave"] = f"{conta}|{mlb}|{melhor['promo_id']}|{melhor['preco']}"
+                achados.append(melhor)
+            elif melhor:
+                baixa.append(_item_baixa(melhor, _motivo_baixa(melhor)))
+            else:
+                nv = [c for c in cands if not c["vale"]]
+                if nv:
+                    pior_motivo = max(nv, key=lambda c: c["ganho_un"])
+                    baixa.append(_item_baixa(pior_motivo, "rebot não vale a pena: " + pior_motivo["motivo"]))
             continue
-        atual_preco = sp.get("amount") or it["price"]
-        cheio = sp.get("regular_amount") or it["price"]
-        meta = sp.get("metadata") or {}
-        pid, cid = meta.get("promotion_id"), meta.get("campaign_id")
-        ativa = next((p for p in pr if p.get("status") == "started"
-                      and (p.get("ref_id") == pid or p.get("id") == cid)), None)
-        a_tipo = (ativa or {}).get("type") or ("SEM_PROMOCAO" if not pid else "PROPRIA")
-        a_rebot = ((ativa or {}).get("meli_percentage") or 0) / 100 * ((ativa or {}).get("original_price") or cheio)
-        a_liq = atual_preco - (tarifa(atual_preco, it) * atual_preco - a_rebot)
-        a_nome = (ativa or {}).get("name") or ("sem promoção" if not pid else "promoção própria")
-
-        melhor = None
-        for p in pr:
-            if p.get("status") != "candidate" or not p.get("price"):
-                continue  # pending/started: já inscrita ou aplicada
-            preco = p["price"]
-            rebot = (p.get("meli_percentage") or 0) / 100 * (p.get("original_price") or cheio)
-            liq = preco - (tarifa(preco, it) * preco - rebot)
-            ganho, dp = round(liq - a_liq, 2), round(preco - atual_preco, 2)
-            empate = abs(ganho) < 0.01 and abs(dp) < 0.01
-            if empate:
-                if not (a_tipo in NOSSAS and p.get("type") not in NOSSAS):
-                    continue
-            elif ganho <= 0:
-                continue
-            if dp > 0 and rebot - a_rebot <= 0.005:
-                continue  # ganho só do preço mais alto: rebot é desconto pago pelo ML, isso não é rebot
-            c = {"conta": conta, "mlb": mlb, "titulo": it["title"], "un_30d": vendas.get(mlb, 0),
-                 "atual_nome": a_nome, "atual_preco": atual_preco, "atual_rebot": round(a_rebot, 2),
-                 "tipo": p.get("type"), "promo_id": p.get("id") or p.get("type"),
-                 "nome": p.get("name") or p.get("type"), "preco": preco, "rebot": round(rebot, 2),
-                 "ganho_un": ganho, "delta_preco": dp, "empate": empate,
-                 "estoque": p.get("stock"), "fim": (p.get("finish_date") or "")[:10]}
-            c["impacto_mes"] = round(ganho * c["un_30d"], 2)
-            if melhor is None or (ganho, c["un_30d"]) > (melhor["ganho_un"], melhor["un_30d"]):
-                melhor = c
         if melhor:
             melhor["chave"] = f"{conta}|{mlb}|{melhor['promo_id']}|{melhor['preco']}"
             achados.append(melhor)
-    log(f"{conta}: {len(itens)} anúncios, {len(achados)} oportunidades, {sum(vendas.values())} un/30d")
-    return achados
+    log(f"{conta}: {len(itens)} anúncios, {len(achados)} oportunidades, {len(baixa)} baixa prioridade, {sum(vendas.values())} un/30d")
+    return (achados, baixa) if com_baixa else achados
 
 
 def linha(o: dict) -> str:
@@ -161,28 +220,31 @@ def linha(o: dict) -> str:
     if o["empate"]:
         extras.append("empate: preferir campanha do ML")
     elif o["delta_preco"] > 0:
-        extras.append(f"⚠ preço sobe R$ {o['delta_preco']:.2f} — checar buybox")
+        extras.append(f"⚠ preço sobe R$ {o['delta_preco']:.2f} — checar buybox".replace(".", ",", 1))
     if o["tipo"] == "LIGHTNING" and o["estoque"]:
         extras.append(f"exige estoque {o['estoque'].get('min')}–{o['estoque'].get('max')} un")
     if o["fim"]:
         extras.append(f"até {o['fim']}")
     ganho = "empate" if o["empate"] else f"{o['ganho_un']:+.2f}/un"
     imp = f" ≈ R$ {o['impacto_mes']:+.0f}/mês" if o["un_30d"] and not o["empate"] else ""
-    return (f"• {o['mlb']} {o['titulo'][:40]} — {o['nome']}: R$ {o['atual_preco']:.2f} "
-            f"(rebot {o['atual_rebot']:.2f}) → R$ {o['preco']:.2f} (rebot {o['rebot']:.2f}) | "
+    return (f"• {o['mlb']} {o['titulo'][:40]} — {o['nome']}: R$ {_m(o['atual_preco'])} "
+            f"(rebot {_m(o['atual_rebot'])}) → R$ {_m(o['preco'])} (rebot {_m(o['rebot'])}) | "
             f"{ganho}{imp} | {o['un_30d']} un/30d" + (f" | {'; '.join(extras)}" if extras else ""))
 
 
-def montar(ops: list, erros: dict, quando: str) -> tuple:
-    """(assunto, texto, html) com TODAS as sugestões abertas. Texto vai ao Slack; e-mail leva texto + HTML."""
-    if not ops and not erros:
-        return "MZCell - Rebot: sem oportunidades", f"Rebot {quando}: sem oportunidades nas contas verificadas.", None
+def montar(ops: list, erros: dict, quando: str, baixa: list = None) -> tuple:
+    """(assunto, texto, html) com TODAS as sugestões abertas. Baixa prioridade vai numa seção própria.
+    Texto vai ao Slack; e-mail leva texto + HTML."""
+    baixa = baixa or []
+    if not ops and not baixa and not erros:
+        return "MZ App - Rebot: sem oportunidades", f"Rebot {quando}: sem oportunidades nas contas verificadas.", None
     n_novas = sum(1 for o in ops if not o.get("repetida"))
-    assunto = (f"MZCell - Rebot: {len(ops)} oportunidade(s)" + (f", {n_novas} nova(s)" if n_novas != len(ops) else "")
+    assunto = (f"MZ App - Rebot: {len(ops)} oportunidade(s)" + (f", {n_novas} nova(s)" if n_novas != len(ops) else "")
+               + (f", {len(baixa)} em baixa prioridade" if baixa else "")
                + (" (com erro)" if erros else ""))
     return (assunto,
-            rebot_visual.texto(ops, erros, 0, quando, CONTAS_PADRAO),
-            rebot_visual.html(ops, erros, 0, quando, CONTAS_PADRAO))
+            rebot_visual.texto(ops, erros, 0, quando, CONTAS_PADRAO, baixa),
+            rebot_visual.html(ops, erros, 0, quando, CONTAS_PADRAO, baixa))
 
 
 def enviar_email(assunto: str, texto: str, html: str = None) -> bool:
@@ -216,10 +278,12 @@ def main():
 
     estado = _json(ESTADO, {"avisadas": []})
     avisadas = set(estado.get("avisadas", []))
-    todas, erros = [], {}
+    todas, baixa, erros = [], [], {}
     for conta in a.contas:
         try:
-            todas += analisar_conta(conta)
+            principais, baixa_conta = analisar_conta(conta, True)   # mesmas regras do app: alta de preço e preço < R$ 19 vão para baixa prioridade
+            todas += principais
+            baixa += baixa_conta
         except Exception as e:
             erros[conta] = f"{type(e).__name__}: {str(e)[:80]}"
             log(f"{conta}: ERRO {traceback.format_exc(limit=2)}")
@@ -227,7 +291,7 @@ def main():
         o["repetida"] = o["chave"] in avisadas
     novas = [o for o in todas if not o["repetida"]]   # só para o estado; o relatório leva todas
     quando = datetime.now().strftime("%d/%m %H:%M")
-    assunto, texto, html = montar(todas, erros, quando)
+    assunto, texto, html = montar(todas, erros, quando, baixa)
     print("\n" + texto)
     if a.dry:
         return 1 if erros else 0

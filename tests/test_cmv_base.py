@@ -77,10 +77,11 @@ class Aplicacao(unittest.TestCase):
         self.assertTrue(r["aplicado"])
         self.assertEqual((d["MLB1"]["cmv_unit"], d["MLB4"]["cmv_unit"]), (49.0, 5))   # outra conta intocada
 
-    def test_amazon_exige_definir_st_para_sku_novo(self):
+    def test_amazon_cmv_nao_depende_de_st(self):
+        """CMV é gravado mesmo sem ST definido; a alíquota só entra quando o ST é informado (regra do usuário, 27/10)."""
         cp = os.path.join(self.d.name, "custos.json")
         r = cmv_base.aplicar_amazon("amazon02", None, False, cp, (0.1072, 0.1487), ["KIT-A", "NAO-TEM"])
-        self.assertEqual((r["sem_imposto_definido"], r["sem_cmv_na_base"], r["mudariam"]), (["KIT-A"], ["NAO-TEM"], 0))
+        self.assertEqual((r["sem_st_definido"], r["sem_cmv_na_base"], r["mudariam"]), (["KIT-A"], ["NAO-TEM"], 1))
         r = cmv_base.aplicar_amazon("amazon02", False, True, cp, (0.1072, 0.1487), ["KIT-A"])
         c = json.load(open(cp))["amazon02"]["KIT-A"]
         self.assertEqual((c["cmv_unit"], c["imposto_pct"], c["tem_st"]), (49.0, 0.1487, False))

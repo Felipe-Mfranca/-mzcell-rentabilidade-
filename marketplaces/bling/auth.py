@@ -1,6 +1,6 @@
 """
-marketplaces/bling/auth.py — Autoriza o MZ-app numa conta Bling (fluxo OAuth2 da API v3)
-MZCell Rentabilidade
+marketplaces/bling/auth.py — Autoriza o MZ App numa conta Bling (fluxo OAuth2 da API v3)
+MZ App
 
 Uso:  .\\venv\\Scripts\\python.exe -m marketplaces.bling.auth bling01
 

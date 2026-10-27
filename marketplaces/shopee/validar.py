@@ -1,6 +1,6 @@
 """
 marketplaces/shopee/validar.py — Validador do ambiente Shopee e atalhos de autorização (somente leitura)
-MZCell Rentabilidade
+MZ App
 
 Uso (na pasta do projeto):
   python -m marketplaces.shopee.validar                          confere o .env e a assinatura do app

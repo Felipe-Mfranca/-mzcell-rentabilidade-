@@ -275,6 +275,49 @@ def aplicar_ml(conta: str, confirmar: bool = False, produtos_path: str = None, i
             "sem_sku": sem_sku, "sem_cmv_na_base": len(sem_cmv), "alteracoes": muda[:200], "pendentes_sem_cmv": sem_cmv[:200]}
 
 
+ASIN_PATH = os.path.join(BASE_DIR, "amazon_asin_skus.json")
+
+
+def salvar_asin(conta: str, linhas: list):
+    """Grava o mapa SKU -> ASIN e ASIN -> SKUs da conta a partir do relatório de listagens da Amazon."""
+    try:
+        dados = json.load(open(ASIN_PATH, encoding="utf-8"))
+    except (FileNotFoundError, ValueError):
+        dados = {}
+    sku_asin, asin_skus = {}, {}
+    for x in linhas:
+        sku, asin = (x.get("seller-sku") or "").strip(), (x.get("product-id") or "").strip()
+        if not sku or not asin:
+            continue
+        sku_asin[sku] = asin
+        asin_skus.setdefault(asin, [])
+        if sku not in asin_skus[asin]:
+            asin_skus[asin].append(sku)
+    dados[conta] = {"sku_asin": sku_asin, "asin_skus": asin_skus, "gerado_em": datetime.now().isoformat(timespec="seconds")}
+    tmp = ASIN_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(dados, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, ASIN_PATH)
+
+
+def cmv_amazon(conta: str, sku: str, base: dict = None):
+    """CMV do SKU da Amazon: o próprio SKU na base; se não tiver, o de outro SKU vinculado ao mesmo ASIN (regra do usuário)."""
+    direto = cmv_de(sku, base)
+    if direto is not None:
+        return direto, "sku"
+    try:
+        m = json.load(open(ASIN_PATH, encoding="utf-8")).get(conta, {})
+    except (FileNotFoundError, ValueError):
+        return None, None
+    asin = m.get("sku_asin", {}).get(sku)
+    for irmao in m.get("asin_skus", {}).get(asin, []) if asin else []:
+        if irmao != sku:
+            v = cmv_de(irmao, base)
+            if v is not None:
+                return v, f"asin:{irmao}"
+    return None, None
+
+
 def aplicar_amazon(conta: str, tem_st_padrao: bool = None, confirmar: bool = False, custos_path: str = None,
                    aliquotas: tuple = None, skus: list = None) -> dict:
     """Grava cmv_unit em amazon_custos.json para os SKUs da Amazon que estão na base. O imposto vem do que já está
@@ -293,18 +336,20 @@ def aplicar_amazon(conta: str, tem_st_padrao: bool = None, confirmar: bool = Fal
     ind = {k.upper(): k for k in mine}
     muda, sem_imposto, sem_cmv = [], [], []
     for sku in lista:
-        novo = cmv_de(sku, base)
+        novo, _origem = cmv_amazon(conta, sku, base)
         if novo is None:
             sem_cmv.append(sku)
             continue
         chave = ind.get(sku.upper(), sku)
         atual = dict(mine.get(chave) or {})
+        # CMV não depende de ST: sempre grava. A alíquota só é preenchida quando o SKU já tem ST definido
+        # ou o padrão foi informado; senão fica para o seletor COM ST / SEM ST do simulador.
         if atual.get("imposto_pct") is None:
             if tem_st_padrao is None:
                 sem_imposto.append(sku)
-                continue
-            atual["tem_st"] = bool(tem_st_padrao)
-            atual["imposto_pct"] = round(com if tem_st_padrao else sem, 6)
+            else:
+                atual["tem_st"] = bool(tem_st_padrao)
+                atual["imposto_pct"] = round(com if tem_st_padrao else sem, 6)
         if atual.get("cmv_unit") != round(novo, 4) or chave not in mine:
             muda.append({"sku": sku, "de": (mine.get(chave) or {}).get("cmv_unit"), "para": novo})
             atual["cmv_unit"] = round(novo, 4)
@@ -315,4 +360,4 @@ def aplicar_amazon(conta: str, tem_st_padrao: bool = None, confirmar: bool = Fal
             json.dump(dados, f, ensure_ascii=False, indent=2)
         os.replace(tmp, path)
     return {"conta": conta, "plataforma": "amazon", "aplicado": bool(confirmar and muda), "mudariam": len(muda),
-            "sem_imposto_definido": sem_imposto, "sem_cmv_na_base": sem_cmv, "alteracoes": muda[:200]}
+            "sem_st_definido": sem_imposto, "sem_cmv_na_base": sem_cmv, "alteracoes": muda[:200]}

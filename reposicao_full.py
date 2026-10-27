@@ -1,6 +1,6 @@
 """
 reposicao_full.py — Protótipo de cobertura e sugestão de reposição do Full
-MZCell Rentabilidade
+MZ App
 
 SOMENTE LEITURA: só faz GET na API do Mercado Livre. Não altera o app.
 Uso:  .\\venv\\Scripts\\python.exe reposicao_full.py [meli01,meli02,meli03]

@@ -10,7 +10,8 @@
  * Colunas: chave | dados (JSON) | atualizado_em (ISO) | autor | removido
  * Regra de conflito: vale a gravação mais recente (compara atualizado_em).
  */
-var COLECOES = ['comentarios', 'posicoes', 'clips', 'pivo', 'contestacoes', 'usuarios'];
+var COLECOES = ['comentarios', 'posicoes', 'clips', 'pivo', 'contestacoes', 'usuarios', 'tags', 'cmv', 'impostos',
+  'radar_watch', 'radar', 'radar_status'];
 var CABECALHO = ['chave', 'dados', 'atualizado_em', 'autor', 'removido'];
 
 function doPost(e) {

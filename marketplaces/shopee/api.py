@@ -1,6 +1,6 @@
 """
 marketplaces/shopee/api.py — Cliente da Shopee Open Platform API v2 (somente leitura)
-MZCell Rentabilidade
+MZ App
 
 Portado de shopee_poc (shopee-claude-code.zip): assinatura HMAC-SHA256, tokens por ambiente e loja,
 renovação automática, janelas de 15 dias. Diferenças: httpx (já é dependência do app), leitor de .env

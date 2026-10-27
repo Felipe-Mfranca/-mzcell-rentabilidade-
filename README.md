@@ -1,4 +1,4 @@
-# MZCell Rentabilidade — App Desktop
+# MZ App — App Desktop
 
 ## Arquitetura
 Electron 35 + FastAPI (Python) + HTML/CSS/JS puro
@@ -55,7 +55,7 @@ npm start
 ## Build — Gerar instalador .exe
 cd mzcell-electron
 npm run build
-# Arquivo gerado em: dist/MZCell Rentabilidade Setup 1.0.0.exe
+# Arquivo gerado em: dist/MZ App Setup 1.0.0.exe
 
 ## Permissão de pasta (após instalar)
 icacls "C:\Program Files\mzcell-rentabilidade\resources" /grant *S-1-1-0:F /T

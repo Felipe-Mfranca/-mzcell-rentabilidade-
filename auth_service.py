@@ -48,10 +48,10 @@ def enviar_codigo(email, nome):
     msg = MIMEMultipart()
     msg["From"]    = cfg["email_remetente"]
     msg["To"]      = email
-    msg["Subject"] = "MZCell - Codigo de verificacao"
+    msg["Subject"] = "MZ App - Codigo de verificacao"
     body = f"""<html><body style="font-family:Arial,sans-serif;background:#f5f5f5;padding:20px;">
     <div style="max-width:400px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;">
-      <h2 style="color:#f6c90e;">MZCell Rentabilidade</h2>
+      <h2 style="color:#f6c90e;">MZ App</h2>
       <p>Ola, <strong>{nome}</strong>!</p>
       <p>Seu codigo de verificacao:</p>
       <div style="background:#0a0a0f;color:#f6c90e;font-size:32px;font-weight:700;letter-spacing:8px;text-align:center;padding:20px;border-radius:8px;margin:16px 0;">{codigo}</div>

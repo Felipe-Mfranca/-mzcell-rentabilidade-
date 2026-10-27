@@ -1,6 +1,6 @@
 """
 marketplaces/amazon/custos_xlsx.py — Modelo e importação de CMV e imposto por SKU (Amazon)
-MZCell Rentabilidade
+MZ App
 
 Mesmo fluxo do Mercado Livre: baixa-se um modelo .xlsx pré-preenchido, preenche-se o Preço de Custo e o
 Imposto (COM ST ou SEM ST) e importa-se de volta. As alíquotas COM ST e SEM ST ficam em B2 e D2 da planilha
@@ -37,14 +37,14 @@ def _gravar_custos_arquivo(dados: dict):
 
 
 def aliquotas_da_conta(conta: str) -> tuple:
-    """(COM ST, SEM ST) em fração, de config.json > impostos > <conta>_com_st / <conta>_sem_st (mesma fonte do ML)."""
+    """(COM ST, SEM ST) em fração: tabela de impostos (mesma fonte do Meli); config.json só como reserva."""
+    import impostos
     try:
         with open(os.path.join(api.BASE_DIR, "config.json"), encoding="utf-8") as f:
             imp = json.load(f).get("impostos", {})
     except (FileNotFoundError, ValueError):
         imp = {}
-    return (imp.get(f"{conta}_com_st", {}).get("aliquota", ALIQ_COM_ST_PADRAO),
-            imp.get(f"{conta}_sem_st", {}).get("aliquota", ALIQ_SEM_ST_PADRAO))
+    return impostos.por_conta(conta, imp, (ALIQ_COM_ST_PADRAO, ALIQ_SEM_ST_PADRAO))
 
 
 def skus_da_conta(conta: str) -> list:

@@ -1,6 +1,6 @@
 """
 marketplaces/amazon/marketplace.py — Amazon dentro do contrato de marketplaces/base.py
-MZCell Rentabilidade
+MZ App
 """
 
 from marketplaces.base import Marketplace

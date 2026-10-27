@@ -1,6 +1,6 @@
 """
 marketplaces/amazon/calculos.py — Matemática do módulo Amazon (sem rede, sem disco)
-MZCell Rentabilidade
+MZ App
 
 Tudo aqui é determinístico e testável sozinho. O acesso à API fica em api.py.
 """
@@ -57,6 +57,8 @@ def linha_de_estoque(resumo: dict) -> dict:
         "disponivel": disponivel,
         "em_transito": em_transito,
         "estoque_valido": disponivel + em_transito,
+        # Full disponível como no Mercado Livre: aptos + a caminho. Inaptos e reservados ficam de fora.
+        "full_disponivel": disponivel + em_transito,
     }
 
 

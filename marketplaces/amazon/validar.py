@@ -1,6 +1,6 @@
 """
 marketplaces/amazon/validar.py — Validador de credenciais da SP-API (somente leitura)
-MZCell Rentabilidade
+MZ App
 
 Uso:  python -m marketplaces.amazon.validar amazon01
 

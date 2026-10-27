@@ -1,7 +1,7 @@
 """
 refresh_ml_token.py — Renova tokens ML automaticamente
 Roda como background task no FastAPI
-MZCell Rentabilidade
+MZ App
 """
 
 import asyncio

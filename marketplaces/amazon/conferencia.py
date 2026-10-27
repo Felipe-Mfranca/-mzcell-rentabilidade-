@@ -1,6 +1,6 @@
 """
 marketplaces/amazon/conferencia.py — Confere as vendas de um ASIN contra as linhas de pedido
-MZCell Rentabilidade
+MZ App
 
 Uso:  .\\venv\\Scripts\\python.exe -m marketplaces.amazon.conferencia amazon02 B0DZN43HGG --sc 164
 

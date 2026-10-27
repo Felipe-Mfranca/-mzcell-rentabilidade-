@@ -1,6 +1,6 @@
 """
 marketplaces/amazon/ads.py — Investimento em Ads por ASIN (Amazon, somente leitura)
-MZCell Rentabilidade
+MZ App
 
 Usa o Data Kiosk (analytics_economics_2024_03_15), que não exige a Advertising API. Entrega só o
 gasto de Sponsored Products por ASIN (adTypeName SponsoredProductFee). Não traz impressões, cliques

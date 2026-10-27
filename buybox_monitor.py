@@ -1,6 +1,6 @@
 """
 buybox_monitor.py — Monitor de buybox dos anúncios de catálogo (SOMENTE LEITURA)
-MZCell Rentabilidade
+MZ App
 
 Módulo independente: não é importado pelo main.py nem pelo sync_service.py.
 Nenhuma ação é executada no Mercado Livre — só consultas (GET).
@@ -221,7 +221,7 @@ def mudancas(v: dict, ant: dict) -> list:
             continue
         for c in cs:
             if c["seller_id"] not in sel_ant[pid] and not c["nossa_conta"]:
-                out.append(f"🆕 Seller novo em {pid}: {c['seller']} a R$ {c['preco']:.2f}")
+                out.append(f"🆕 Seller novo em {pid}: {c['seller']} a R$ {str(round(c['preco'],2)).replace('.', ',')}")
     return out
 
 

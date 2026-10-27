@@ -105,7 +105,8 @@ class Cache(unittest.TestCase):
         base = pivo_ml.avaliar(entrada["item"], "x" * 200, PROMO, "active")
         base["_entrada"] = entrada
         json.dump({"meli01": {"MLB1": base, "_meta": {"gerado_em": "x"}}}, open(cache, "w"))
-        with mock.patch.object(pivo_ml, "CACHE_PATH", cache), mock.patch.object(pivo_ml, "MANUAL_PATH", manual):
+        remoto = cache + ".remoto"   # isola do arquivo compartilhado real (pivo_compartilhado.json)
+        with mock.patch.object(pivo_ml, "CACHE_PATH", cache), mock.patch.object(pivo_ml, "MANUAL_PATH", manual), mock.patch.object(pivo_ml, "REMOTO_PATH", remoto):
             self.assertFalse(pivo_ml.resultado("meli01")["itens"]["MLB1"]["passa"])
             novo = pivo_ml.marcar_clip("meli01", "MLB1", True)
             self.assertTrue(novo["passa"])

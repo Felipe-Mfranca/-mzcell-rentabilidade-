@@ -1,6 +1,6 @@
 """
 marketplaces/amazon/rentabilidade.py — Margem por SKU e DRE da conta (Amazon)
-MZCell Rentabilidade
+MZ App
 
 Uso:  .\\venv\\Scripts\\python.exe -m marketplaces.amazon.rentabilidade amazon02 [--dias 30]
 

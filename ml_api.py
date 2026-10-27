@@ -448,7 +448,7 @@ def campanha_efetiva(promos: list, sale_price: Optional[dict]) -> Optional[dict]
 
 
 def melhor_oportunidade(promos: list, atual_preco: float, cheio: float, pct: float,
-                        ativa: Optional[dict]) -> Optional[dict]:
+                        ativa: Optional[dict], descartadas: Optional[list] = None) -> Optional[dict]:
     """Candidata que rende mais líquido/un que a situação atual (mesma regra do rebot_agenda).
     líquido = preço − (tarifa% × preço − rebot); rebot = meli% × preço cheio da campanha.
     Empate de preço e líquido: só vale se trocar uma campanha nossa por uma do ML."""
@@ -464,10 +464,17 @@ def melhor_oportunidade(promos: list, atual_preco: float, cheio: float, pct: flo
         liq = preco - (pct * preco - rebot)
         ganho, dp = round(liq - a_liq, 2), round(preco - atual_preco, 2)
         empate = abs(ganho) < 0.01 and abs(dp) < 0.01
+        nome_c = p.get("name") or p.get("type")
         if empate:
             if not (a_tipo in NOSSAS and p.get("type") not in NOSSAS):
+                if descartadas is not None: descartadas.append({"nome": nome_c, "motivo": "empate: mesmo preço e líquido de hoje"})
                 continue
         elif ganho <= 0:
+            if descartadas is not None: descartadas.append({"nome": nome_c, "motivo": "o líquido não melhora"})
+            continue
+        if dp > 0:
+            # aumento de preço não é oportunidade: a promoção existe para vender mais (regra do usuário)
+            if descartadas is not None: descartadas.append({"nome": nome_c, "motivo": f"aumenta o preço em R$ {dp:.2f}".replace(".", ",")})
             continue
         if dp > 0 and rebot - a_rebot <= 0.005:
             continue   # ganho vem só do preço mais alto: rebot é desconto pago pelo ML, isso não é rebot
@@ -589,7 +596,8 @@ async def custos_anuncio(conta: str, mlb: str, preco: Optional[float] = None) ->
     cheio = (sp or {}).get("regular_amount") or item.get("price") or preco_ref
     ativa_hoje = campanha_efetiva(promos, sp)
     ativa = ativa_hoje or escolher_campanha(promos, preco_ref)
-    oportunidade = melhor_oportunidade(promos, atual_preco, cheio, pct, ativa_hoje)
+    descartadas = []
+    oportunidade = melhor_oportunidade(promos, atual_preco, cheio, pct, ativa_hoje, descartadas)
     return {
         "success": True,
         "mlb": mlb,
@@ -603,6 +611,7 @@ async def custos_anuncio(conta: str, mlb: str, preco: Optional[float] = None) ->
         "campanhas": [_resumo_promo(p) for p in promos if p.get("status") in ("started", "pending", "candidate")],
         "rebot_un": rebot_unitario(ativa),
         "oportunidade": oportunidade,
+        "nao_vale": descartadas[:3] if not oportunidade else [],
     }
 
 

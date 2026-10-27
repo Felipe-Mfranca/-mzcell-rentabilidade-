@@ -1,6 +1,6 @@
 """
 marketplaces/amazon/financeiro.py — Finances v0: busca e agregação dos eventos financeiros
-MZCell Rentabilidade
+MZ App
 
 O Finances registra cada valor na data em que foi POSTADO (envio/estorno), não na data da
 compra. Por isso a margem sai daqui e os pedidos servem só para volume e velocidade.

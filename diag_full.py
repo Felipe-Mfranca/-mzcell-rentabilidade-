@@ -1,6 +1,6 @@
 """
 diag_full.py — Diagnóstico de endpoints de Fulfillment (Full) para reposição
-MZCell Rentabilidade
+MZ App
 
 SOMENTE LEITURA: só faz GET na API do Mercado Livre. Não altera o app.
 Uso:  .\\venv\\Scripts\\python.exe diag_full.py [meli01,meli02,meli03]

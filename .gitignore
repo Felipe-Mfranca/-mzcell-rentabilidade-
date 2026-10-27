@@ -116,3 +116,9 @@ radar_perfil_brave/
 financeiro.db
 
 captura_log.txt
+
+# Dados gerados por sincronização/mapeamento (locais, não publicar)
+amazon_fotos_sku.json
+amazon_grupos_produto.json
+amazon_asin_skus.json
+Setup-MZCell.ps1

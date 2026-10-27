@@ -1,6 +1,6 @@
 """
 marketplaces/expedicao/router.py — Endpoints /expedicao/* (somente leitura)
-MZCell Rentabilidade
+MZ App
 
 GET /expedicao          página do mapa (HTML)
 GET /expedicao/galpao   JSON com os envios do galpão e os prazos (ML; Amazon e Shopee entram depois)

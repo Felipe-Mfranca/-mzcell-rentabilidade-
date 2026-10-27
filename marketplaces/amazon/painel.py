@@ -1,6 +1,6 @@
 """
 marketplaces/amazon/painel.py — Dados do painel de rentabilidade Amazon (tabela por SKU + modal)
-MZCell Rentabilidade
+MZ App
 
 O Finances da Amazon é lento (limite baixo de chamadas), então o painel trabalha sobre um cache local por conta
 (amazon_cache_<conta>.json, no .gitignore): os últimos 62 dias de eventos, já repartidos por dia e SKU.
@@ -179,6 +179,8 @@ def sku_detalhe(conta: str, sku: str, de: str = None, ate: str = None) -> dict:
     return {"conta": conta, "sku": sku, "titulo": t.get("titulo", ""), "asin": t.get("asin", ""),
             "periodo": {"de": de, "ate": ate}, "anterior": {"de": pa_de, "ate": pa_ate},
             "faixa_30d": _por_unidade(l30) if l30 else {"disponivel": False},
+            # janela fixa de 30 dias (faixa do topo do modal): Ads e TACOS de 30 dias, como no Meli
+            "periodo_30d": {"de": d30, "ate": a30}, "receita_30d": round(l30["receita_liquida"], 2) if l30 else 0.0,
             "atual": atual, "periodo_anterior": linha(pa_de, pa_ate), "custo": custo,
             "aliquotas": {"com_st": com_st, "sem_st": sem_st}, "gerado_em": cache["gerado_em"]}
 

@@ -1,6 +1,6 @@
 """
 marketplaces/shopee/lojas.py — Configuração da Shopee: ambiente, credenciais do app e lojas
-MZCell Rentabilidade
+MZ App
 
 Credenciais do app ficam em .env (raiz do projeto, gitignored) e só o backend as lê.
 As lojas (nome -> shop_id) ficam em shopee_lojas.json (gitignored):

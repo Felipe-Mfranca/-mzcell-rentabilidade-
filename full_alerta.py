@@ -1,6 +1,6 @@
 """
 full_alerta.py — Aviso de produto sem estoque ou perto de romper no Full (Mercado Livre), somente leitura
-MZCell Rentabilidade
+MZ App
 
 Regra: média diária de vendas dos últimos 7 dias fechados, somando todos os anúncios que dividem o mesmo
 inventory_id, contra o saldo do Full (disponível + em transferência, que já é apto e volta a ficar disponível).
@@ -13,6 +13,8 @@ Anúncio sem Full (sem inventory_id) não entra. As vendas vêm do produtos.json
 import json
 import os
 import time
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -80,8 +82,11 @@ def calcular(conta: str, ml, produtos: dict = None, ate: date = None) -> dict:
             por_inv.setdefault(inv, []).append(mlb)
         status[mlb] = it.get("status")
     saidas = {}
+    # estoque de cada inventário em paralelo (são chamadas independentes ao ML; 4 de cada vez para não estourar o limite)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        consultas = dict(zip(por_inv, pool.map(lambda inv: estoque(ml, inv), por_inv)))
     for inv, mlbs in por_inv.items():
-        e = estoque(ml, inv)
+        e = consultas[inv]
         if "erro" in e:
             continue
         saldo = (e.get("disponivel") or 0) + (e.get("transferencia") or 0)
@@ -103,19 +108,46 @@ def _ler() -> dict:
         return {}
 
 
+_trava = threading.Lock()
+_em_andamento = set()
+
+
+def _gravar(conta: str, res: dict):
+    with _trava:
+        cache = _ler()
+        cache[conta] = res
+        tmp = CACHE_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False)
+        os.replace(tmp, CACHE_PATH)
+
+
+def _recalcular(conta: str, ml) -> dict:
+    itens = calcular(conta, ml)
+    res = {"gerado_em": datetime.now().isoformat(timespec="seconds"), "conta": conta, "itens": itens,
+           "resumo": {n: sum(1 for v in itens.values() if v["nivel"] == n) for n in ("zerado", "critico", "atencao")}}
+    _gravar(conta, res)
+    return res
+
+
+def _recalcular_em_fundo(conta: str, ml):
+    def tarefa():
+        try:
+            _recalcular(conta, ml)
+        finally:
+            _em_andamento.discard(conta)
+    if conta not in _em_andamento:
+        _em_andamento.add(conta)
+        threading.Thread(target=tarefa, daemon=True).start()
+
+
 def obter(conta: str, ml, forcar: bool = False) -> dict:
-    cache = _ler()
-    c = cache.get(conta)
+    c = _ler().get(conta)
     if c and not forcar:
         idade = (datetime.now() - datetime.fromisoformat(c["gerado_em"])).total_seconds() / 60
         if idade < VALIDADE_MIN:
             return c
-    itens = calcular(conta, ml)
-    res = {"gerado_em": datetime.now().isoformat(timespec="seconds"), "conta": conta, "itens": itens,
-           "resumo": {n: sum(1 for v in itens.values() if v["nivel"] == n) for n in ("zerado", "critico", "atencao")}}
-    cache[conta] = res
-    tmp = CACHE_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(cache, f, ensure_ascii=False)
-    os.replace(tmp, CACHE_PATH)
-    return res
+        # cache vencido: devolve o último resultado já e atualiza em segundo plano (a tela não espera o ML)
+        _recalcular_em_fundo(conta, ml)
+        return {**c, "desatualizado": True}
+    return _recalcular(conta, ml)

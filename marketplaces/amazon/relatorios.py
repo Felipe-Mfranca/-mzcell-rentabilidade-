@@ -1,6 +1,6 @@
 """
 marketplaces/amazon/relatorios.py — SP-API Reports (assíncrono), versão síncrona
-MZCell Rentabilidade
+MZ App
 
 Fluxo:
     POST /reports/2021-06-30/reports            → reportId

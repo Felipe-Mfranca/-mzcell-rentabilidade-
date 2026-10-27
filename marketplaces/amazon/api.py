@@ -1,6 +1,6 @@
 """
 marketplaces/amazon/api.py — Acesso à SP-API da Amazon (somente leitura por enquanto)
-MZCell Rentabilidade
+MZ App
 
 Credenciais ficam em amazon_config.json (no .gitignore). O access token vive só em
 memória: expira em ~1h e não há motivo para ele ir parar em disco.

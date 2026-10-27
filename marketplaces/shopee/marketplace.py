@@ -1,6 +1,6 @@
 """
 marketplaces/shopee/marketplace.py — Shopee dentro do contrato de marketplaces/base.py
-MZCell Rentabilidade
+MZ App
 
 Aqui "conta" é a loja (id de shopee_lojas.json). Anúncios e pedidos entram nas fases 2 e 3.
 """

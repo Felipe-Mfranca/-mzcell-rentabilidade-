@@ -1,5 +1,5 @@
 """
-verificar_dados.py — Valida os arquivos de dados do MZCell Rentabilidade.
+verificar_dados.py — Valida os arquivos de dados do MZ App.
 
 Use ANTES de copiar um backup (pendrive, HD externo, maquina antiga) e
 ANTES de subir o servidor. Nao imprime senhas nem tokens.
@@ -332,7 +332,7 @@ def comparar_com_destino():
 
 def main():
     print("=" * 66)
-    print("  MZCell Rentabilidade — verificacao dos arquivos de dados")
+    print("  MZ App — verificacao dos arquivos de dados")
     print(f"  Origem: {BASE_DIR}" + ("  (backup externo, somente leitura)" if EXTERNO else ""))
     if EXTERNO:
         print(f"  Projeto: {PROJETO_DIR}")

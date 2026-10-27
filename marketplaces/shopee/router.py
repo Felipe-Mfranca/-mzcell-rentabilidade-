@@ -1,6 +1,6 @@
 """
 marketplaces/shopee/router.py — Endpoints /shopee/* (somente leitura na Shopee)
-MZCell Rentabilidade
+MZ App
 
 Handlers `def` (cliente httpx síncrono; o FastAPI os roda em thread). Nenhuma rota devolve partner key,
 token ou code: o `code` entra só no POST de autorização e a resposta diz apenas se deu certo.
@@ -94,3 +94,23 @@ def alertas():
         return {"alertas": saida}
     except ErroShopee as e:
         raise _http(e)
+
+
+@router.get("/precificar")
+def precificar(preco: float, roas: float = 0.0, cmv: float = 0.0, frete: float = 0.0, sku: str = "",
+               destaque: float = 0.0, devolucao: float = 0.0):
+    """Precificador da Shopee: margem por unidade com comissão e taxa fixa da faixa, imposto da empresa,
+    CMV (direto ou pela base do SKU) e ADS = preço ÷ ROAS. Cálculo puro, sem chamar a Shopee."""
+    from marketplaces.shopee import precificador
+    import impostos
+    import cmv_base
+    if not cmv and sku:
+        valor = cmv_base.cmv_de(sku)
+        cmv = valor or 0.0
+    com, _sem = impostos.aliquotas("shopee") or (0.0, 0.0)
+    resultado = precificador.simular(preco, roas, cmv=cmv, imposto_pct=com, frete=frete,
+                                     destaque_pct=destaque, devolucao=devolucao)
+    resultado["sku"] = sku or None
+    resultado["cmv_origem"] = "informado" if cmv and not sku else ("base" if sku and cmv else "nao_informado")
+    resultado["empresa"] = impostos.empresa_da_conta("shopee")
+    return resultado

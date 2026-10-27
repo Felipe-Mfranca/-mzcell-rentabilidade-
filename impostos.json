@@ -1,0 +1,75 @@
+{
+ "_atualizado_em": "2026-10-22T12:00:00",
+ "itens": {
+  "meli01|unica": {
+   "conta": "meli01",
+   "regime": "unica",
+   "aliquota": 0.115,
+   "atualizado_em": "2026-10-22T12:00:00",
+   "empresa": "Techseller"
+  },
+  "amazon01|unica": {
+   "conta": "amazon01",
+   "regime": "unica",
+   "aliquota": 0.115,
+   "atualizado_em": "2026-10-22T12:00:00",
+   "empresa": "Techseller"
+  },
+  "shopee|unica": {
+   "conta": "shopee",
+   "regime": "unica",
+   "aliquota": 0.115,
+   "atualizado_em": "2026-10-22T12:00:00",
+   "empresa": "Techseller"
+  },
+  "magalu|unica": {
+   "conta": "magalu",
+   "regime": "unica",
+   "aliquota": 0.115,
+   "atualizado_em": "2026-10-22T12:00:00",
+   "empresa": "Techseller"
+  },
+  "meli03|com_st": {
+   "conta": "meli03",
+   "regime": "com_st",
+   "aliquota": 0.0719,
+   "atualizado_em": "2026-10-22T12:00:00",
+   "empresa": "Mizi"
+  },
+  "meli03|sem_st": {
+   "conta": "meli03",
+   "regime": "sem_st",
+   "aliquota": 0.108,
+   "atualizado_em": "2026-10-22T12:00:00",
+   "empresa": "Mizi"
+  },
+  "meli02|com_st": {
+   "conta": "meli02",
+   "regime": "com_st",
+   "aliquota": 0.1072,
+   "atualizado_em": "2026-10-22T12:00:00",
+   "empresa": "Seller Info"
+  },
+  "meli02|sem_st": {
+   "conta": "meli02",
+   "regime": "sem_st",
+   "aliquota": 0.1487,
+   "atualizado_em": "2026-10-22T12:00:00",
+   "empresa": "Seller Info"
+  },
+  "amazon02|com_st": {
+   "conta": "amazon02",
+   "regime": "com_st",
+   "aliquota": 0.1072,
+   "atualizado_em": "2026-10-22T12:00:00",
+   "empresa": "Seller Info"
+  },
+  "amazon02|sem_st": {
+   "conta": "amazon02",
+   "regime": "sem_st",
+   "aliquota": 0.1487,
+   "atualizado_em": "2026-10-22T12:00:00",
+   "empresa": "Seller Info"
+  }
+ }
+}

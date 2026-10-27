@@ -63,12 +63,14 @@ class MelhorOportunidade(unittest.TestCase):
         ativa = {"type": "SMART", "meli_percentage": 6, "original_price": 700}
         self.assertIsNone(ml_api.melhor_oportunidade([lig], 698.84, 766.0, 0.115, ativa))
 
-    def test_preco_maior_mas_rebot_maior_ainda_e_oportunidade(self):
+    def test_aumento_de_preco_nao_e_oportunidade_mesmo_com_rebot_maior(self):
+        """Regra do usuário (27/10/2026): aumento de preço não é oportunidade, mesmo que o rebot compense."""
         smart = {"status": "candidate", "type": "SMART", "price": 105.0, "meli_percentage": 8,
                  "original_price": 100}
-        o = ml_api.melhor_oportunidade([smart], 100.0, 100.0, 0.13, self.ATIVA_NOSSA)
-        self.assertIsNotNone(o)
-        self.assertGreater(o["delta_preco"], 0)
+        motivos = []
+        o = ml_api.melhor_oportunidade([smart], 100.0, 100.0, 0.13, self.ATIVA_NOSSA, motivos)
+        self.assertIsNone(o)
+        self.assertTrue(any("aumenta o preço" in m["motivo"] for m in motivos))
 
     def test_ignora_ja_inscrita(self):
         pend = {"status": "pending", "type": "SMART", "price": 10, "meli_percentage": 5, "original_price": 100}

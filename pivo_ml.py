@@ -1,6 +1,6 @@
 """
 pivo_ml.py — Análise PIVO dos anúncios do Mercado Livre (somente leitura)
-MZCell Rentabilidade
+MZ App
 
 PIVO = Palavras-chave indexadas, Imagens com quebra de objeções, Vídeo, Otimização (promoção e ADS).
 Quatro grupos, cada um com suas verificações:
@@ -75,7 +75,11 @@ def avaliar(item: dict, descricao: str, promocoes: list, ads_status, clip_manual
     add("PROMO", "Campanha de desconto", bool(ativas),
         ", ".join(sorted({(p.get("name") or p.get("type") or "").strip() for p in ativas}))[:120] or "fora de campanha de desconto")
 
-    add("ADS", "Publicidade ativa", ads_status == "active", f"Product Ads: {ads_status or 'sem campanha'}")
+    # anúncio orgânico do catálogo: o ML coloca o ADS no anúncio vencedor do catálogo, então o orgânico fica em hold
+    if ads_status == "catalogo":
+        add("ADS", "Publicidade ativa", True, "ADS entra pelo anúncio vencedor do catálogo (este anúncio é orgânico vinculado)")
+    else:
+        add("ADS", "Publicidade ativa", ads_status == "active", f"Product Ads: {ads_status or 'sem campanha'}")
 
     por_id = {c["id"]: c for c in checks}
 
@@ -133,7 +137,8 @@ def resultado(conta: str) -> dict:
         _aplicar_clip(v, manual.get(mlb))
         _anexar_clip(v, manual.get(mlb))
     fora = sum(1 for v in itens.values() if not v["passa"])
-    return {"conta": conta, "estado": estado(conta), "total": len(itens), "fora_do_pivo": fora, "itens": itens}
+    return {"conta": conta, "estado": estado(conta), "total": len(itens), "fora_do_pivo": fora, "itens": itens,
+            "gerado_em": gerado or None}
 
 
 REMOTO_PATH = os.path.join(BASE_DIR, "pivo_compartilhado.json")
@@ -248,7 +253,7 @@ def _analisar(conta: str, ml, mlbs: list):
         itens = {}
         _estado[conta].update(etapa="lendo anúncios")
         for i in range(0, len(mlbs), 20):
-            st, b = ml.get("/items", ids=",".join(mlbs[i:i + 20]), attributes="id,title,pictures,video_id,status")
+            st, b = ml.get("/items", ids=",".join(mlbs[i:i + 20]), attributes="id,title,pictures,video_id,status,catalog_product_id")
             for e in b or []:
                 if e.get("code") == 200:
                     itens[e["body"]["id"]] = e["body"]
@@ -265,6 +270,8 @@ def _analisar(conta: str, ml, mlbs: list):
             st, a = ml.get(f"/marketplace/advertising/MLB/product_ads/ads/{mlb}")
             if st == 200 and isinstance(a, dict):
                 ads = a.get("status")
+                if ads == "hold" and it.get("catalog_product_id"):
+                    ads = "catalogo"      # orgânico do catálogo: a campanha atua pelo anúncio vencedor
             slim = {"title": it.get("title"), "pictures": [{"max_size": p.get("max_size")} for p in it.get("pictures") or []],
                     "video_id": it.get("video_id")}
             clip = (manual.get(mlb) or {}).get("clip")

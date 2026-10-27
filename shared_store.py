@@ -1,6 +1,6 @@
 """
 shared_store.py — Banco compartilhado (Google Sheets via Apps Script), com cópia local e fila offline
-MZCell Rentabilidade
+MZ App
 
 Cada computador roda o próprio servidor; o que precisa ser visto por todos (comentários, posição dos anúncios,
 marcação de clip) é gravado localmente e enviado a uma planilha. Nada aqui chama o Claude: é código fixo.
@@ -27,7 +27,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE_DIR, "shared_config.json")
 FILA_PATH = os.path.join(BASE_DIR, "shared_fila.json")
 ESTADO_PATH = os.path.join(BASE_DIR, "shared_estado.json")
-COLECOES = ("comentarios", "posicoes", "clips", "pivo", "contestacoes", "usuarios", "tags")
+COLECOES = ("comentarios", "posicoes", "clips", "pivo", "contestacoes", "usuarios", "tags", "cmv", "impostos",
+            "radar_watch", "radar", "radar_status")
 _trava = threading.Lock()
 
 

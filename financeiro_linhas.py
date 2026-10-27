@@ -139,11 +139,11 @@ def imprimir(res):
         print(f"{k} {nome:<42} {l['valor']:>16,.2f}  {l['n']:>7} lanç.{marca}")
         for sub, v in sorted(l["subcategorias"].items(), key=lambda x: -abs(x[1])):
             print(f"      {sub:<46} {v:>14,.2f}")
-    print(f"\nResultado (01 a 07): {res['resultado']:,.2f}")
+    print("\nResultado (01 a 07): " + f"{res['resultado']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
     if res["pendencias"]:
         print("\nSEM LINHA (definir antes do fechamento):")
         for tipo, p in res["pendencias"].items():
-            print(f"  {tipo}: {p['n']} lanç., {p['valor']:,.2f}")
+            print(f"  {tipo}: {p['n']} lanç., " + f"{p['valor']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
     else:
         print("\nTodas as transações têm linha.")
 

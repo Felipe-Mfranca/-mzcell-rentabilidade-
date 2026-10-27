@@ -1,6 +1,6 @@
 """
 marketplaces/expedicao/ml.py — Expedição do galpão, Mercado Livre (somente leitura)
-MZCell Rentabilidade
+MZ App
 
 Lista os envios do ML que saem do galpão (fora do Full) com o prazo de cada um:
   Flex   (self_service)           meta interna 12h do dia do prazo; o ML aceita até o expected_date
@@ -22,7 +22,7 @@ STATUS_ABERTOS = ("ready_to_ship", "pending")
 PREPARO_ANTES_MIN = 30
 META_FLEX_HORA = 12
 DIAS_BUSCA = 6
-PAGINAS = 20          # 50 pedidos por página: até 1000 no período (antes 150 e perdia pedidos)
+PAGINAS = 40          # 50 pedidos por página: até 2000 no período (com 20 perdia os mais antigos, ex.: 1422 pedidos em 6 dias)
 CONTAS = ["meli01", "meli02", "meli03"]
 _cache = {}
 CACHE_SEG = 90

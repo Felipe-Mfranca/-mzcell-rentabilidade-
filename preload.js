@@ -1,4 +1,4 @@
-// preload.js — MZCell Rentabilidade
+// preload.js — MZ App
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {

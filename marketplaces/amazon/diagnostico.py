@@ -1,6 +1,6 @@
 """
 marketplaces/amazon/diagnostico.py — Mapa de módulos liberados na SP-API
-MZCell Rentabilidade
+MZ App
 
 Uso:  .\\venv\\Scripts\\python.exe -m marketplaces.amazon.diagnostico amazon02 [--salvar]
 
