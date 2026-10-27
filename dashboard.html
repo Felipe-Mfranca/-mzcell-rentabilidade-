@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>MZ-app</title>
+<title>MZ App</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
 <script>/* Tema claro é o padrão. Só fica escuro se a pessoa escolher (chave nova para reiniciar escolhas antigas). */var _t=null;try{_t=localStorage.getItem('mz_tema_v2');}catch(e){}if(_t!=='escuro')document.documentElement.dataset.tema='claro';</script>
 <style>
@@ -724,7 +724,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
 <div id="tela-login" style="display:flex;align-items:center;justify-content:center;min-height:100vh;position:relative;z-index:10;">
   <div class="login-box">
     <div class="login-logo">
-      <span style="color:var(--gold);font-size:28px;font-weight:800">MZ-app</span>
+      <span style="color:var(--gold);font-size:28px;font-weight:800">MZ App</span>
       <span style="color:var(--muted2);font-size:13px;display:block;margin-top:4px">Marketplaces e operação</span>
     </div>
     <div id="login-erro" class="login-erro" style="display:none"></div>
@@ -1046,15 +1046,37 @@ const pct2 = v => (Number(v||0) * 100).toFixed(2).replace('.', ',') + '%';
 const fmt2 = e => { const v = parseFloat(e.value); if (!isNaN(v)) e.value = v.toFixed(2); };
 const brl = v => 'R$ ' + r(v,2);
 const pct1 = v => (Number(v||0)*100).toFixed(2).replace('.',',') + '%';
+const fmtN = (v,d=2) => Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+// Campos de moeda, ROAS e percentual (input com step 0.01): digitação por centavos.
+// 7500 → 75,00 · 7 → 0,07 · apagar tudo → 0,00. O valor segue com ponto (o campo é numérico), e a tela mostra a vírgula.
+const _ehCampoCentavos = el => !!el && el.tagName === 'INPUT' && el.type === 'number' && el.step === '0.01';
+const _centavosDe = el => { const v = parseFloat(el.value); return isNaN(v) ? 0 : Math.round(v * 100); };
+const _aplicaCentavos = (el, cents) => { el.value = (cents / 100).toFixed(2); el.dispatchEvent(new Event('input', {bubbles: true})); };
+document.addEventListener('keydown', e => {
+  const el = e.target;
+  if (!_ehCampoCentavos(el) || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (/^\d$/.test(e.key)) { e.preventDefault(); _aplicaCentavos(el, _centavosDe(el) * 10 + Number(e.key)); }
+  else if (e.key === 'Backspace') { e.preventDefault(); _aplicaCentavos(el, Math.floor(_centavosDe(el) / 10)); }
+  else if (e.key === 'Delete') { e.preventDefault(); _aplicaCentavos(el, 0); }
+  else if (e.key.length === 1) { e.preventDefault(); }   // só dígitos: vírgula, ponto e letras não entram
+}, true);
+document.addEventListener('paste', e => {
+  const el = e.target;
+  if (!_ehCampoCentavos(el)) return;
+  e.preventDefault();
+  const texto = (e.clipboardData?.getData('text') || '').trim();
+  const n = parseFloat(texto.replace(/\./g, '').replace(',', '.'));
+  if (!isNaN(n)) _aplicaCentavos(el, Math.round(n * 100));
+}, true);
 const brl2 = v => 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-const pct = (v,d=2) => (Number(v||0)*100).toFixed(d)+'%';
+const pct = (v,d=2) => fmtN(Number(v||0)*100,d)+'%';
 const mono = v => `<span class="mono">${v}</span>`;
 
 // Seta de variação vs período anterior (KPIs globais)
 function vb(cur, prv, inv=false) {
   if(prv==null||prv===0||isNaN(prv)) return '';
   const p=Math.abs((cur-prv)/Math.abs(prv)*100), up=inv?cur<prv:cur>prv;
-  return ` <span class="${up?'vb-up':'vb-dn'}">${up?'▲':'▼'}${p.toFixed(2)}%</span>`;
+  return ` <span class="${up?'vb-up':'vb-dn'}">${up?'▲':'▼'}${fmtN(p,2)}%</span>`;
 }
 
 // Badge inline para KPIs do modal (ao lado do valor)
@@ -1062,7 +1084,7 @@ function badge(atual, anterior, inverso=false, tooltip='') {
   if(!anterior || anterior===0 || !atual) return '';
   const diff = atual - anterior;
   if(Math.abs(diff) < 0.0001) return '';
-  const pct  = Math.abs(diff/anterior*100).toFixed(2);
+  const pct  = fmtN(Math.abs(diff/anterior*100),2);
   const subiu = diff > 0;
   const bom   = inverso ? !subiu : subiu;
   const cls   = bom ? 'kpi-badge-up' : 'kpi-badge-dn';
@@ -1105,7 +1127,7 @@ function cBar(label, val, receita, color) {
   const p=receita>0?val/receita*100:0;
   return `<div class="cbar-row"><span class="cbar-lbl">${label}</span>
     <div class="cbar-track"><div class="cbar-fill" style="width:${Math.min(Math.abs(p),100)}%;background:${color}"></div></div>
-    <span class="cbar-pct">${p.toFixed(2)}%</span></div>`;
+    <span class="cbar-pct">${fmtN(p,2)}%</span></div>`;
 }
 
 function toast(msg, tipo='success') {
@@ -1406,11 +1428,11 @@ function amzFecharReposicao() { document.getElementById('modal-repo').classList.
 document.getElementById('modal-repo').addEventListener('click', function(e){ if (e.target === this) amzFecharReposicao(); });
 function amzLinhaReposicao(conta, l) {
   const sit = l.situacao === 'REPOR' ? 'color:#991b1b;font-weight:600' : (l.situacao.startsWith('RUPTURA') ? 'color:#991b1b;font-weight:700' : 'color:#6b7280');
-  const cob = l.cobertura_dias == null ? '—' : l.cobertura_dias.toFixed(1);
+  const cob = l.cobertura_dias == null ? '—' : fmtN(l.cobertura_dias,1);
   return `<tr data-asin="${amzEscHtml(l.asin)}">
     <td>${amzEscHtml(l.asin)}</td>
     <td title="${amzEscHtml(l.titulo)}">${amzEscHtml((l.titulo || '').slice(0, 50))}</td>
-    <td style="text-align:right">${l.velocidade.toFixed(2)}</td>
+    <td style="text-align:right">${fmtN(l.velocidade,2)}</td>
     <td style="text-align:right">${l.estoque_valido}</td>
     <td style="text-align:right">${cob}</td>
     <td style="text-align:right">${l.sugestao}</td>
@@ -1529,18 +1551,79 @@ function amzDesenhar(conta, d) {
     {l:'SKUs vendidos', v:x.skus_total, s:'no período', va:'', c:'var(--text)'},
   ];
   document.getElementById(`amzk-${conta}`).innerHTML = cards.map(k => `<div class="kpi" style="--kpi-color:${k.c}"><div class="kpi-label">${k.l}</div><div class="kpi-val">${k.v}</div><div class="kpi-footer"><span class="kpi-sub">${k.s}</span><span class="kpi-var">${k.va}</span></div></div>`).join('');
-  const linhas = d.skus.map(s => {
+  const chips = [['todos','Todos'],['sem_cmv','Sem CMV'],['negativa','Margem negativa'],['baixa','Margem abaixo de 10%']];
+  const st = _amzFiltro[conta] || (_amzFiltro[conta] = {busca: '', chip: 'todos'});
+  document.getElementById(`amzt-${conta}`).innerHTML = `
+    <div class="tb-toolbar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px">
+      ${chips.map(([k, l]) => `<button class="marg-chip${st.chip === k ? ' active' : ''}" data-chip="${k}" onclick="amzChip('${conta}','${k}',this)">${l}</button>`).join('')}
+      <div class="search-box" style="margin-left:auto">
+        <input id="amzbusca-${conta}" placeholder="Buscar produto, SKU ou ASIN..." value="${amzEscHtml(st.busca)}" oninput="amzBuscar('${conta}',this.value)"/>
+      </div>
+      <span id="amzcont-${conta}" class="sac-mut" style="font-size:11px"></span>
+    </div>
+    <table class="tbl"><thead><tr><th>Produto</th><th>Un. líq.</th><th>Receita líq.</th><th>Comissão</th><th>Taxa FBA</th><th>Outras taxas</th><th>Imposto</th><th>CMV</th><th>Margem</th><th>Margem %</th></tr></thead><tbody id="amzTbody-${conta}"></tbody></table>
+    <div class="sac-lin" style="padding:10px 16px">SKU sem CMV mostra a margem após taxas Amazon. Importe o CMV em Configurações. O Ads por SKU depende da Advertising API (a fatura da conta aparece nos cartões, sem rateio).</div>`;
+  amzTabelaDesenhar(conta);
+}
+// Filtros e busca da tabela da Amazon (mesmos recursos da tabela do Meli: busca e filtros por situação)
+const _amzFiltro = {};
+function amzChip(conta, chip, btn) {
+  _amzFiltro[conta] = _amzFiltro[conta] || {busca: '', chip: 'todos'};
+  _amzFiltro[conta].chip = chip;
+  btn.parentElement.querySelectorAll('[data-chip]').forEach(b => b.classList.toggle('active', b === btn));
+  amzTabelaDesenhar(conta);
+}
+function amzBuscar(conta, texto) {
+  _amzFiltro[conta] = _amzFiltro[conta] || {busca: '', chip: 'todos'};
+  _amzFiltro[conta].busca = texto;
+  amzTabelaDesenhar(conta);
+}
+function amzTabelaDesenhar(conta) {
+  const st = _amzFiltro[conta] || {busca: '', chip: 'todos'};
+  const todos = (AMZ[conta]?.dados?.skus) || [];
+  const q = st.busca.trim().toLowerCase();
+  const passa = s => {
+    if (q && !`${s.titulo || ''} ${s.sku || ''} ${s.asin || ''}`.toLowerCase().includes(q)) return false;
+    if (st.chip === 'sem_cmv') return !s.completo;
+    if (st.chip === 'negativa') return !!s.completo && (s.margem_pct || 0) < 0;
+    if (st.chip === 'baixa') return !!s.completo && (s.margem_pct || 0) < 10;
+    return true;
+  };
+  const lista = todos.filter(passa);
+  const linhas = lista.map(s => {
     const mc = s.margem_pct == null ? 'var(--muted2)' : (s.margem_pct < 0 ? 'var(--red)' : s.margem_pct < 10 ? 'var(--gold)' : 'var(--green)');
     return `<tr onclick="amzAbrir('${conta}',decodeURIComponent('${encodeURIComponent(s.sku)}'))">
-      <td><div style="font-weight:600;line-height:1.3">${sacEsc((s.titulo||s.sku).slice(0,70))}</div><div class="modal-sku">${sacEsc(s.sku)}${s.asin?' · '+sacEsc(s.asin):''}</div></td>
+      <td><div style="display:flex;gap:10px;align-items:center"><img data-amz-foto="${sacEsc(s.asin || '')}" data-amz-sku="${sacEsc(s.sku || '')}" alt="" style="display:none;width:44px;height:44px;object-fit:contain;border-radius:6px;flex:none"/><div><div style="font-weight:600;line-height:1.3">${sacEsc((s.titulo||s.sku).slice(0,70))}</div><div class="modal-sku">${sacEsc(s.sku)}${s.asin?' · '+sacEsc(s.asin):''}</div></div></div></td>
       <td>${r(s.un_liquidas)}</td><td>${amzBrl(s.receita_liquida)}${amzSeta(s.receita_liquida,s.receita_liquida_anterior)}</td>
       <td>${amzBrl(s.comissao)}</td><td>${amzBrl(s.taxa_fba)}</td><td>${amzBrl(s.outras_taxas)}</td>
       <td>${s.completo ? amzBrl(s.imposto) : '—'}</td><td>${s.completo ? amzBrl(s.cmv) : '<span class="pos-badge none">sem CMV</span>'}</td>
       <td style="color:${mc}">${s.completo ? amzBrl(s.margem) : amzBrl(s.margem_apos_taxas)}</td>
       <td style="color:${mc}">${s.completo ? amzPct((s.margem_pct||0)/100) : '—'}</td></tr>`;
   }).join('');
-  document.getElementById(`amzt-${conta}`).innerHTML = `<table class="tbl"><thead><tr><th>Produto</th><th>Un. líq.</th><th>Receita líq.</th><th>Comissão</th><th>Taxa FBA</th><th>Outras taxas</th><th>Imposto</th><th>CMV</th><th>Margem</th><th>Margem %</th></tr></thead><tbody>${linhas}</tbody></table>
-    <div class="sac-lin" style="padding:10px 16px">SKU sem CMV mostra a margem após taxas Amazon. Importe o CMV em Configurações. O Ads por SKU depende da Advertising API (a fatura da conta aparece nos cartões, sem rateio).</div>`;
+  const tb = document.getElementById(`amzTbody-${conta}`); if (tb) tb.innerHTML = linhas || '<tr><td colspan="10" class="sac-mut" style="padding:14px">Nenhum produto com este filtro.</td></tr>';
+  const cont = document.getElementById(`amzcont-${conta}`); if (cont) cont.textContent = `${lista.length} de ${todos.length} SKUs`;
+  amzFotosTabela(conta);
+}
+// Fotos da tabela: uma consulta por lote de 20 ASINs (foto principal do catálogo da Amazon)
+async function amzFotosTabela(conta) {
+  const asins = [...new Set([...document.querySelectorAll(`#amzTbody-${conta} img[data-amz-foto]`)].map(i => i.dataset.amzFoto).filter(Boolean))];
+  for (let i = 0; i < asins.length; i += 20) {
+    try {
+      const r = await (await fetch(`${API}/amazon/fotos/${conta}?asins=${encodeURIComponent(asins.slice(i, i + 20).join(','))}`)).json();
+      document.querySelectorAll(`#amzTbody-${conta} img[data-amz-foto]`).forEach(im => {
+        const u = r[im.dataset.amzFoto];
+        if (u && !im.getAttribute('src')) { im.src = u; im.style.display = ''; }
+      });
+    } catch (e) {}
+  }
+  // ASIN sem foto no catálogo da Amazon: reserva pela foto do Meli (SKU igual ou irmão do mesmo ASIN)
+  const semFoto = [...document.querySelectorAll(`#amzTbody-${conta} img[data-amz-foto]`)].filter(im => !im.getAttribute('src'));
+  for (const im of semFoto) {
+    try {
+      const r = await (await fetch(`${API}/amazon/foto-sku/${conta}?sku=${encodeURIComponent(im.dataset.amzSku || '')}&asin=${encodeURIComponent(im.dataset.amzFoto || '')}`)).json();
+      if (r.foto) { im.src = r.foto; im.style.display = ''; }
+    } catch (e) {}
+  }
 }
 async function amzAtualizar(conta) {
   try { await fetch(`${API}/amazon/painel/${conta}/atualizar`, {method:'POST'}); } catch(e) { toast('Erro ao iniciar a atualização', 'error'); return; }
@@ -1835,7 +1918,60 @@ async function shopeeAbrirAba() {
     ${(alertas?.alertas||[]).map(a => `<div class="sac-linha alerta"><span><b>${sacEsc(a.nome)}</b>: ${sacEsc(a.mensagem)}</span></div>`).join('')}
     <div class="table-card">${linhas ? `<table class="tbl"><thead><tr><th>Loja</th><th>Autorização</th><th>Situação</th></tr></thead><tbody>${linhas}</tbody></table>`
       : '<div class="empty"><div class="empty-text">Nenhuma loja cadastrada. Use o formulário shopee_env_form.html e o validador para configurar o sandbox.</div></div>'}</div>
-    <div class="sac-lin" style="margin-top:12px">Quando as lojas estiverem autorizadas, esta aba terá a mesma estrutura da Amazon e do Mercado Livre: cartões do período, tabela por SKU, modal com simulação e o seletor COM ST / SEM ST (alíquotas por loja).</div>`;
+    <div class="sac-lin" style="margin-top:12px">Quando as lojas estiverem autorizadas, esta aba terá a mesma estrutura da Amazon e do Mercado Livre: cartões do período, tabela por SKU, modal com simulação e o seletor COM ST / SEM ST (alíquotas por loja).</div>
+    <div id="shp-prec" style="margin-top:14px"></div>`;
+  shopeePrecificarInit();
+}
+
+// Precificador da Shopee (provisório até o módulo ser concluído): preço + ROAS objetivo → margem por unidade
+function shopeePrecificarInit() {
+  const el = document.getElementById('shp-prec'); if (!el) return;
+  el.innerHTML = `<div class="table-card" style="padding:14px">
+    <h4 style="margin:0 0 10px">Precificador Shopee</h4>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div class="sim-field"><label>Preço de venda (R$)</label><input type="number" id="shp-preco" step="0.01" min="0"/></div>
+      <div class="sim-field"><label>ROAS objetivo</label><input type="number" id="shp-roas" step="0.01" min="0"/></div>
+      <div class="sim-field"><label>SKU (busca o CMV na base)</label><input type="text" id="shp-sku"/></div>
+      <div class="sim-field"><label>CMV (R$) se não houver SKU</label><input type="number" id="shp-cmv" step="0.01" min="0"/></div>
+      <div class="sim-field"><label>Frete unitário (R$)</label><input type="number" id="shp-frete" step="0.01" min="0"/></div>
+      <div class="sim-field"><label>Destaque (%) · a confirmar</label><input type="number" id="shp-destaque" step="0.01" min="0" value="3.50"/></div>
+      <div class="sim-field"><label>Devolução por item (R$) · a confirmar</label><input type="number" id="shp-devolucao" step="0.01" min="0" value="0.50"/></div>
+      <button class="btn-sync-produto" onclick="shopeePrecificarCalc()" style="height:30px;padding:0 12px;font-size:11px">Calcular</button>
+    </div>
+    <div id="shp-res" style="margin-top:12px"></div>
+  </div>`;
+}
+
+async function shopeePrecificarCalc() {
+  const v = id => document.getElementById(id)?.value || '';
+  const preco = parseFloat(v('shp-preco'));
+  const out = document.getElementById('shp-res');
+  if (!(preco > 0)) { out.innerHTML = '<div class="sac-mut">Informe o preço de venda.</div>'; return; }
+  const dest = (parseFloat(v('shp-destaque')) || 0) / 100;
+  const devol = parseFloat(v('shp-devolucao')) || 0;
+  const q = new URLSearchParams({preco: preco.toFixed(2), roas: v('shp-roas') || '0', cmv: v('shp-cmv') || '0', frete: v('shp-frete') || '0', sku: v('shp-sku').trim(), destaque: String(dest), devolucao: String(devol)});
+  try {
+    const r = await (await fetch(`${API}/shopee/precificar?${q}`)).json();
+    if (r.erro) { out.innerHTML = `<div class="sac-mut">${sacEsc(r.erro)}</div>`; return; }
+    const linha = (l, val, neg) => `<tr><td>${l}</td><td style="text-align:right">${neg ? '−' : ''}${val}</td></tr>`;
+    const margemCor = r.margem >= 0 ? 'var(--green)' : 'var(--red)';
+    out.innerHTML = `<table class="tbl" style="max-width:520px"><tbody>
+      ${linha('Preço de venda', brl2(r.preco))}
+      ${linha('Comissão Shopee (' + pct1(r.comissao_pct) + ')', brl2(r.comissao), true)}
+      ${linha('Taxa fixa por item', brl2(r.taxa_fixa), true)}
+      ${linha('Imposto (' + pct1(r.imposto_pct) + ', ' + sacEsc(r.empresa || '') + ')', brl2(r.imposto), true)}
+      ${linha('CMV' + (r.sku ? ' (SKU ' + sacEsc(r.sku) + ')' : ''), brl2(r.cmv), true)}
+      ${linha('Frete', brl2(r.frete), true)}
+      ${linha('ADS (preço ÷ ROAS ' + fmtN(Number(r.roas_objetivo || 0),2) + ')', brl2(r.ads), true)}
+      ${linha('Destaque (' + fmtN((r.destaque_pct * 100),2) + '% do preço)', brl2(r.destaque), true)}
+      ${linha('Devolução por item', brl2(r.devolucao), true)}
+      <tr><td><b>Margem por unidade</b></td><td style="text-align:right;font-weight:700;color:${margemCor}">${brl2(r.margem)} · ${pct1(r.margem_pct)}</td></tr>
+      <tr><td>Preço de equilíbrio (margem zero)</td><td style="text-align:right">${r.preco_equilibrio != null ? brl2(r.preco_equilibrio) : '—'}</td></tr>
+    </tbody></table>
+    <div class="sac-mut" style="font-size:11px;margin-top:6px">Destaque (3,5%) e devolução (R$ 0,50) são valores informados e ainda não confirmados na Central. Comissão e taxa fixa: tabela provisória de artigos de mercado de 2026 (faixas até R$ 79,99 = 20% + R$ 4,00; R$ 80 a R$ 99,99 = 14% + R$ 16,00; R$ 100 a R$ 199,99 = 14% + R$ 20,00; R$ 200 ou mais = 14% + R$ 26,00). Conferir na Central do Vendedor.</div>`;
+  } catch (e) {
+    out.innerHTML = '<div class="sac-mut">Não foi possível calcular agora.</div>';
+  }
 }
 
 // ── SAC: pendências e contestações (somente leitura) ──────────────────────
@@ -2332,9 +2468,9 @@ function renderKPIs(conta, k, kp) {
   const mp=(k.margem_pct_global*100), tc=(k.tacos_global*100);
   const kpiData = [
     {label:'Receita Total',    val:brl(k.receita_total), sub:'período',    var:vb(k.receita_total,kp?.receita_total),        color:'var(--blue)'},
-    {label:'Margem Líquida',   val:brl(k.margem_total),  sub:mp.toFixed(2)+'%', var:vb(k.margem_total,kp?.margem_total),    color:mp<0?'var(--red)':mp<10?'var(--gold)':'var(--green)'},
+    {label:'Margem Líquida',   val:brl(k.margem_total),  sub:fmtN(mp,2)+'%', var:vb(k.margem_total,kp?.margem_total),    color:mp<0?'var(--red)':mp<10?'var(--gold)':'var(--green)'},
     {label:'Invest. ADS',      val:brl(k.ads_total),     sub:'publicidade', var:vb(k.ads_total,kp?.ads_total,true),          color:'var(--purple)'},
-    {label:'TACOS Global',     val:tc.toFixed(2)+'%',    sub:'sobre receita',var:vb(-tc,kp?-(kp.tacos_global*100):null),    color:tc>10?'var(--red)':tc>6?'var(--gold)':'var(--green)'},
+    {label:'TACOS Global',     val:fmtN(tc,2)+'%',    sub:'sobre receita',var:vb(-tc,kp?-(kp.tacos_global*100):null),    color:tc>10?'var(--red)':tc>6?'var(--gold)':'var(--green)'},
     {label:'Unidades Vendidas',val:r(k.unidades_total),  sub:'unidades',    var:vb(k.unidades_total,kp?.unidades_total),     color:'var(--text)'},
     {label:'Produtos Ativos',  val:k.produtos_ativos,    sub:'anúncios',    var:'',                                          color:'var(--muted2)'},
   ];
@@ -2474,17 +2610,17 @@ function renderTable(conta, produtos) {
           ${p.validade?.vencido?`<div class="td-arq" style="color:var(--red)">Sincronizado em ${syncData(p.validade.sincronizado_em)} · sincronizar</div>`:''}
         </div></div></td>
         <td class="mono">${brl(per.receita)}</td>
-        <td class="mono">${per.unidades||0}<div style="font-size:10px;color:var(--muted2);margin-top:2px;font-family:var(--mono)">${((per.conversao||0)*100).toFixed(2)}%</div></td>
+        <td class="mono">${per.unidades||0}<div style="font-size:10px;color:var(--muted2);margin-top:2px;font-family:var(--mono)">${fmtN(((per.conversao||0)*100),2)}%</div></td>
         <td class="mono">${brl(per.ads_total)}</td>
         <td>
           <div class="tacos-bar">
-            <span class="mono ${tCls}">${tc.toFixed(2)}%</span>
+            <span class="mono ${tCls}">${fmtN(tc,2)}%</span>
             <div class="tacos-track"><div class="tacos-fill" style="width:${tacosW}%;background:${tacosC}"></div></div>
           </div>
         </td>
-        <td class="mono">${per.roas?.toFixed(2)||'—'}</td>
+        <td class="mono">${per.roas ? fmtN(per.roas,2) : '—'}</td>
         <td class="mono ${mCls}">${brl(per.margem_total)}</td>
-        <td class="mono ${mCls}">${mp.toFixed(2)}%</td>
+        <td class="mono ${mCls}">${fmtN(mp,2)}%</td>
         <td style="text-align:center">${renderPosBadge(p.mlb)}</td>
         <td style="text-align:center" data-pivo="${p.mlb}">${renderPivoCel(conta,p.mlb)}</td>
       </tr>`;
@@ -2963,9 +3099,14 @@ async function mostrarAvisoFull(conta, mlb) {
 }
 
 // ── Aviso de novo rebot (compacto, no cabeçalho do modal) ───────────────────
-function mostrarAvisoRebot(o) {
+function mostrarAvisoRebot(o, naoVale) {
   const box = document.getElementById('m-aviso-rebot'); if (!box) return;
-  if (!o || o.empate || !(o.ganho_un > 0)) { box.innerHTML = ''; return; }
+  // sem oportunidade: aviso cinza com o motivo de cada campanha do ML descartada (não aparece em verde)
+  if (!o || o.empate || !(o.ganho_un > 0)) {
+    const motivos = (naoVale || []).map(x => `«${sacEsc(x.nome || '')}»: ${sacEsc(x.motivo || '')}`).join(' · ');
+    box.innerHTML = motivos ? `<span class="mx-rebot mx-rebot-nao" title="${motivos}" style="border-color:var(--border2);color:var(--muted2);opacity:.85"><span class="mx-rebot-t"><b>Rebot não vale a pena</b><span>${motivos}</span></span></span>` : '';
+    return;
+  }
   const dt = x => x ? x.split('-').reverse().slice(0,2).join('/') : '';
   const linha = [`${brl2(o.atual_preco)} → ${brl2(o.preco)}`, `rebot ${brl2(o.atual_rebot)} → ${brl2(o.rebot)}`,
     o.fim ? `até ${dt(o.fim)}` : '', o.delta_preco > 0 ? `o preço sobe ${brl2(o.delta_preco)}` : '',
@@ -3206,7 +3347,7 @@ async function carregarCustosML(mlb, conta) {
 ${camp} · Rebot ativo hoje: ${brl2(d.rebot_un)} · Frete: ${d.frete!=null?brl2(d.frete):'n/d'}${d.peso_g?` (${d.peso_g} g)`:''}
 CMV base do SKU: ${d.cmv_referencia!=null?brl2(d.cmv_referencia):'sem base (importe a planilha de CMV)'}${v?` · última venda em ${v.data} a ${brl2(v.preco)}`:''}`).replace(/<[^>]+>/g, '');
     box.innerHTML = `<a href="#" onclick="aplicarCustosReais('${mlb}','${conta}');return false;" style="color:var(--gold);">Usar valores reais do ML</a><span class="info-i" data-tip="${sacEsc(txt)}">i</span>`;
-    mostrarAvisoRebot(d.oportunidade);
+    mostrarAvisoRebot(d.oportunidade, d.nao_vale);
     aplicarCustosReais(mlb, conta);   // sempre: preço vigente, comissão, frete e rebot do ML (mesmo com cenário salvo)
   } catch(e) {
     if(document.getElementById('sim-real')===box)
@@ -3535,7 +3676,7 @@ function mostrarPopupChangelog(versao) {
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:32px;width:440px;max-width:92vw;box-shadow:0 24px 64px rgba(0,0,0,.6);">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f6c90e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-        <span style="color:var(--gold);font-size:17px;font-weight:700;letter-spacing:-.02em">MZ-app atualizado · v${versao}</span>
+        <span style="color:var(--gold);font-size:17px;font-weight:700;letter-spacing:-.02em">MZ App atualizado · v${versao}</span>
       </div>
       <p style="color:var(--muted2);font-size:12px;margin:0 0 18px 30px;letter-spacing:.02em;text-transform:uppercase">Novidades desta versão</p>
       ${itens}
