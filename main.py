@@ -18,6 +18,7 @@ from pydantic import BaseModel
 import ml_api
 import parser_rentabilidade as parser
 import sync_service
+import produtos_store
 import auth_service
 from refresh_ml_token import loop_refresh, loop_sync_diario
 
@@ -127,6 +128,12 @@ async def startup():
     asyncio.create_task(loop_sync_diario())
     # ROAS objetivo dos anúncios que ainda não têm o campo (segundo plano; não espera o ML)
     asyncio.create_task(sync_service.preencher_roas_faltando())
+    # CMV da base central nos produtos e nas margens salvas: vale em cada máquina, sem depender de novo sync
+    try:
+        import cmv_base as _cmv
+        _cmv.propagar_ml()
+    except Exception as e:
+        print(f"[startup] Aviso CMV: {e}")
     # Verifica e renova token imediatamente no startup
     try:
         from refresh_ml_token import verificar_e_renovar
@@ -147,6 +154,8 @@ async def startup():
 # ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 def load_json(path: str) -> any:
+    if os.path.abspath(path) == os.path.abspath(PRODUTOS_PATH):
+        return produtos_store.ler()
     if not os.path.exists(path):
         return {}
     with open(path, "r", encoding="utf-8") as f:
@@ -638,7 +647,7 @@ async def salvar_custos(payload: CustosPayload):
     if payload.tem_st        is not None: p["tem_st"]       = payload.tem_st
     if payload.comissao_pct  is not None: p["comissao_pct"] = payload.comissao_pct
     if payload.simulador     is not None: p["simulador"]    = payload.simulador
-    save_json(PRODUTOS_PATH, produtos)
+    produtos_store.mesclar({payload.mlb: p})
     log_atividade(f"Custos atualizados: {payload.mlb}")
     return {"success": True}
 
@@ -656,7 +665,7 @@ async def preencher_skus(conta: str):
         if sku and m in produtos and not produtos[m].get("sku"):
             produtos[m]["sku"] = sku
             n += 1
-    save_json(PRODUTOS_PATH, produtos)
+    produtos_store.mesclar({m: produtos[m] for m, sku in achados.items() if sku and m in produtos})
     log_atividade(f"SKUs preenchidos ({conta}): {n}")
     return {"success": True, "conta": conta, "sem_sku_antes": len(vazios), "preenchidos": n,
             "ainda_sem_sku": [m for m in vazios if not achados.get(m)]}
@@ -668,7 +677,7 @@ async def arquivar_produto(mlb: str, payload: dict):
     if mlb not in produtos:
         raise HTTPException(status_code=404, detail="Produto não encontrado")
     produtos[mlb]["arquivado"] = payload.get("arquivado", True)
-    save_json(PRODUTOS_PATH, produtos)
+    produtos_store.mesclar({mlb: produtos[mlb]})
     log_atividade(f"Produto {'arquivado' if payload.get('arquivado') else 'desarquivado'}: {mlb}")
     return {"success": True, "arquivado": produtos[mlb]["arquivado"]}
 
@@ -863,6 +872,7 @@ async def importar_custos_xlsx(conta: str, file: UploadFile = File(...)):
 
     # Carrega produtos.json e monta índices
     produtos_db = parser.load_produtos()
+    mudados = {}
     mlb_index = {mlb: mlb for mlb in produtos_db if produtos_db[mlb].get("conta") == conta}
     sku_index  = {}
     for mlb, p in produtos_db.items():
@@ -946,8 +956,9 @@ async def importar_custos_xlsx(conta: str, file: UploadFile = File(...)):
             "rebot_fim":    rb_fim,
         })
         atualizados.append(mlb_val or sku_val)
+        mudados[mlb] = produtos_db[mlb]
 
-    parser.save_produtos(produtos_db)
+    produtos_store.mesclar(mudados)
     log_atividade(f"Importação custos {conta}: {len(atualizados)} produtos atualizados")
 
     return {
@@ -1499,9 +1510,9 @@ async def sync_catalog_listing(conta: str):
             except Exception:
                 erros += 1
             if i % 10 == 0:
-                save_json(PRODUTOS_PATH, db)
+                produtos_store.mesclar({m: db[m] for m, _ in pendentes[:i]})
                 await asyncio.sleep(2)
-        save_json(PRODUTOS_PATH, db)
+        produtos_store.mesclar({m: db[m] for m, _ in pendentes})
         yield f"data: {json.dumps({'tipo':'concluido','total':total,'atualizados':atualizados,'erros':erros})}\n\n"
 
     return StreamingResponse(generator(), media_type="text/event-stream",

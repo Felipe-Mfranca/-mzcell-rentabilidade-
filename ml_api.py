@@ -1,6 +1,6 @@
 """
 ml_api.py — Integração com API do Mercado Livre
-MZCell Rentabilidade — com suporte a PKCE
+MZ App — com suporte a PKCE
 """
 
 import httpx
@@ -173,6 +173,17 @@ async def listar_produtos(conta: str) -> dict:
     return {"success": True, "produtos": produtos, "total": len(produtos)}
 
 
+async def vinculo_catalogo(conta: str, catalog_product_id: str, mlb: str) -> dict:
+    """Anúncio vencedor do catálogo e se este MLB é ele (ou só está vinculado a ele)."""
+    async with httpx.AsyncClient(timeout=30, verify=False) as client:
+        d = await _get_json(client, conta, f"/products/{catalog_product_id}/items")
+    res = (d or {}).get("results") or []
+    vencedor = next((r for r in res if r.get("buy_box_winner")), res[0] if res else None)
+    vencedor_id = (vencedor or {}).get("item_id")
+    return {"catalog_product_id": catalog_product_id, "vencedor": vencedor_id,
+            "eh_vencedor": vencedor_id == mlb}
+
+
 async def detalhes_multiplos(conta: str, mlbs: list) -> dict:
     resultados = {}
     async with httpx.AsyncClient(timeout=30, verify=False) as client:
@@ -271,7 +282,7 @@ async def metricas_ads(conta: str, mlb: str, date_from: str, date_to: str) -> di
     headers = {**_headers(conta), "api-version": "2"}
     metrics_param = (
         "clicks,prints,ctr,cost,cpc,acos,roas,"
-        "direct_amount,indirect_amount,total_amount,units_quantity"
+        "direct_amount,indirect_amount,total_amount,units_quantity,organic_units_quantity"
     )
 
     async with httpx.AsyncClient(timeout=30, verify=False) as client:
@@ -293,8 +304,9 @@ async def metricas_ads(conta: str, mlb: str, date_from: str, date_to: str) -> di
         m = info.get("metrics", {})
 
         # Busca roas_target, acos_target, budget e strategy da campanha
+        # endpoint antigo (/advertising/product_ads/campaigns/{id}) devolve 404; o atual é o da API marketplace
         r2 = await client.get(
-            f"{ML_BASE_URL}/advertising/product_ads/campaigns/{campaign_id}",
+            f"{ML_BASE_URL}/marketplace/advertising/{site_id}/product_ads/campaigns/{campaign_id}",
             headers=headers
         )
         camp = r2.json() if r2.status_code == 200 else {}
@@ -314,7 +326,8 @@ async def metricas_ads(conta: str, mlb: str, date_from: str, date_to: str) -> di
                 "vendas_publi":         m.get("direct_units_quantity", 0),
                 "vendas_indiretas":     m.get("indirect_units_quantity", 0),
                 "vendas_publi_total":   m.get("units_quantity", 0),
-                "receita_publi":        m.get("direct_amount", 0.0),
+                "vendas_organicas":     m.get("organic_units_quantity", 0),
+                "receita_publi":        m.get("total_amount", 0.0),          # direta + indireta: base do ROAS do ML
                 "receita_publi_direta": m.get("direct_amount", 0.0),
                 "receita_publi_total":  m.get("total_amount", 0.0),
                 "roas_target":          camp.get("roas_target", 0.0),
@@ -323,6 +336,37 @@ async def metricas_ads(conta: str, mlb: str, date_from: str, date_to: str) -> di
                 "strategy":             camp.get("strategy", ""),
             }
         }
+
+
+async def metricas_ads_bruto(conta: str, mlb: str, date_from: str, date_to: str) -> dict:
+    """Métricas de ADS do anúncio no intervalo (uma consulta). Um dia por chamada dá o gasto real do dia.
+    404 = sem campanha (devolve {}). Erro de rede ou status diferente de 200 levanta exceção (nunca vira zero)."""
+    import asyncio as _aio
+    site_id = mlb.rstrip("0123456789")
+    headers = {**_headers(conta), "api-version": "2"}
+    metrics_param = ("clicks,prints,ctr,cost,cpc,acos,roas,"
+                     "direct_amount,indirect_amount,total_amount,units_quantity,organic_units_quantity")
+    url = (f"{ML_BASE_URL}/marketplace/advertising/{site_id}/product_ads/ads/{mlb}"
+           f"?date_from={date_from}&date_to={date_to}&metrics={metrics_param}")
+    ultimo = None
+    for tentativa in range(4):
+        try:
+            async with httpx.AsyncClient(timeout=30, verify=False) as client:
+                r = await client.get(url, headers=headers)
+        except httpx.HTTPError as e:
+            ultimo = f"rede: {type(e).__name__}"
+            await _aio.sleep(1.5 * (tentativa + 1))
+            continue
+        if r.status_code == 404:
+            return {}
+        if r.status_code == 200:
+            return r.json().get("metrics", {}) or {}
+        ultimo = f"HTTP {r.status_code}"
+        if r.status_code in (429, 500, 502, 503, 504):
+            await _aio.sleep(1.5 * (tentativa + 1))
+            continue
+        break
+    raise RuntimeError(f"ADS {mlb} {date_from}: {ultimo}")
 
 
 async def campanhas_ads(conta: str) -> dict:
@@ -343,9 +387,10 @@ async def get_catalog_listing(conta: str, mlb: str) -> dict:
     para obter catalog_listing e variacoes_count sem precisar de datas.
     """
     headers = {**_headers(conta), "api-version": "2"}
+    site_id = mlb.rstrip("0123456789")   # endpoint antigo (/advertising/product_ads/items) devolve 404; o atual é o da API marketplace
     async with httpx.AsyncClient(timeout=20, verify=False) as client:
         r = await client.get(
-            f"{ML_BASE_URL}/advertising/product_ads/items/{mlb}",
+            f"{ML_BASE_URL}/marketplace/advertising/{site_id}/product_ads/ads/{mlb}",
             headers=headers,
         )
     if r.status_code != 200:
@@ -521,8 +566,10 @@ async def custos_anuncio(conta: str, mlb: str, preco: Optional[float] = None) ->
         item = await _get_json(client, conta, f"/items/{mlb}")
         if not item:
             return {"success": False, "error": "anúncio não encontrado"}
+        sp_inicial = await _get_json(client, conta, f"/items/{mlb}/sale_price?context=channel_marketplace")
+        preco_taxa = (sp_inicial or {}).get("amount") or item.get("price")   # comissão do preço vigente
         lp = await _get_json(client, conta,
-            f"/sites/MLB/listing_prices?price={item.get('price')}"
+            f"/sites/MLB/listing_prices?price={preco_taxa}"
             f"&listing_type_id={item.get('listing_type_id')}&category_id={item.get('category_id')}")
         row = (lp[0] if isinstance(lp, list) and lp else lp) or {}
         pct = ((row.get("sale_fee_details") or {}).get("percentage_fee") or 0) / 100
@@ -530,9 +577,11 @@ async def custos_anuncio(conta: str, mlb: str, preco: Optional[float] = None) ->
             return {"success": False, "error": "comissão indisponível"}
 
         venda = await _ultima_venda(client, conta, mlb, pct)
-        preco_ref = preco or (venda or {}).get("preco") or item.get("price") or 0
         promos = await _get_json(client, conta, f"/seller-promotions/items/{mlb}?app_version=v2")
         sp = await _get_json(client, conta, f"/items/{mlb}/sale_price?context=channel_marketplace")
+        # preço vigente (com promoção) antes do preço cheio do anúncio: item.price é o cheio quando há promoção
+        # preço vigente (com promoção) primeiro; o preço da última venda é só referência
+        preco_ref = preco or (sp or {}).get("amount") or item.get("price") or (venda or {}).get("preco") or 0
 
     frete = await frete_para_preco(conta, mlb, preco_ref)
     promos = promos if isinstance(promos, list) else []

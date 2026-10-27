@@ -13,6 +13,7 @@ import httpx
 
 import ml_api
 import parser_rentabilidade as parser
+import produtos_store
 
 BASE_DIR         = os.path.dirname(__file__)
 PRODUTOS_PATH    = os.path.join(BASE_DIR, "produtos.json")
@@ -87,6 +88,23 @@ async def _custos_vigentes(conta: str, mlb: str, detalhe: dict) -> dict:
     return out
 
 
+def _dias_entre(de: str, ate: str) -> list:
+    d, f, out = datetime.fromisoformat(de), datetime.fromisoformat(ate), []
+    while d <= f:
+        out.append(d.strftime("%Y-%m-%d"))
+        d += timedelta(days=1)
+    return out
+
+
+async def _ads_por_dia(conta: str, mlb: str, dias: list) -> dict:
+    """{dia: métricas de ADS}. Qualquer dia que falhar levanta erro: o anúncio não grava número incompleto."""
+    sem = asyncio.Semaphore(6)
+    async def um(dia):
+        async with sem:
+            return dia, await ml_api.metricas_ads_bruto(conta, mlb, dia, dia)
+    return dict(await asyncio.gather(*[um(d) for d in dias]))
+
+
 async def _sync_mlb(conta: str, mlb: str, detalhe: dict,
                     date_from: str, date_to: str, produtos_db: dict) -> bool:
     """Sync de um único produto — busca orders, visitas e ADS e salva em produtos_db.
@@ -112,62 +130,56 @@ async def _sync_mlb(conta: str, mlb: str, detalhe: dict,
     vis_dia_res = await ml_api.visitas_diarias(conta, mlb, date_from, date_to)
     vis_por_dia = vis_dia_res.get("data", {}) if vis_dia_res.get("success") else {}
 
+    # Campanha, ROAS objetivo, share e taxas: uma consulta do período
     ads_res              = await ml_api.metricas_ads(conta, mlb, date_from, date_to)
+    ads_data             = ads_res.get("data", {}) if ads_res["success"] else {}
     total_receita_period = sum(v.get("receita", 0.0) for k, v in dados_dias.items() if k != "_ads_")
 
-    if ads_res["success"]:
-        ads_data           = ads_res.get("data", {})
-        total_ads          = ads_data.get("ads_total", 0.0)
-        total_cliques      = ads_data.get("cliques", 0)
-        total_impressoes   = ads_data.get("impressoes", 0)
-        total_rec_publi    = ads_data.get("receita_publi", 0.0)
-        total_rec_pub_dir  = ads_data.get("receita_publi_direta", 0.0)
-        total_vend_pub     = ads_data.get("vendas_publi", 0)
-        total_vend_ind     = ads_data.get("vendas_indiretas", 0)
-        total_vend_pub_tot = ads_data.get("vendas_publi_total", 0)
-        total_unid_pagas   = sum(v.get("unidades_pagas", 0) for v in dados_dias.values())
+    # ADS de CADA dia, consultado dia a dia: o total do período não diz quanto foi gasto em cada dia.
+    # Sem campanha (orgânico) a consulta de ADS volta vazia e todos os dias ficam com zero.
+    ads_dia = await _ads_por_dia(conta, mlb, _dias_entre(date_from, date_to)) if ads_res["success"] else {}
+    for dia, m in ads_dia.items():                 # dia com gasto em ADS entra mesmo sem venda
+        if (m.get("cost") or m.get("prints")) and dia not in dados_dias:
+            dados_dias[dia] = {"receita": 0.0, "unidades": 0, "unidades_pagas": 0}
+    for dia, vals in dados_dias.items():
+        if dia == "_ads_":
+            continue
+        m = ads_dia.get(dia, {})
+        vals["ads_total"]            = round(m.get("cost", 0.0), 4)
+        vals["cliques"]              = m.get("clicks", 0)
+        vals["impressoes"]           = m.get("prints", 0)
+        vals["receita_publi"]        = round(m.get("total_amount", 0.0), 4)   # direta + indireta (base do ROAS do ML)
+        vals["receita_publi_direta"] = round(m.get("direct_amount", 0.0), 4)
+        vals["vendas_publi"]         = m.get("direct_units_quantity", 0)
+        vals["vendas_indiretas"]     = m.get("indirect_units_quantity", 0)
+        vals["vendas_publi_total"]   = m.get("units_quantity", 0)
+        vals["vendas_organicas"]     = m.get("organic_units_quantity", 0)   # unidades orgânicas, como o ML
+        vals["visitas"]              = vis_por_dia.get(dia, 0)
 
-        for dia, vals in dados_dias.items():
-            peso = vals.get("receita", 0.0) / total_receita_period if total_receita_period > 0 else 0.0
-            vals["ads_total"]            = round(total_ads * peso, 4)
-            vals["cliques"]              = round(total_cliques * peso)
-            vals["impressoes"]           = round(total_impressoes * peso)
-            vals["receita_publi"]        = round(total_rec_publi * peso, 4)
-            vals["receita_publi_direta"] = round(total_rec_pub_dir * peso, 4)
-            vals["vendas_publi"]         = round(total_vend_pub * peso)
-            vals["vendas_indiretas"]     = round(total_vend_ind * peso)
-            vals["visitas"]              = vis_por_dia.get(dia, round(total_visitas * peso))
-
-        dados_dias["_ads_"] = {
-            "ads_total":            round(total_ads, 2),
-            "tacos_campanha":       ads_data.get("tacos", 0.0) / 100,
-            "impressoes":           total_impressoes,
-            "cliques":              total_cliques,
-            "receita_publi":        round(total_rec_publi, 2),
-            "receita_publi_direta": round(total_rec_pub_dir, 2),
-            "vendas_publi":         total_vend_pub,
-            "vendas_indiretas":     total_vend_ind,
-            "vendas_sem_publi":     max(0, total_unid_pagas - total_vend_pub_tot),
-            "share":                ads_data.get("share", 0.0),
-            "advertising_fee":      ads_data.get("advertising_fee", 0.0),
-            "cpc":                  ads_data.get("cpc", 0.0),
-            "ctr":                  ads_data.get("ctr", 0.0),
-            "visitas":              total_visitas,
-            "compradores_unicos":   periodo_stats.get("compradores_unicos", 0),
-            "_periodo_de":          date_from,
-            "_periodo_ate":         date_to,
-        }
-    else:
-        for dia, vals in dados_dias.items():
-            peso = vals.get("receita", 0.0) / total_receita_period if total_receita_period > 0 else 0.0
-            vals["ads_total"] = 0.0
-            vals["visitas"]   = vis_por_dia.get(dia, round(total_visitas * peso))
-        dados_dias["_ads_"] = {
-            "ads_total": 0.0, "tacos_campanha": 0.0,
-            "visitas": total_visitas,
-            "compradores_unicos": periodo_stats.get("compradores_unicos", 0),
-            "_periodo_de": date_from, "_periodo_ate": date_to,
-        }
+    # _ads_ do período = soma dos dias (mesma base da faixa de 30 dias e dos períodos do modal)
+    dias_ads = [v for k, v in dados_dias.items() if k != "_ads_"]
+    soma = lambda campo: sum(v.get(campo, 0) or 0 for v in dias_ads)
+    total_ads, total_cliques, total_imp = soma("ads_total"), soma("cliques"), soma("impressoes")
+    total_unid_pagas = soma("unidades_pagas")
+    dados_dias["_ads_"] = {
+        "ads_total":            round(total_ads, 2),
+        "tacos_campanha":       round(total_ads / total_receita_period, 6) if total_receita_period > 0 else 0.0,
+        "impressoes":           total_imp,
+        "cliques":              total_cliques,
+        "receita_publi":        round(soma("receita_publi"), 2),
+        "receita_publi_direta": round(soma("receita_publi_direta"), 2),
+        "vendas_publi":         soma("vendas_publi"),
+        "vendas_indiretas":     soma("vendas_indiretas"),
+        "vendas_sem_publi":     max(0, total_unid_pagas - soma("vendas_publi_total")),
+        "share":                ads_data.get("share", 0.0),
+        "advertising_fee":      ads_data.get("advertising_fee", 0.0),
+        "cpc":                  round(total_ads / total_cliques, 4) if total_cliques else 0.0,
+        "ctr":                  round(total_cliques / total_imp * 100, 4) if total_imp else 0.0,
+        "visitas":              total_visitas,
+        "compradores_unicos":   periodo_stats.get("compradores_unicos", 0),
+        "_periodo_de":          date_from,
+        "_periodo_ate":         date_to,
+    }
 
     vig = await _custos_vigentes(conta, mlb, detalhe)
     preco_vigente, frete_vigente = vig["preco"], vig["frete"]
@@ -264,13 +276,13 @@ async def sincronizar_produto_func(conta: str, mlb: str,
         return {"success": False, "error": detalhes.get("error", "Erro ao buscar detalhes")}
 
     detalhe     = detalhes["data"].get(mlb, {})
-    produtos_db = _load(PRODUTOS_PATH) or {}
+    produtos_db = produtos_store.ler()
 
     ok = await _sync_mlb(conta, mlb, detalhe, date_from, date_to, produtos_db)
     if not ok:
         return {"success": False, "error": f"Falha ao sincronizar {mlb}"}
 
-    _save(PRODUTOS_PATH, produtos_db)
+    produtos_store.mesclar({mlb: produtos_db[mlb]})
     ts = datetime.now().isoformat()
     _log(f"Sync individual {mlb} ({conta}): {date_from} a {date_to}")
     return {
@@ -299,14 +311,18 @@ async def sincronizar_conta_func(conta: str, dias: int = 30,
         return {"success": True, "msg": "Nenhum produto ativo", "total": 0}
 
     detalhes    = await ml_api.detalhes_multiplos(conta, mlbs)
-    produtos_db = _load(PRODUTOS_PATH) or {}
     atualizados = 0
 
     falhas = []
     for mlb in mlbs:
         detalhe = detalhes["data"].get(mlb, {})
+        # cada anúncio parte do estado atual do arquivo e é gravado logo em seguida: nada que outro trecho
+        # gravou durante a sincronização (custos, SKU, outro sync) é apagado por esta gravação
+        produtos_db = produtos_store.ler()
         try:                       # um anúncio com erro de rede não derruba a sincronização da conta inteira
             ok = await _sync_mlb(conta, mlb, detalhe, date_from, date_to, produtos_db)
+            if ok:
+                produtos_store.mesclar({mlb: produtos_db[mlb]})
         except Exception as e:
             ok = False
             falhas.append(mlb)
@@ -316,11 +332,11 @@ async def sincronizar_conta_func(conta: str, dias: int = 30,
 
     # anúncios da conta que não estão mais ativos no ML: não entram na validade (não há o que sincronizar)
     ativos = set(mlbs)
-    for m, p in produtos_db.items():
-        if p.get("conta") == conta:
-            p["inativo_no_ml"] = m not in ativos
-
-    _save(PRODUTOS_PATH, produtos_db)
+    def marcar_inativos(db):
+        for m, p in db.items():
+            if p.get("conta") == conta:
+                p["inativo_no_ml"] = m not in ativos
+    produtos_store.alterar(marcar_inativos)
     ts = datetime.now().isoformat()
     update_sync_status(conta,
         ultimo_sync=ts,
@@ -365,7 +381,7 @@ async def sincronizar_historico(conta: str, date_from: str, date_to: str, dias_t
             de = max(ate - timedelta(days=29), datetime.fromisoformat(limite))
             blocos.append((de.strftime("%Y-%m-%d"), ate.strftime("%Y-%m-%d")))
             ate = de - timedelta(days=1)
-        base = _load(PRODUTOS_PATH) or {}
+        base = produtos_store.ler()
         mlbs = [m for m, p in base.items() if p.get("conta") == conta]
         coletado = {}                                   # mlb -> {dia: valores}
         for mlb in mlbs:
@@ -379,16 +395,17 @@ async def sincronizar_historico(conta: str, date_from: str, date_to: str, dias_t
                 except Exception:
                     pass
                 await asyncio.sleep(0.2)
-        fresh = _load(PRODUTOS_PATH) or {}               # relê: o usuário pode ter editado custos durante o processo
-        novos = 0
-        for mlb, dias in coletado.items():
-            if mlb in fresh:
-                d = fresh[mlb].setdefault("dias", {})
-                for dia, v in dias.items():
-                    if dia not in d:
-                        d[dia] = v
-                        novos += 1
-        _save(PRODUTOS_PATH, fresh)
+        novos = [0]
+        def somar_dias(db):              # relê dentro da trava: o usuário pode ter editado custos durante o processo
+            for mlb, dias in coletado.items():
+                if mlb in db:
+                    d = db[mlb].setdefault("dias", {})
+                    for dia, v in dias.items():
+                        if d.get(dia) != v:
+                            d[dia] = v
+                            novos[0] += 1
+        produtos_store.alterar(somar_dias)
+        novos = novos[0]
         update_sync_status(conta, historico_em=datetime.now().isoformat(), historico_ate=date_to,
                            historico_de=limite, historico_dias_novos=novos)
         _log(f"Histórico {conta}: {novos} dias de produto adicionados ({limite} a {date_from})")
@@ -401,11 +418,11 @@ async def sincronizar_historico(conta: str, date_from: str, date_to: str, dias_t
 
 def _gravar_roas(lote: dict):
     """Grava o ROAS objetivo de um lote de anúncios, relendo o produtos.json para não perder outra gravação."""
-    db = _load(PRODUTOS_PATH) or {}
-    for mlb, valor in lote.items():
-        if mlb in db:
-            db[mlb]["roas_objetivo_ml"] = valor
-    _save(PRODUTOS_PATH, db)
+    def aplicar(db):
+        for mlb, valor in lote.items():
+            if mlb in db:
+                db[mlb]["roas_objetivo_ml"] = valor
+    produtos_store.alterar(aplicar)
 
 
 async def preencher_roas_faltando():
@@ -414,7 +431,7 @@ async def preencher_roas_faltando():
     só apareceria depois do sync de cada anúncio. Roda em segundo plano e só consulta o que falta."""
     ate = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     de = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
-    db = _load(PRODUTOS_PATH) or {}
+    db = produtos_store.ler()
     pendentes = [(mlb, p["conta"]) for mlb, p in db.items()
                  if p.get("conta") in ("meli01", "meli02", "meli03") and "roas_objetivo_ml" not in p and not p.get("arquivado")]
     lote = {}

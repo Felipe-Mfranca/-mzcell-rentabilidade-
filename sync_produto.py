@@ -17,10 +17,8 @@ PRODUTOS_PATH = os.path.join(BASE_DIR, "produtos.json")
 
 
 def _load_produtos() -> dict:
-    if not os.path.exists(PRODUTOS_PATH):
-        return {}
-    with open(PRODUTOS_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+    import produtos_store
+    return produtos_store.ler()
 
 
 async def sincronizar_e_retornar(
@@ -202,7 +200,7 @@ async def sincronizar_e_retornar(
             if gravar_roas:
                 produtos_db_fresh[mlb]["roas_objetivo_ml"] = roas_alvo
             import parser_rentabilidade as _parser
-            _parser.save_produtos(produtos_db_fresh)
+            _parser.save_produtos({mlb: produtos_db_fresh[mlb]})
 
     return {
         "success":        True,

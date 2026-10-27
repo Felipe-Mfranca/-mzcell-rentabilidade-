@@ -1,6 +1,6 @@
 """
 parser_rentabilidade.py — Processa dados da API ML e calcula rentabilidade
-MZCell Rentabilidade
+MZ App
 """
 
 import json
@@ -17,23 +17,22 @@ def load_config() -> dict:
         return json.load(f)
 
 def load_produtos() -> dict:
-    if not os.path.exists(PRODUTOS_PATH):
-        return {}
-    with open(PRODUTOS_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+    import produtos_store
+    return produtos_store.ler()
+
 
 def save_produtos(data: dict):
-    with open(PRODUTOS_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    """Grava só os produtos de `data` (atômico, sob trava). Não apaga os demais."""
+    import produtos_store
+    produtos_store.mesclar(data)
 
 
 # ─── IMPOSTOS ────────────────────────────────────────────────────────────────
 
 def get_aliquota(conta: str, tem_st: bool = True) -> float:
-    config = load_config()
-    impostos = config.get("impostos", {})
-    key = f"{conta}_com_st" if tem_st else f"{conta}_sem_st"
-    return impostos.get(key, {}).get("aliquota", 0.10)
+    import impostos   # tabela de impostos (impostos.json); config.json só como reserva
+    com, sem = impostos.por_conta(conta, load_config().get("impostos", {}), (0.10, 0.10))
+    return com if tem_st else sem
 
 def get_comissao(config: dict) -> float:
     return config.get("comissao_ml", 0.11)
@@ -254,7 +253,7 @@ def agregar_periodo(produto: dict, date_from: str, date_to: str) -> dict:
         "ads_total": 0.0, "receita_publi": 0.0,
         "receita_publi_direta": 0.0,
         "impressoes": 0, "cliques": 0, "vendas_publi": 0,
-        "vendas_indiretas": 0,
+        "vendas_indiretas": 0, "vendas_organicas": 0,
         "visitas": 0, "unidades": 0, "unidades_pagas": 0,
         "qtd_vendas": 0, "qtd_pedidos_pagos": 0,
         "cmv_total": 0.0, "imposto_total": 0.0,
@@ -292,6 +291,16 @@ def agregar_periodo(produto: dict, date_from: str, date_to: str) -> dict:
     if periodo_exato and "vendas_publi" in ads_data:
         total["vendas_publi"]     = ads_data["vendas_publi"]
         total["vendas_indiretas"] = ads_data.get("vendas_indiretas", 0)
+
+    # ADS exato do período sincronizado (igual ao modal): o total distribuído por dia perde o gasto
+    # de dias sem venda. Ajusta o ADS e a margem pela diferença.
+    if periodo_exato and "ads_total" in ads_data:
+        exato = round(ads_data.get("ads_total", 0.0), 2)
+        total["margem_total"] = round(total["margem_total"] + (total["ads_total"] - exato), 2)
+        total["ads_total"]    = exato
+        total["receita_publi"] = round(ads_data.get("receita_publi", total["receita_publi"]), 2)
+        total["cliques"]       = ads_data.get("cliques", total["cliques"])
+        total["impressoes"]    = ads_data.get("impressoes", total["impressoes"])
 
     total["vendas_com_ads"] = total["vendas_publi"] + total["vendas_indiretas"]
 

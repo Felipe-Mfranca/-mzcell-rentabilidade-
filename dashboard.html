@@ -996,6 +996,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
         <button class="btn-sync-produto btn-azul" id="amz-btn-link" title="Abre o anúncio na Amazon">Link do anúncio ↗</button>
       </div>
     </div>
+    <div class="mx-avisos" id="amz-avisos"><span id="amz-aviso-full"></span></div>
     <div class="mx-strip-wrap">
       <div class="mx-strip-cap">Últimos 30 dias (fixo)</div>
       <div class="mx-strip" id="amz-strip"></div>
@@ -1479,6 +1480,7 @@ async function amzAbrir(conta, sku) {
   _amz = {conta, sku, dias: 7, d: null};
   document.getElementById('amz-title').textContent = sku;
   document.getElementById('amz-sku').textContent = sku; document.getElementById('amz-asin').textContent = '';
+  document.getElementById('amz-aviso-full').innerHTML = '';
   document.getElementById('amz-body').innerHTML = '<div class="sac-mut">Carregando…</div>';
   document.getElementById('amz-strip').innerHTML = '';
   document.getElementById('modal-amz').classList.add('open');
@@ -1517,7 +1519,10 @@ async function amzCarregarAds(d) {
   const cells = document.querySelectorAll('#amz-strip .mx-kpi-v');
   if (cells.length < 7 || !d.asin || !d.periodo) return;
   const t = _amz?.tab;
-  const janelas = {A: [d.periodo.de, d.periodo.ate], B: [d.anterior.de, d.anterior.ate]};
+  // F = janela fixa de 30 dias (faixa do topo); vem primeiro porque é o que o topo do modal mostra
+  const janelas = {};
+  if (d.periodo_30d) janelas.F = [d.periodo_30d.de, d.periodo_30d.ate];
+  janelas.A = [d.periodo.de, d.periodo.ate]; janelas.B = [d.anterior.de, d.anterior.ate];
   if (t?.r3) { janelas.C = t.r3; janelas.D = t.r4; }
   const invs = {};
   try {
@@ -1531,14 +1536,38 @@ async function amzCarregarAds(d) {
     return;
   }
   if (document.getElementById('amz-title').textContent !== (d.titulo || d.sku)) return;   // o modal mudou de SKU
-  const rlA = d.atual?.receita_liquida || 0;
-  cells[3].textContent = brl2(invs.A);
-  const diasP = _amz?.tab?.diasP || 1;
-  cells[3].title = `Gasto de Sponsored Products por ASIN no período (Data Kiosk) · Média diária: ${brl2(invs.A / diasP)}/dia`;
-  cells[5].textContent = rlA > 0 ? (invs.A / rlA * 100).toFixed(2).replace('.', ',') + '%' : '—';
-  cells[5].title = 'Investimento em Ads ÷ receita líquida do período';
+  // faixa fixa de 30 dias: Investimento e TACOS do ASIN (a Amazon só entrega o gasto por ASIN, sem cliques nem venda atribuída)
+  if (invs.F != null) {
+    const rl30 = d.receita_30d || 0, tacos30 = rl30 > 0 ? invs.F / rl30 : 0;
+    cells[3].textContent = brl2(invs.F);
+    cells[3].title = `Gasto de Sponsored Products do ASIN nos últimos 30 dias (Data Kiosk) · Média diária: ${brl2(invs.F / 30)}/dia`;
+    cells[5].textContent = rl30 > 0 ? (tacos30 * 100).toFixed(2).replace('.', ',') + '%' : '—';
+    cells[5].title = 'Investimento em Ads ÷ receita líquida dos últimos 30 dias';
+    const tac = document.getElementById('as-tacos');          // simulação usa o TACOS de 30 dias, como no Meli
+    if (tac) { tac.value = (tacos30 * 100).toFixed(2); amzCalc(); }
+  }
   if (_amz) _amz.invs = invs;
   amzMontarAdsTab(d);
+}
+// Estoque FBA no modal (equivalente ao aviso de Full do Meli): saldo, média de 7 dias e cobertura, mesmos níveis
+async function amzMostrarFull(d) {
+  const box = document.getElementById('amz-aviso-full'); if (!box) return;
+  box.innerHTML = '';
+  if (!d.asin) { box.innerHTML = '<span class="mx-aviso full-ok" title="SKU sem ASIN conhecido no FBA">FBA —</span>'; return; }
+  box.innerHTML = '<span class="mx-aviso full-ok" title="Consultando o estoque FBA">FBA …</span>';
+  try {
+    const r = await fetch(`${API}/amazon/full/${d.conta}?asin=${encodeURIComponent(d.asin)}`);
+    const a = await r.json(); if (!r.ok) throw new Error(a.detail || r.status);
+    if (document.getElementById('amz-asin').textContent !== d.asin) return;     // o modal mudou de SKU
+    if (!a.no_fba) { box.innerHTML = '<span class="mx-aviso full-ok" title="ASIN sem estoque no FBA">FBA —</span>'; return; }
+    const dias = String(a.dias_cobertura).replace('.', ',');
+    const texto = a.nivel === 'zerado' ? 'Sem estoque no FBA' : `Estoque no FBA para ${dias} dias`;
+    const tip = `Saldo no FBA: ${a.saldo} un (disponível ${a.disponivel} + a caminho ${a.em_transito}) · média dos últimos 7 dias: ` +
+      `${String(a.media_7d).replace('.', ',')} un/dia · crítico: cobertura menor que 10 dias; atenção: de 10 a 15 dias`;
+    box.innerHTML = `<span class="mx-aviso full-${a.nivel || 'ok'}" title="${sacEsc(tip)}">FBA ${Math.round(a.saldo)} un${a.nivel ? ' · ' + texto : ''}</span>`;
+  } catch (e) {
+    box.innerHTML = `<span class="mx-aviso full-ok" title="${sacEsc('Estoque FBA indisponível: ' + e.message)}">FBA ?</span>`;
+  }
 }
 // Monta a tabela de ADS (Atual, P2, P3 e P4). A Amazon só entrega investimento por ASIN: cliques e receita de ADS seguem '—'
 function amzMontarAdsTab(d) {
@@ -1561,6 +1590,7 @@ function amzDesenharModal(d) {
   const btnLink = document.getElementById('amz-btn-link');
   btnLink.disabled = !d.asin;
   btnLink.onclick = () => abrirLink('https://www.amazon.com.br/dp/' + d.asin);
+  amzMostrarFull(d);
   document.getElementById('amz-strip').style.setProperty('--cols', 8);
   document.getElementById('amz-strip').innerHTML = ['Vendas por ADS', 'Vendas orgânicas', 'Receita por ADS', 'Investimento', 'ACOS', 'TACOS', 'ROAS', 'ROAS objetivo']
     .map(l => `<div class="mx-kpi"><div class="mx-kpi-l">${l}</div><div class="mx-kpi-v">${nd}</div></div>`).join('');
@@ -1591,7 +1621,7 @@ function amzDesenharModal(d) {
           <div id="amz-com-pct" class="sac-mut" style="font-size:11px;margin:-4px 0 6px"></div>
           ${fld('Taxa FBA (R$)','as-fba',un>0?(Math.abs(a.taxa_fba)/un).toFixed(2):'0.00')}
           ${fld('Outras taxas (R$)','as-out',un>0?(Math.abs(a.outras_taxas)/un).toFixed(2):'0.00')}
-          ${fld('TACOS (%)','as-tacos','0.00')}
+          ${fld('TACOS 30 dias (%)','as-tacos','0.00')}
         </div>
         <div id="amz-sim-out" class="mx-sim-out"></div>
         <div class="mx-sim-info" style="margin-top:8px">CMV ${c.origem==='base'?'da base central (arquivo do Grupo)':(c.cmv_unit!=null?'cadastrado para este SKU':'não encontrado: importe o CMV em Configurações')}. Os valores iniciais são as médias do período selecionado.</div>
@@ -2395,12 +2425,13 @@ function agregarPeriodoLocal(prod, de, ate) {
     receita_publi_direta:0, impressoes:0, cliques:0,
     vendas_publi:0, vendas_indiretas:0, visitas:0,
     unidades:0, unidades_pagas:0, qtd_vendas:0, qtd_pedidos_pagos:0,
-    cmv_total:0, imposto_total:0, comissao_total:0, frete_total:0, margem_total:0
+    cmv_total:0, imposto_total:0, comissao_total:0, frete_total:0, margem_total:0, vendas_organicas:0
   };
   for (const [dia, vals] of Object.entries(dias)) {
     if (dia === '_ads_') continue;
     if (de <= dia && dia <= ate) {
-      for (const k of Object.keys(total)) total[k] += vals[k] || 0;
+      for (const k of Object.keys(total)) if (k !== 'org_ok') total[k] += vals[k] || 0;
+      if (vals.vendas_organicas !== undefined) total.org_ok = true;   // dia salvo com o dado do ML
     }
   }
   const ads = dias['_ads_'] || {};
@@ -2440,21 +2471,21 @@ function diaBRT(n) {
   const agoraBRT = new Date(new Date().toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
   return new Date(agoraBRT - n * 86400000).toISOString().split('T')[0];
 }
-function setModalDia(n, btn) {
+// Marca o botão e preenche as datas do modal, sem consultar nada
+function _modalAplicarDia(n, btn) {
   document.querySelectorAll('.modal-preset').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   const datas = document.getElementById('modal-datas'); if (datas) datas.style.display = 'none';
   const dia = diaBRT(n);
   document.getElementById('modal-de').value = dia;
   document.getElementById('modal-ate').value = dia;
-  if (_modalMlb && _modalConta) syncProduto(_modalMlb, _modalConta);
 }
-function setModalPreset(dias, btn) {
+function _modalAplicarPreset(dias, btn) {
   document.querySelectorAll('.modal-preset').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   const datas = document.getElementById('modal-datas');
   if (datas) datas.style.display = dias === 0 ? 'inline-flex' : 'none';
-  if (dias === 0) return; // personalizado — mantém datas para o usuário editar
+  if (dias === 0) return false; // personalizado — mantém datas para o usuário editar
   // Período fechado: ate = ontem em BRT (não inclui o dia atual)
   const agoraBRT = new Date(new Date().toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
   const ontem = new Date(agoraBRT - 86400000);
@@ -2462,7 +2493,20 @@ function setModalPreset(dias, btn) {
   const de  = new Date(ontem - (dias - 1) * 86400000).toISOString().split('T')[0];
   document.getElementById('modal-de').value = de;
   document.getElementById('modal-ate').value = ate;
-  if (_modalMlb && _modalConta) syncProduto(_modalMlb, _modalConta);
+  return true;
+}
+// Troca de período: mostra na hora o que já está salvo e depois busca o período no ML (pode demorar)
+function _modalTrocarPeriodo() {
+  if (!_modalMlb || !_modalConta) return;
+  renderModalContent(_modalMlb, _modalConta);
+  syncProduto(_modalMlb, _modalConta);
+}
+function setModalDia(n, btn) {
+  _modalAplicarDia(n, btn);
+  _modalTrocarPeriodo();
+}
+function setModalPreset(dias, btn) {
+  if (_modalAplicarPreset(dias, btn)) _modalTrocarPeriodo();
 }
 
 function ativarModalPersonalizado() {
@@ -2510,8 +2554,8 @@ function openModal(mlb, conta) {
   document.getElementById('m-mlb').textContent = mlb;
   document.getElementById('m-sku').textContent = p.sku || 'Sem SKU';
 
-  // Sempre abre com 7D (o sync do período atualiza o modal em seguida)
-  setModalPreset(7, document.getElementById('mpb-7'));
+  // Abre com 7D lido dos dados salvos (sem consultar o ML); o 30D fixo também vem dos dados salvos
+  _modalAplicarPreset(7, document.getElementById('mpb-7'));
 
   // Botão sync lê datas do modal no momento do clique
   const btnSync = document.getElementById('btn-sync-produto');
@@ -2565,8 +2609,8 @@ function renderModalContent(mlb, conta) {
     btnArqMC.style.color = isArq ? 'var(--muted2)' : 'var(--gold)';
   }
 
-  const per  = dbProd.periodo || {};
-  const prev = dbProd.anterior || {};
+  // Período do modal sai dos dias salvos (mesma fonte da faixa de 30 dias); só cai no período da página se não houver dias
+  const per  = agregarPeriodoLocal(rawDB[conta]?.[mlb], de, ate) || dbProd.periodo || {};
   _modalPer = per; _tacos30 = 0;
 
   // ── Faixa fixa: ADS dos últimos 30 dias fechados (não depende do seletor) ──
@@ -2579,7 +2623,7 @@ function renderModalContent(mlb, conta) {
   // unidades por ADS: valor exato quando o último sync foi de 30 dias; senão estimativa pela fatia da receita
   let vAds30 = a30.vendas_com_ads || 0, aprox = false;
   if (!vAds30 && un30 > 0 && rec30 > 0 && recAds30 > 0) { vAds30 = Math.round(un30 * Math.min(1, recAds30 / rec30)); aprox = true; }
-  const vOrg30 = Math.max(0, un30 - vAds30);
+  const vOrg30 = Math.max(0, un30 - vAds30);   // orgânicas: pendente (definição a fechar com o ML)
   _tacos30 = rec30 > 0 ? ads30 / rec30 : 0;
   // ROAS objetivo: o que está setado na campanha do ML (vem do último sync do anúncio)
   const roasObj = dbProd.roas_objetivo_ml;
@@ -2603,8 +2647,7 @@ function renderModalContent(mlb, conta) {
   const conv = o => o.conversao > 0 ? o.conversao : (o.visitas > 0 ? o.qtd_vendas / o.visitas : 0);
   const preparar = o => ({...o, ctr_c: ctrDe(o)/100, cpc_c: cpcDe(o), vads: comAds(o), preco_c: o.unidades > 0 ? o.receita/o.unidades : 0, conv_c: conv(o), dias: diasPer});
   // P2 (período anterior): usa o sync da sessão quando existe; senão monta pelos dias já salvos (não depende de novo sync)
-  const prevSync = dbProd.anterior && Object.keys(dbProd.anterior).length ? dbProd.anterior : null;
-  const prevAgg = prevSync || (prevDe && prevAte ? agregarPeriodoLocal(rawDB[conta]?.[mlb], prevDe, prevAte) : null) || {};
+  const prevAgg = (prevDe && prevAte ? agregarPeriodoLocal(rawDB[conta]?.[mlb], prevDe, prevAte) : null) || {};
   const A = preparar(per), B = preparar(prevAgg);
   const dec2 = v => Number(v||0).toFixed(2).replace('.', ',');
   // P3 e P4: os dois períodos anteriores ao P2, agregados dos dias já sincronizados (sem dados -> traço)
