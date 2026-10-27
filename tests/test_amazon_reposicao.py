@@ -77,3 +77,20 @@ class CompararAmazon(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestCaixaMaster(unittest.TestCase):
+    def test_sem_caixa_devolve_sugestao_crua(self):
+        from marketplaces.amazon import reposicao
+        self.assertEqual(reposicao.sugestao_ajustada(7, None), 7)
+        self.assertEqual(reposicao.sugestao_ajustada(7, 0), 7)
+
+    def test_arredonda_para_cima_em_multiplos_da_caixa(self):
+        from marketplaces.amazon import reposicao
+        self.assertEqual(reposicao.sugestao_ajustada(7, 6), 12)
+        self.assertEqual(reposicao.sugestao_ajustada(12, 6), 12)
+        self.assertEqual(reposicao.sugestao_ajustada(1, 24), 24)
+
+    def test_sem_reposicao_nao_ajusta(self):
+        from marketplaces.amazon import reposicao
+        self.assertEqual(reposicao.sugestao_ajustada(0, 6), 0)

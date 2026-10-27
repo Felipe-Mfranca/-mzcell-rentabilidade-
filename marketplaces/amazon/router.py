@@ -1,6 +1,6 @@
 """
 marketplaces/amazon/router.py — Endpoints /amazon/* (somente leitura)
-MZCell Rentabilidade
+MZ App
 
 Montado no main.py com app.include_router(). Handlers são `def` e não `async def`:
 o cliente em api.py usa httpx síncrono (como o do Bling), e o FastAPI roda `def`
@@ -11,13 +11,25 @@ Nenhuma rota devolve credencial. Hoje o backend não aplica o role do usuário
 """
 
 import io
+import json
+import os
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
-from marketplaces.amazon import ads, api, custos_xlsx, diagnostico, painel, rentabilidade, reposicao
+from marketplaces.amazon import api, custos_xlsx, diagnostico, painel, rentabilidade, reposicao
 
 router = APIRouter(prefix="/amazon", tags=["amazon"])
+
+
+def _opcional(nome: str):
+    """ads e promocoes entram só quando a rota é usada: se a instalação ainda não tiver o arquivo,
+    só esta rota avisa e o resto do módulo Amazon continua funcionando."""
+    import importlib
+    try:
+        return importlib.import_module(f"marketplaces.amazon.{nome}")
+    except ImportError:
+        raise HTTPException(status_code=503, detail=f"recurso indisponível nesta instalação ({nome}); atualize o app")
 
 
 def _http(e: api.ErroAmazon):
@@ -51,6 +63,95 @@ def estoque(conta: str):
     return {"conta": conta, "total_asins": len(itens), "itens": itens}
 
 
+_inventario = {}            # {conta: (instante, itens)}: o inventário FBA da conta vale 30 min no modal
+INVENTARIO_VALIDADE_S = 30 * 60
+
+
+_fotos = {}                       # {asin: (instante, url)}: foto principal, vale 7 dias
+FOTOS_VALIDADE_S = 7 * 86400
+
+
+def _foto_principal(corpo: dict):
+    """Maior imagem MAIN do catálogo (variante principal, na maior resolução)."""
+    melhor = None
+    for bloco in corpo.get("images") or []:
+        for img in bloco.get("images") or []:
+            if img.get("variant") != "MAIN" or not img.get("link"):
+                continue
+            if melhor is None or (img.get("width") or 0) > (melhor.get("width") or 0):
+                melhor = img
+    return melhor.get("link") if melhor else None
+
+
+FOTOS_SKU_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "amazon_fotos_sku.json")
+
+
+@router.get("/foto-sku/{conta}")
+def foto_sku(conta: str, sku: str, asin: str = ""):
+    """Foto do anúncio na Amazon: 1) foto principal do catálogo (pelo ASIN), que é a do próprio anúncio;
+    2) reserva: foto do Meli de um SKU igual ou de um irmão do mesmo ASIN (banco amazon_fotos_sku.json)."""
+    if asin:
+        r = fotos_asins(conta, asin).get(asin)
+        if r:
+            return {"sku": sku, "foto": r, "origem": "amazon", "meli": None}
+    try:
+        with open(FOTOS_SKU_PATH, encoding="utf-8") as f:
+            banco = json.load(f).get(conta, {})
+    except FileNotFoundError:
+        banco = {}
+    hit = banco.get(sku)
+    if hit and hit.get("foto"):
+        return {"sku": sku, "foto": hit["foto"], "origem": "meli_" + hit["origem"], "meli": hit.get("meli")}
+    return {"sku": sku, "foto": None, "origem": "sem_foto"}
+
+
+@router.get("/fotos/{conta}")
+def fotos_asins(conta: str, asins: str):
+    """{asin: url} da foto principal, pelo catálogo da Amazon (includedData=images). Consulta só o que falta no cache."""
+    import time
+    out, agora = {}, time.time()
+    mkt = api.conta_cfg(conta).get("marketplace_id")
+    for asin in [a.strip() for a in asins.split(",") if a.strip()][:20]:
+        hit = _fotos.get(asin)
+        if hit and agora - hit[0] < FOTOS_VALIDADE_S:
+            out[asin] = hit[1]
+            continue
+        try:
+            status, corpo = api.get(conta, f"/catalog/2022-04-01/items/{asin}",
+                                    marketplaceIds=mkt, includedData="images")
+        except api.ErroAmazon:
+            continue                       # foto indisponível não derruba o modal
+        url = _foto_principal(corpo) if status == 200 else None
+        if url:
+            _fotos[asin] = (agora, url)
+            out[asin] = url
+    return out
+
+
+@router.get("/full/{conta}")
+def full_asin(conta: str, asin: str):
+    """Equivalente do aviso de Full do Meli para um ASIN: saldo FBA (disponível + a caminho), média dos
+    últimos 7 dias e cobertura, com o mesmo nível do Meli (zerado / crítico < 10 dias / atenção 10 a 15)."""
+    import time
+    import full_alerta
+    try:
+        quando, itens = _inventario.get(conta, (0, None))
+        if itens is None or time.time() - quando > INVENTARIO_VALIDADE_S:
+            itens = api.estoque_fba(conta)
+            _inventario[conta] = (time.time(), itens)
+        item = next((i for i in itens if i.get("asin") == asin), None)
+        if item is None:
+            return {"asin": asin, "no_fba": False}
+        vel = api.vendas_asin(conta, asin)
+    except api.ErroAmazon as e:
+        raise _http(e)
+    saldo = item.get("estoque_valido", 0) or 0
+    media = round((vel.get("vendido_7d") or 0) / 7, 2)
+    nivel, dias = full_alerta.classificar(saldo, media, True, (vel.get("vendido_30d") or 0) > 0)
+    return {"asin": asin, "no_fba": True, "saldo": saldo, "disponivel": item.get("disponivel", 0),
+            "em_transito": item.get("em_transito", 0), "media_7d": media, "dias_cobertura": dias, "nivel": nivel}
+
+
 @router.get("/vendas/{conta}")
 def vendas(conta: str, asin: str, rede: str = None):
     try:
@@ -68,6 +169,18 @@ def rentabilidade_conta(conta: str, dias: int = 30):
         return rentabilidade.apurar(conta, dias)
     except api.ErroAmazon as e:
         raise _http(e)
+
+
+@router.post("/reposicao/{conta}/caixa")
+def reposicao_caixa(conta: str, body: dict):
+    """Salva a caixa master de um ASIN (caixa vazia ou 0 remove o ajuste)."""
+    asin = str(body.get("asin", "")).strip()
+    caixa = body.get("caixa")
+    if not asin:
+        raise HTTPException(status_code=400, detail="asin obrigatório")
+    if caixa not in (None, "") and (not str(caixa).isdigit() or int(caixa) > 100000):
+        raise HTTPException(status_code=400, detail="caixa deve ser um número inteiro de unidades")
+    return {"asin": asin, "caixa": reposicao.salvar_caixa(conta, asin, caixa or None).get(asin)}
 
 
 @router.get("/reposicao/{conta}")
@@ -201,6 +314,17 @@ def ads_do_periodo(conta: str, de: str, ate: str):
     try:
         api.conta_cfg(conta)
         painel._validar(de, ate)
-        return {"conta": conta, "periodo": {"de": de, "ate": ate}, "por_asin": ads.ads_por_asin(conta, de, ate)}
+        return {"conta": conta, "periodo": {"de": de, "ate": ate}, "por_asin": _opcional("ads").ads_por_asin(conta, de, ate)}
+    except api.ErroAmazon as e:
+        raise _http(e)
+
+
+@router.get("/promocoes/{conta}")
+def promocoes_do_periodo(conta: str, de: str, ate: str):
+    """Descontos de promoção, frete e preços que mudaram no período (relatório de pedidos). Somente leitura."""
+    try:
+        api.conta_cfg(conta)
+        painel._validar(de, ate)
+        return _opcional("promocoes").promocoes_do_periodo(conta, de, ate)
     except api.ErroAmazon as e:
         raise _http(e)

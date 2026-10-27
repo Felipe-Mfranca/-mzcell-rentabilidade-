@@ -833,9 +833,9 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       </div>
     </div>
     <div class="content">
-      <div class="tab active" id="tab-meli01"><div id="painel-meli01"></div></div>
-      <div class="tab" id="tab-meli02"><div id="painel-meli02"></div></div>
-      <div class="tab" id="tab-meli03"><div id="painel-meli03"></div></div>
+      <div class="tab active" id="tab-meli01"><div id="painel-meli01"></div><div style="margin-top:18px"><div class="periodo-label" style="margin-bottom:6px">Ranking — posição no ML</div><iframe id="frame-radar-meli01" class="tab-frame" title="Ranking meli01" style="width:100%;height:900px;border:0"></iframe></div></div>
+      <div class="tab" id="tab-meli02"><div id="painel-meli02"></div><div style="margin-top:18px"><div class="periodo-label" style="margin-bottom:6px">Ranking — posição no ML</div><iframe id="frame-radar-meli02" class="tab-frame" title="Ranking meli02" style="width:100%;height:900px;border:0"></iframe></div></div>
+      <div class="tab" id="tab-meli03"><div id="painel-meli03"></div><div style="margin-top:18px"><div class="periodo-label" style="margin-bottom:6px">Ranking — posição no ML</div><iframe id="frame-radar-meli03" class="tab-frame" title="Ranking meli03" style="width:100%;height:900px;border:0"></iframe></div></div>
       <div class="tab" id="tab-expedicao"><iframe id="frame-expedicao" class="tab-frame" title="Expedição"></iframe></div>
       <div class="tab" id="tab-sac">
         <div class="sac-barra">
@@ -865,8 +865,8 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
         </div>
         <div id="sac-corpo"></div>
       </div>
-      <div class="tab" id="tab-amazon01"><div id="painel-amazon01"></div></div>
-      <div class="tab" id="tab-amazon02"><div id="painel-amazon02"></div></div>
+      <div class="tab" id="tab-amazon01"><div id="repo-amazon01"></div><div id="painel-amazon01"></div></div>
+      <div class="tab" id="tab-amazon02"><div id="repo-amazon02"></div><div id="painel-amazon02"></div></div>
       <div class="tab" id="tab-shopee"><div id="painel-shopee"></div></div>
       <div class="tab" id="tab-magalu"><div class="periodo-card" style="margin:24px"><span class="periodo-label">Magalu</span><span class="sac-mut">Em construção</span></div></div>
       <div class="tab" id="tab-config">
@@ -984,10 +984,19 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
 </div>
 
 <!-- MODAL SKU AMAZON -->
+<div class="overlay" id="modal-repo">
+  <div class="modal modal-wide">
+    <button class="modal-close" onclick="amzFecharReposicao()">✕</button>
+    <div class="modal-header"><div class="modal-header-info"><div class="modal-prod" id="repo-titulo">Reposição FBA</div><div class="modal-meta"><span style="font-size:12px;color:var(--text-muted,#6b7280)">Sugestão por ASIN. Caixa master é salva por ASIN.</span></div></div></div>
+    <div class="periodo-card"><button class="modal-preset" id="repo-btn-calc" onclick="amzCarregarReposicao(_repoConta, this)">Calcular</button><span style="font-size:12px;color:#6b7280">Demora: uma consulta de vendas por ASIN.</span></div>
+    <div id="repo-corpo"></div>
+  </div>
+</div>
 <div class="overlay" id="modal-amz">
   <div class="modal modal-wide">
     <button class="modal-close" onclick="amzFechar()">✕</button>
     <div class="modal-header">
+      <img id="amz-foto" class="foto-m" style="display:none" alt="">
       <div class="modal-header-info">
         <div class="modal-prod" id="amz-title"></div>
         <div class="modal-meta"><span class="modal-sku" id="amz-sku"></span><span style="color:var(--border2)">·</span><span class="modal-mlb" id="amz-asin"></span></div>
@@ -1299,6 +1308,7 @@ function switchTab(tab, btn) {
   if(tab==='config'){ loadConfig(); cmvCarregarStatus(); }
   if(tab==='amazon01'||tab==='amazon02') amzAbrirAba(tab);
   if(tab==='shopee') shopeeAbrirAba();
+  if(/^meli0[123]$/.test(tab)) radarCarregar(tab);
   if(tab==='expedicao'){ const f=document.getElementById('frame-expedicao'); if(!f.getAttribute('src')) f.setAttribute('src',`${API}/expedicao`); }
   if(tab==='sac' && !window._sacIniciado){ window._sacIniciado=true; sacIr('geral'); }
 }
@@ -1371,7 +1381,85 @@ function amzFechado(dias) {
   const ate = new Date(agora - 86400000);
   return {de: amzYmd(new Date(ate - (dias-1)*86400000)), ate: amzYmd(ate)};
 }
+// ── REPOSIÇÃO FBA (tela por ASIN; caixa master ajustável; só leitura na Amazon) ──
+function amzEscHtml(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function amzMontarReposicao(conta) {
+  const box = document.getElementById(`repo-${conta}`);
+  if (!box || box.dataset.pronto) return;
+  box.dataset.pronto = '1';
+  box.innerHTML = `
+    <div class="periodo-card" style="margin-bottom:16px">
+      <span class="periodo-label">Reposição FBA</span>
+      <button class="modal-preset" onclick="amzAbrirReposicao('${conta}')">Abrir reposição FBA</button>
+    </div>`;
+}
+let _repoConta = null;
+function amzAbrirReposicao(conta) {
+  _repoConta = conta;
+  document.getElementById('repo-titulo').textContent = `Reposição FBA — ${conta}`;
+  document.getElementById('repo-corpo').innerHTML = `<div id="repo-tabela-${conta}"></div>`;
+  document.getElementById('repo-btn-calc').disabled = false;
+  document.getElementById('repo-btn-calc').textContent = 'Calcular';
+  document.getElementById('modal-repo').classList.add('open');
+}
+function amzFecharReposicao() { document.getElementById('modal-repo').classList.remove('open'); _repoConta = null; }
+document.getElementById('modal-repo').addEventListener('click', function(e){ if (e.target === this) amzFecharReposicao(); });
+function amzLinhaReposicao(conta, l) {
+  const sit = l.situacao === 'REPOR' ? 'color:#991b1b;font-weight:600' : (l.situacao.startsWith('RUPTURA') ? 'color:#991b1b;font-weight:700' : 'color:#6b7280');
+  const cob = l.cobertura_dias == null ? '—' : l.cobertura_dias.toFixed(1);
+  return `<tr data-asin="${amzEscHtml(l.asin)}">
+    <td>${amzEscHtml(l.asin)}</td>
+    <td title="${amzEscHtml(l.titulo)}">${amzEscHtml((l.titulo || '').slice(0, 50))}</td>
+    <td style="text-align:right">${l.velocidade.toFixed(2)}</td>
+    <td style="text-align:right">${l.estoque_valido}</td>
+    <td style="text-align:right">${cob}</td>
+    <td style="text-align:right">${l.sugestao}</td>
+    <td style="text-align:right"><input type="number" min="1" step="1" value="${l.caixa ?? ''}" style="width:70px" onchange="amzSalvarCaixa('${conta}', '${amzEscHtml(l.asin)}', this)"></td>
+    <td style="text-align:right;font-weight:600" class="repo-ajustada">${l.sugestao_ajustada}</td>
+    <td style="${sit}">${amzEscHtml(l.situacao)}</td>
+  </tr>`;
+}
+async function amzCarregarReposicao(conta, btn) {
+  const alvo = document.getElementById(`repo-tabela-${conta}`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Calculando…'; }
+  alvo.innerHTML = '<div style="padding:12px;color:#6b7280">Consultando a Amazon. Pode levar alguns minutos.</div>';
+  try {
+    const r = await fetch(`${API}/amazon/reposicao/${conta}`);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'erro');
+    alvo.innerHTML = `
+      <div style="margin:10px 0;font-size:13px">ASINs: <b>${d.total_asins}</b> · A repor: <b>${d.a_repor}</b> · Unidades sugeridas: <b>${d.unidades_sugeridas}</b> · Com caixa master: <b id="repo-total-${conta}">${d.unidades_ajustadas}</b> · Meta: ${d.meta_dias} dias${d.comparativo_amazon ? '' : ' · sem conferência da Amazon'}</div>
+      <div style="overflow-x:auto"><table class="tbl">
+        <thead><tr><th>ASIN</th><th>Produto</th><th style="text-align:right">Vel./dia</th><th style="text-align:right">Estoque válido</th><th style="text-align:right">Cobertura (dias)</th><th style="text-align:right">Sugestão</th><th style="text-align:right">Caixa master</th><th style="text-align:right">Sugerido (ajustado)</th><th>Situação</th></tr></thead>
+        <tbody>${d.itens.map(l => amzLinhaReposicao(conta, l)).join('')}</tbody>
+      </table></div>`;
+  } catch (e) {
+    alvo.innerHTML = `<div style="padding:12px;color:#991b1b">Erro ao calcular a reposição: ${amzEscHtml(e.message)}</div>`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Calcular'; }
+  }
+}
+async function amzSalvarCaixa(conta, asin, input) {
+  const v = input.value.trim();
+  try {
+    const r = await fetch(`${API}/amazon/reposicao/${conta}/caixa`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({asin, caixa: v === '' ? null : Number(v)})});
+    if (!r.ok) throw new Error((await r.json()).detail || 'erro');
+    const linha = input.closest('tr');
+    const sug = Number(linha.children[5].textContent);
+    const caixa = v === '' ? 0 : Number(v);
+    const ajustada = caixa > 0 && sug > 0 ? Math.ceil(sug / caixa) * caixa : sug;
+    linha.querySelector('.repo-ajustada').textContent = ajustada;
+    const tot = document.querySelectorAll(`#repo-tabela-${conta} .repo-ajustada`);
+    let soma = 0; tot.forEach(td => soma += Number(td.textContent));
+    document.getElementById(`repo-total-${conta}`).textContent = soma;
+    toast(`Caixa de ${asin} salva`);
+  } catch (e) {
+    toast('Erro ao salvar a caixa: ' + e.message, 'error');
+  }
+}
+
 function amzAbrirAba(conta) {
+  amzMontarReposicao(conta);
   if (!AMZ[conta]) {
     AMZ[conta] = {dias: 30, dados: null};
     document.getElementById(`painel-${conta}`).innerHTML = `
@@ -1549,6 +1637,17 @@ async function amzCarregarAds(d) {
   if (_amz) _amz.invs = invs;
   amzMontarAdsTab(d);
 }
+// Foto principal do ASIN no cabeçalho do modal (mesmo lugar da foto de capa do Meli)
+async function amzMostrarFoto(d) {
+  const im = document.getElementById('amz-foto'); if (!im) return;
+  im.style.display = 'none';
+  if (!d.asin) return;
+  try {
+    const r = await (await fetch(`${API}/amazon/foto-sku/${d.conta}?sku=${encodeURIComponent(d.sku)}&asin=${encodeURIComponent(d.asin || '')}`)).json();
+    if (document.getElementById('amz-sku').textContent !== d.sku) return;   // o modal mudou de SKU
+    if (r.foto) { im.src = r.foto; im.style.display = ''; }
+  } catch(e) {}
+}
 // Estoque FBA no modal (equivalente ao aviso de Full do Meli): saldo, média de 7 dias e cobertura, mesmos níveis
 async function amzMostrarFull(d) {
   const box = document.getElementById('amz-aviso-full'); if (!box) return;
@@ -1591,6 +1690,7 @@ function amzDesenharModal(d) {
   btnLink.disabled = !d.asin;
   btnLink.onclick = () => abrirLink('https://www.amazon.com.br/dp/' + d.asin);
   amzMostrarFull(d);
+  amzMostrarFoto(d);
   document.getElementById('amz-strip').style.setProperty('--cols', 8);
   document.getElementById('amz-strip').innerHTML = ['Vendas por ADS', 'Vendas orgânicas', 'Receita por ADS', 'Investimento', 'ACOS', 'TACOS', 'ROAS', 'ROAS objetivo']
     .map(l => `<div class="mx-kpi"><div class="mx-kpi-l">${l}</div><div class="mx-kpi-v">${nd}</div></div>`).join('');
@@ -2716,6 +2816,7 @@ function renderModalContent(mlb, conta) {
             <input type="number" id="pos-num" value="${pos.posicao||''}" min="1" max="99" style="width:56px" placeholder="Posição" title="Posição"/>
             <input type="text" id="pos-kw" value="${(pos.keyword||'').replace(/"/g,'&quot;')}" placeholder="Palavra-chave" style="flex:1;min-width:0"/>
             <button class="btn-sm" onclick="salvarPosicao('${mlb}','${conta}')">Salvar</button></div>
+          <div class="mx-pos2" id="radar-linha" style="display:none"></div>
         </section>
       </div>
       ${colSim}
@@ -2727,6 +2828,33 @@ function renderModalContent(mlb, conta) {
   calcSim(mlb, conta, false);
   carregarCustosML(mlb, conta);
   mapaCarregar();
+  radarModal(mlb, conta);
+}
+
+// Ranking (Radar ML): no modal só a página e a posição do termo principal; o detalhe fica na aba Ranking
+async function radarModal(mlb, conta) {
+  const el = document.getElementById('radar-linha'); if (!el) return;
+  try {
+    const d = await (await fetch(`${API}/radar/produto/${conta}/${mlb}`)).json();
+    if (_modalMlb !== mlb) return;                       // o modal já mudou de anúncio
+    const r = d.principal, link = `<a onclick="radarAbrir('${conta}','${mlb}')" style="cursor:pointer;color:var(--gold)">${d.monitorado ? 'Detalhes' : 'Acompanhar'} ↗</a>`;
+    const kw = (d.keyword_principal || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    let txt = 'não acompanhado';
+    if (d.monitorado) txt = !r || !r.verificado_em ? `aguardando 1ª verificação · «${kw}»`
+      : r.posicao != null ? `<b style="color:var(--text)">Página ${String(r.pagina).padStart(2, '0')} · posição #${r.posicao}</b> · «${kw}»` : `fora das ${r.max_pagina || 20} primeiras páginas · «${kw}»`;
+    el.innerHTML = `<span>Ranking no ML: ${txt}</span>${link}`;
+    el.style.display = '';
+  } catch (e) { el.style.display = 'none'; }
+}
+function radarCarregar(conta, mlb) {
+  const f = document.getElementById(`frame-radar-${conta}`); if (!f) return;
+  const q = `?conta=${encodeURIComponent(conta)}` + (mlb ? `&mlb=${encodeURIComponent(mlb)}` : '');
+  if (mlb || !f.getAttribute('src')) f.setAttribute('src', `${API}/radar${q}`);
+}
+function radarAbrir(conta, mlb) {
+  closeModal();
+  switchTab(conta, document.querySelector(`button.nav-item[onclick="switchTab('${conta}',this)"]`));
+  radarCarregar(conta, mlb);
 }
 
 // Seletor COM ST / SEM ST: aplica a alíquota da conta ao imposto e grava no produto

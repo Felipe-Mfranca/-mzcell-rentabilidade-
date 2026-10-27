@@ -83,6 +83,7 @@ cmv_base.json
 
 # Cache local do painel Amazon
 amazon_cache_*.json
+amazon_reposicao_caixas_*.json
 amazon_trafego_*.json
 
 # PIVO (cache e marcacoes locais)
@@ -104,3 +105,14 @@ dist/
 
 # dados de uso compartilhados (tags de análise, logins e comentários): não sobem
 tags_compartilhadas.json
+
+# Radar ML (dados, configuração e perfil do navegador do robô: locais)
+radar_ml.json
+radar_config.json
+radar_perfil/
+radar_perfil_firefox/
+radar_perfil_brave/
+
+financeiro.db
+
+captura_log.txt

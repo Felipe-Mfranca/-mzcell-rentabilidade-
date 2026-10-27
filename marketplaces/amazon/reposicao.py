@@ -1,6 +1,6 @@
 """
 marketplaces/amazon/reposicao.py — Reposição de estoque FBA (somente leitura)
-MZCell Rentabilidade
+MZ App
 
 Uso:  .\\venv\\Scripts\\python.exe -m marketplaces.amazon.reposicao amazon02 [--meta 20] [--sem-amazon]
 
@@ -18,7 +18,9 @@ Regras:
     sugestão é só nossa.
 """
 
+import json
 import math
+import os
 import sys
 import time
 
@@ -57,6 +59,41 @@ def sugerir(item: dict, vel: dict, meta_dias: float) -> dict:
         "cobertura_dias": cobertura, "cobertura_disponivel_dias": cobertura_disp,
         "situacao": situacao,
     }
+
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def _caixas_path(conta_id: str) -> str:
+    return os.path.join(BASE_DIR, f"amazon_reposicao_caixas_{conta_id}.json")
+
+
+def carregar_caixas(conta_id: str) -> dict:
+    """Caixa master por ASIN (unidades por caixa). Arquivo local, gitignored."""
+    try:
+        with open(_caixas_path(conta_id), encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def salvar_caixa(conta_id: str, asin: str, caixa) -> dict:
+    """caixa None ou 0 remove o ajuste. Devolve o mapa salvo."""
+    mapa = carregar_caixas(conta_id)
+    if caixa is None or int(caixa) <= 0:
+        mapa.pop(asin, None)
+    else:
+        mapa[asin] = int(caixa)
+    with open(_caixas_path(conta_id), "w", encoding="utf-8") as f:
+        json.dump(mapa, f, ensure_ascii=False, indent=1)
+    return mapa
+
+
+def sugestao_ajustada(sugestao: int, caixa) -> int:
+    """Arredonda a sugestão para cima, em múltiplos da caixa master. Sem caixa, devolve a sugestão crua."""
+    if not caixa or sugestao <= 0:
+        return sugestao
+    return math.ceil(sugestao / caixa) * caixa
 
 
 def ordenar(linhas: list) -> list:
@@ -116,11 +153,16 @@ def apurar(conta_id: str, meta_dias: float = None, com_amazon: bool = True, prog
             comparou = True
         except api.ErroAmazon as e:
             log(f"comparativo com a Amazon indisponível: {e}")
+    caixas = carregar_caixas(conta_id)
+    for l in linhas:
+        l["caixa"] = caixas.get(l["asin"])
+        l["sugestao_ajustada"] = sugestao_ajustada(l["sugestao"], l["caixa"])
     linhas = ordenar(linhas)
     return {"conta": conta_id, "meta_dias": meta_dias, "comparativo_amazon": comparou,
             "total_asins": len(linhas),
             "a_repor": sum(1 for l in linhas if l["sugestao"] > 0),
-            "unidades_sugeridas": sum(l["sugestao"] for l in linhas), "itens": linhas}
+            "unidades_sugeridas": sum(l["sugestao"] for l in linhas),
+            "unidades_ajustadas": sum(l["sugestao_ajustada"] for l in linhas), "itens": linhas}
 
 
 def formatar(r: dict) -> str:
