@@ -465,11 +465,13 @@ html:not([data-tema="claro"]) .mxt-pill.up{color:#4ade80;}html:not([data-tema="c
 .mx-pos2 input{height:26px;font-size:11px;padding:2px 6px;background:var(--bg2);border:1px solid var(--border2);color:var(--text);border-radius:8px;}
 /* aviso de rebot */
 .mx-rebot{display:inline-flex;align-items:center;gap:11px;padding:5px 15px 5px 5px;border-radius:14px;background:linear-gradient(135deg,#047857,#10b981 62%,#34d399);color:#fff;box-shadow:0 6px 18px rgba(16,185,129,.32);max-width:100%;}
+.mx-rebot{color:#e5e7eb;}
 .mx-rebot-v{background:rgba(255,255,255,.22);padding:7px 11px;border-radius:10px;font-weight:800;font-size:17px;line-height:1;white-space:nowrap;}
 .mx-rebot-v small{font-size:10px;font-weight:600;margin-left:2px;opacity:.9;}
 .mx-rebot-t{display:flex;flex-direction:column;line-height:1.25;font-size:11px;min-width:0;}
 .mx-rebot-t b{font-size:12.5px;}
 .mx-rebot-t span{opacity:.92;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mx-rebot.mx-rebot-nao{background:#e5e7eb;color:#374151;box-shadow:none;}
 /* PIVO */
 .mx-pivo{display:inline-flex;align-items:center;gap:9px;padding:5px 12px;border-radius:14px;background:var(--bg3);border:1px solid var(--border);box-shadow:0 4px 14px rgba(20,32,26,.07);}
 .mx-pivo .t{font-weight:800;letter-spacing:.08em;font-size:11px;color:var(--muted2);}
@@ -833,9 +835,9 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       </div>
     </div>
     <div class="content">
-      <div class="tab active" id="tab-meli01"><div id="painel-meli01"></div><div style="margin-top:18px"><div class="periodo-label" style="margin-bottom:6px">Ranking — posição no ML</div><iframe id="frame-radar-meli01" class="tab-frame" title="Ranking meli01" style="width:100%;height:900px;border:0"></iframe></div></div>
-      <div class="tab" id="tab-meli02"><div id="painel-meli02"></div><div style="margin-top:18px"><div class="periodo-label" style="margin-bottom:6px">Ranking — posição no ML</div><iframe id="frame-radar-meli02" class="tab-frame" title="Ranking meli02" style="width:100%;height:900px;border:0"></iframe></div></div>
-      <div class="tab" id="tab-meli03"><div id="painel-meli03"></div><div style="margin-top:18px"><div class="periodo-label" style="margin-bottom:6px">Ranking — posição no ML</div><iframe id="frame-radar-meli03" class="tab-frame" title="Ranking meli03" style="width:100%;height:900px;border:0"></iframe></div></div>
+      <div class="tab active" id="tab-meli01"><div id="painel-meli01"></div></div>
+      <div class="tab" id="tab-meli02"><div id="painel-meli02"></div></div>
+      <div class="tab" id="tab-meli03"><div id="painel-meli03"></div></div>
       <div class="tab" id="tab-expedicao"><iframe id="frame-expedicao" class="tab-frame" title="Expedição"></iframe></div>
       <div class="tab" id="tab-sac">
         <div class="sac-barra">
@@ -1330,7 +1332,6 @@ function switchTab(tab, btn) {
   if(tab==='config'){ loadConfig(); cmvCarregarStatus(); }
   if(tab==='amazon01'||tab==='amazon02') amzAbrirAba(tab);
   if(tab==='shopee') shopeeAbrirAba();
-  if(/^meli0[123]$/.test(tab)) radarCarregar(tab);
   if(tab==='expedicao'){ const f=document.getElementById('frame-expedicao'); if(!f.getAttribute('src')) f.setAttribute('src',`${API}/expedicao`); }
   if(tab==='sac' && !window._sacIniciado){ window._sacIniciado=true; sacIr('geral'); }
 }
@@ -2964,7 +2965,6 @@ function renderModalContent(mlb, conta) {
   calcSim(mlb, conta, false);
   carregarCustosML(mlb, conta);
   mapaCarregar();
-  radarModal(mlb, conta);
 }
 
 // Ranking (Radar ML): no modal só a página e a posição do termo principal; o detalhe fica na aba Ranking
@@ -3104,7 +3104,7 @@ function mostrarAvisoRebot(o, naoVale) {
   // sem oportunidade: aviso cinza com o motivo de cada campanha do ML descartada (não aparece em verde)
   if (!o || o.empate || !(o.ganho_un > 0)) {
     const motivos = (naoVale || []).map(x => `«${sacEsc(x.nome || '')}»: ${sacEsc(x.motivo || '')}`).join(' · ');
-    box.innerHTML = motivos ? `<span class="mx-rebot mx-rebot-nao" title="${motivos}" style="border-color:var(--border2);color:var(--muted2);opacity:.85"><span class="mx-rebot-t"><b>Rebot não vale a pena</b><span>${motivos}</span></span></span>` : '';
+    box.innerHTML = motivos ? `<span class="mx-rebot mx-rebot-nao" title="${motivos}"><span class="mx-rebot-t"><b>Rebot não vale a pena</b><span>${motivos}</span></span></span>` : '';
     return;
   }
   const dt = x => x ? x.split('-').reverse().slice(0,2).join('/') : '';
@@ -3338,7 +3338,7 @@ async function carregarCustosML(mlb, conta) {
     if(!r.ok) throw new Error(r.status);
     const d=await r.json();
     _custosML[mlb]=d;
-    if(document.getElementById('sim-real')!==box) return;   // modal trocou de produto
+    if(_modalMlb!==mlb || _modalConta!==conta) return;   // modal trocou de produto ou de conta: resposta antiga descartada
     const v=d.ultima_venda, c=d.campanha_ativa;
     const origem = v ? `última venda de ${v.data} (${v.logistica==='fulfillment'?'Full':v.logistica})` : 'dados do anúncio (sem venda recente)';
     const camp = c ? `Campanha ativa: <b>${c.nome||c.tipo}</b> <small>(${c.tipo}${c.meli_pct?`, ML paga ${c.meli_pct}%`:', sem rebot'})</small>` : 'Sem campanha ativa';
@@ -3350,7 +3350,7 @@ CMV base do SKU: ${d.cmv_referencia!=null?brl2(d.cmv_referencia):'sem base (impo
     mostrarAvisoRebot(d.oportunidade, d.nao_vale);
     aplicarCustosReais(mlb, conta);   // sempre: preço vigente, comissão, frete e rebot do ML (mesmo com cenário salvo)
   } catch(e) {
-    if(document.getElementById('sim-real')===box)
+    if(_modalMlb===mlb && _modalConta===conta)
       box.textContent='Custos reais do ML indisponíveis — usando os valores cadastrados.';
   }
 }
