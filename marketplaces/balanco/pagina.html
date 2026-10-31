@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Balanço do estoque</title>
+<style>
+  @page { margin: 10mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; font-size: 13px; color: #111; margin: 16px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 18px 0 6px; }
+  .sub { color: #555; margin-bottom: 10px; }
+  .barra { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+  button { padding: 6px 12px; border: 1px solid #888; background: #f3f4f6; border-radius: 6px; cursor: pointer; }
+  input[type=search] { padding: 6px 10px; border: 1px solid #aaa; border-radius: 6px; min-width: 240px; }
+  .trava { padding: 10px 12px; border-radius: 8px; margin: 10px 0; border: 1px solid; }
+  .trava.ok { background: #ecfdf5; border-color: #34d399; color: #065f46; }
+  .trava.no { background: #fef2f2; border-color: #f87171; color: #991b1b; }
+  .trava.ca { background: #fffbeb; border-color: #fbbf24; color: #92400e; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #bbb; padding: 4px 6px; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; font-size: 12px; }
+  td.n { text-align: right; white-space: nowrap; }
+  td.sk { font-family: Consolas, monospace; white-space: nowrap; }
+  td.cont { width: 80px; }
+  .peq { color: #666; font-size: 11px; }
+  .neg { color: #b91c1c; font-weight: bold; }
+  @media print { .nao-imprime { display: none; } body { margin: 0; } tr { page-break-inside: avoid; } }
+</style>
+</head>
+<body>
+<h1>Balanço do estoque</h1>
+<div class="sub" id="sub">Carregando…</div>
+
+<div class="nao-imprime">
+  <div id="trava" class="trava ca">Conferindo se todos os pedidos do dia foram enviados…</div>
+  <div class="barra">
+    <input type="search" id="busca" placeholder="Buscar SKU ou produto" oninput="desenhar()">
+    <button onclick="window.print()">Imprimir</button>
+    <button onclick="atualizarCatalogo()">Atualizar categorias e composições</button>
+    <span id="estado" class="peq"></span>
+  </div>
+</div>
+
+<div id="listas"></div>
+
+<script>
+var dados = null;
+function esc(t) { return String(t == null ? "" : t).replace(/[&<>"]/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]; }); }
+function num(v) { return v == null ? "-" : '<span class="' + (v < 0 ? "neg" : "") + '">' + v + "</span>"; }
+
+function carregar() {
+  fetch("/balanco/dados").then(function (r) { return r.json(); }).then(function (d) {
+    dados = d;
+    var e = d.estado || {};
+    document.getElementById("estado").textContent = e.lendo ? "Lendo categorias e composições: " + e.feito + " de " + e.total + "…" : "";
+    document.getElementById("sub").textContent = "Uma linha por SKU físico com saldo em algum Bling (depósito Geral). Kits e clones não entram: só os componentes. Catálogo lido em " + (d.gerado_em ? d.gerado_em.replace("T", " ") : "ainda não lido") + ".";
+    desenhar();
+    if (e.lendo) setTimeout(carregar, 8000);
+  }).catch(function (err) { document.getElementById("sub").textContent = "Erro: " + err.message; });
+}
+
+function desenhar() {
+  if (!dados) return;
+  var q = document.getElementById("busca").value.trim().toLowerCase();
+  var ls = dados.linhas.filter(function (l) { return !q || (l.sku + " " + l.nome).toLowerCase().indexOf(q) >= 0; });
+  var html = "";
+  [["recorrente", "Recorrentes"], ["sazonal", "Sazonais"]].forEach(function (c) {
+    var g = ls.filter(function (l) { return l.classe === c[0]; });
+    html += "<h2>" + c[1] + " · " + g.length + " SKUs</h2>" +
+      "<table><tr><th>SKU</th><th>Produto</th><th>Categoria</th><th>Bling 01</th><th>Bling 02</th><th>Bling 03</th><th>Sistema</th><th>Contado</th></tr>" +
+      g.map(function (l) {
+        var kits = l.n_kits ? '<div class="peq">componente de ' + l.n_kits + " kit(s)</div>" : "";
+        return "<tr><td class='sk'>" + esc(l.sku) + "</td><td>" + esc(l.nome.slice(0, 60)) + kits + "</td><td class='peq'>" + esc(l.categoria) + "</td>" +
+          "<td class='n'>" + num(l.bling.bling01) + "</td><td class='n'>" + num(l.bling.bling02) + "</td><td class='n'>" + num(l.bling.bling03) + "</td>" +
+          "<td class='n'><b>" + num(l.total) + "</b></td><td class='cont'></td></tr>";
+      }).join("") + "</table>";
+  });
+  document.getElementById("listas").innerHTML = html;
+}
+
+function atualizarCatalogo() {
+  fetch("/balanco/atualizar", {method: "POST"}).then(function () { setTimeout(carregar, 2000); });
+}
+
+// Trava do dia: pedidos que ainda não foram embalados e conferidos (checkout) e cancelamentos pendentes no Bling
+function conferirPedidos() {
+  var box = document.getElementById("trava");
+  Promise.all([
+    fetch("/expedicao/galpao").then(function (r) { return r.json(); }),
+    fetch("/expedicao/cancelamentos").then(function (r) { return r.json(); })
+  ]).then(function (rs) {
+    var linhas = rs[0].linhas || [], canc = rs[1].pendentes || [];
+    var pend = linhas.filter(function (l) { return !l.bling_checkout && l.bling_situacao !== "Atendido" && l.bling_situacao !== "Cancelado"; });
+    var porConta = {};
+    pend.forEach(function (l) { porConta[l.conta] = (porConta[l.conta] || 0) + 1; });
+    var txt = Object.keys(porConta).sort().map(function (c) { return c.toUpperCase() + ": " + porConta[c]; }).join(" · ");
+    var erro = (rs[0].erros_bling && Object.keys(rs[0].erros_bling).length) ? " (atenção: Bling sem resposta em " + Object.keys(rs[0].erros_bling).join(", ") + ", o resultado pode estar incompleto)" : "";
+    if (pend.length) {
+      box.className = "trava no";
+      box.innerHTML = "<b>Ainda há " + pend.length + " pedido(s) para enviar hoje</b> (sem checkout no Bling) — " + esc(txt) + ". Termine a expedição antes de finalizar o balanço." + erro;
+    } else if (canc.length) {
+      box.className = "trava ca";
+      box.innerHTML = "<b>Todos os pedidos do dia têm checkout.</b> Mas há " + canc.length + " cancelamento(s) do ML ainda ativos no Bling: cancele-os antes de lançar o balanço." + erro;
+    } else {
+      box.className = "trava ok";
+      box.innerHTML = "<b>Pode contar:</b> todos os pedidos do dia têm checkout e não há cancelamento pendente no Bling." + erro;
+    }
+  }).catch(function (e) { box.className = "trava no"; box.textContent = "Não consegui conferir os pedidos do dia: " + e.message; });
+}
+carregar();
+conferirPedidos();
+</script>
+</body>
+</html>
