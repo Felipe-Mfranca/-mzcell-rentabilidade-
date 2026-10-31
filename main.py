@@ -109,6 +109,24 @@ try:
 except ImportError as e:
     print(f"[startup] Módulo Expedição indisponível: {e}")
 
+try:
+    from marketplaces.balanco.router import router as balanco_router
+    app.include_router(balanco_router)
+except ImportError as e:
+    print(f"[startup] Módulo Balanço indisponível: {e}")
+
+try:
+    from marketplaces.compras.router import router as compras_router
+    app.include_router(compras_router)
+except ImportError as e:
+    print(f"[startup] Módulo Compras indisponível: {e}")
+
+try:
+    from marketplaces.bling.router import router as bling_router
+    app.include_router(bling_router)
+except ImportError as e:
+    print(f"[startup] Módulo Bling indisponível: {e}")
+
 
 _syncs_em_andamento: set = set()
 

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Previsão de compras e reposição do Full</title>
+<style>
+  @page { margin: 10mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; font-size: 13px; color: #111; margin: 16px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 20px 0 6px; }
+  .sub { color: #555; margin-bottom: 10px; }
+  .barra { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+  button { padding: 6px 12px; border: 1px solid #888; background: #f3f4f6; border-radius: 6px; cursor: pointer; }
+  .cards { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
+  .card { border: 1px solid #ccc; border-radius: 8px; padding: 8px 14px; min-width: 150px; }
+  .card b { display: block; font-size: 20px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+  th, td { border: 1px solid #bbb; padding: 4px 6px; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; font-size: 12px; }
+  td.n { text-align: right; white-space: nowrap; }
+  td.sk { font-family: Consolas, monospace; white-space: nowrap; }
+  .peq { color: #666; font-size: 11px; }
+  .verm { color: #b91c1c; font-weight: bold; }
+  .aviso { padding: 8px 12px; border-radius: 8px; background: #fffbeb; border: 1px solid #fbbf24; color: #92400e; margin: 8px 0; }
+  @media print { .nao-imprime { display: none; } body { margin: 0; } tr { page-break-inside: avoid; } }
+</style>
+</head>
+<body>
+<h1>Previsão de compras e reposição do Full</h1>
+<div class="sub" id="sub">Carregando…</div>
+<div class="nao-imprime barra">
+  <button onclick="atualizar()">Recalcular (demora alguns minutos)</button>
+  <button onclick="window.print()">Imprimir</button>
+  <span id="estado" class="peq"></span>
+</div>
+<div id="avisos"></div>
+<div class="cards" id="cards"></div>
+<div id="corpo"></div>
+
+<script>
+var dados = null;
+var NOME = {bling01: "Bling 01", bling02: "Bling 02", bling03: "Bling 03"};
+function esc(t) { return String(t == null ? "" : t).replace(/[&<>"]/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]; }); }
+function dec(v) { return v == null ? "-" : String(v).replace(".", ","); }
+
+function carregar() {
+  fetch("/compras/dados").then(function (r) { return r.json(); }).then(function (d) {
+    dados = d;
+    var e = d.estado || {};
+    document.getElementById("estado").textContent = e.lendo ? "Calculando: " + e.etapa + "…" : (e.erro ? "Erro: " + e.erro : "");
+    if (e.lendo) setTimeout(carregar, 10000);
+    desenhar();
+  }).catch(function (err) { document.getElementById("sub").textContent = "Erro: " + err.message; });
+}
+
+function desenhar() {
+  var d = dados;
+  if (!d || !d.envios) { document.getElementById("sub").textContent = "Ainda sem cálculo. Aguarde a primeira leitura (alguns minutos)."; return; }
+  var p = d.parametros || {};
+  document.getElementById("sub").textContent = "Calculado em " + (d.gerado_em || "").replace("T", " ") + " · meta de " + p.meta_dias + " dias de cobertura · demanda = 40% média de 7 dias + 60% média de 30 dias · sobra mínima de " + Math.round((p.sobra_pct || 0) * 100) + "% do que vai ao Full · saldo = depósito Geral do Bling, já descontadas as reservas dos pedidos em aberto.";
+  var av = "";
+  if (d.erros && Object.keys(d.erros).length) av += '<div class="aviso">Falha ao ler o Full de: ' + esc(Object.keys(d.erros).join(", ")) + ". O resultado está incompleto.</div>";
+  if (d.sem_sku && d.sem_sku.length) av += '<div class="aviso">' + d.sem_sku.length + " anúncio(s) precisam de envio mas não têm SKU: não dá para cruzar com o Bling.</div>";
+  document.getElementById("avisos").innerHTML = av;
+  var totalEnvio = d.envios.reduce(function (t, l) { return t + l.sugestao_reposicao; }, 0);
+  var totalCompra = d.compras.reduce(function (t, c) { return t + c.compra; }, 0);
+  document.getElementById("cards").innerHTML =
+    '<div class="card">Estoques do Full abaixo da meta<b>' + d.envios.length + "</b>de " + d.total_inventarios + "</div>" +
+    '<div class="card">Unidades a enviar ao Full<b>' + totalEnvio + "</b></div>" +
+    '<div class="card">SKUs para comprar<b>' + d.compras.length + "</b>" + totalCompra + " un no total</div>" +
+    '<div class="card">Empréstimos entre Blings<b>' + d.emprestimos.length + "</b></div>";
+
+  var h = "<h2>1. Enviar ao Full</h2><table><tr><th>Conta</th><th>SKU</th><th>Produto</th><th>Vel./dia</th><th>Estoque Full</th><th>Cobertura (dias)</th><th>Enviar</th><th>Do Bling da conta</th><th>Empréstimo de outro Bling</th><th>Sem saldo</th></tr>";
+  d.envios.forEach(function (l) {
+    var emp = Object.keys(l.emprestimo || {}).map(function (b) { return NOME[b] + ": " + l.emprestimo[b]; }).join(" · ");
+    h += "<tr><td>" + esc(l.conta) + "</td><td class='sk'>" + esc(l.sku_bling || "-") + "</td><td>" + esc((l.titulo || "").slice(0, 50)) + (l.obs ? '<div class="peq">' + esc(l.obs) + "</div>" : "") + "</td>" +
+      "<td class='n'>" + dec(l.demanda_dia) + "</td><td class='n'>" + l.estoque_considerado + "</td><td class='n'>" + dec(l.cobertura_dias) + "</td><td class='n'><b>" + l.sugestao_reposicao + "</b></td>" +
+      "<td class='n'>" + (l.do_bling_proprio || 0) + "</td><td>" + esc(emp) + "</td><td class='n " + (l.sem_saldo > 0 ? "verm" : "") + "'>" + (l.sem_saldo || 0) + "</td></tr>";
+  });
+  h += "</table>";
+
+  h += "<h2>2. Transferências entre Blings (empréstimo)</h2>";
+  if (!d.emprestimos.length) h += '<div class="peq">Nenhuma: o Bling de cada conta cobre o envio, ou falta saldo em todos.</div>';
+  else {
+    h += "<table><tr><th>SKU</th><th>De</th><th>Para</th><th>Quantidade</th><th>Para o envio de</th></tr>";
+    d.emprestimos.forEach(function (e) { h += "<tr><td class='sk'>" + esc(e.sku) + "</td><td>" + NOME[e.de] + "</td><td>" + NOME[e.para] + "</td><td class='n'><b>" + e.qtd + "</b></td><td>" + esc(e.conta) + " · " + esc(e.mlb) + "</td></tr>"; });
+    h += "</table>";
+  }
+
+  h += "<h2>3. Pedido de compra</h2>";
+  if (!d.compras.length) h += '<div class="peq">Nada a comprar: o saldo dos Blings cobre os envios e a sobra mínima.</div>';
+  else {
+    h += "<table><tr><th>SKU</th><th>Produto</th><th>Contas</th><th>Enviar ao Full</th><th>Saldo nos 3 Blings</th><th>Falta</th><th>Comprar</th></tr>";
+    d.compras.forEach(function (c) {
+      var comp = (c.componentes || []).map(function (x) { return esc(x.sku) + " × " + x.qtd + " = " + x.compra; }).join("<br>");
+      h += "<tr><td class='sk'>" + esc(c.sku) + "</td><td>" + esc((c.titulo || "").slice(0, 50)) + (comp ? '<div class="peq">Kit: comprar os componentes<br>' + comp + "</div>" : "") + "</td><td>" + esc(c.contas.join(", ")) + "</td>" +
+        "<td class='n'>" + c.envio_total + "</td><td class='n'>" + c.saldo_blings + "</td><td class='n'>" + c.faltante + "</td><td class='n'><b>" + c.compra + "</b></td></tr>";
+    });
+    h += "</table>";
+  }
+  document.getElementById("corpo").innerHTML = h;
+}
+
+function atualizar() { fetch("/compras/atualizar", {method: "POST"}).then(function () { setTimeout(carregar, 1500); }); }
+carregar();
+</script>
+</body>
+</html>
