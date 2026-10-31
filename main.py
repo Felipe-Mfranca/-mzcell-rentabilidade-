@@ -1030,18 +1030,74 @@ async def sincronizar_produto_comparar(conta: str, mlb: str, date_from: str = No
     return {**atual, "anterior": anterior, "gravado": bool(gravado.get("success"))}
 
 
+# Cada empresa trabalha em um navegador (logins separados). A conta define a empresa; a empresa, o navegador.
+EMPRESA_DA_CONTA = {
+    "meli01": "techseller", "bling01": "techseller", "amazon01": "techseller", "shopee": "techseller", "magalu": "techseller",
+    "meli02": "sellerinfo", "bling02": "sellerinfo", "amazon02": "sellerinfo",
+    "meli03": "mizi", "bling03": "mizi",
+}
+NAVEGADOR_DA_EMPRESA = {"techseller": "chrome", "sellerinfo": "edge", "mizi": "firefox"}
+_NAVEGADOR_EXE = {
+    "chrome": ("chrome.exe", [r"%ProgramFiles%\Google\Chrome\Application\chrome.exe",
+                              r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe",
+                              r"%LocalAppData%\Google\Chrome\Application\chrome.exe"]),
+    "edge": ("msedge.exe", [r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe",
+                            r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"]),
+    "firefox": ("firefox.exe", [r"%ProgramFiles%\Mozilla Firefox\firefox.exe",
+                                r"%ProgramFiles(x86)%\Mozilla Firefox\firefox.exe"]),
+}
+# sites que o app pode abrir (https, domínio exato ou subdomínio)
+_DOMINIOS_LINK = ("mercadolivre.com.br", "mercadolibre.com", "mercadopago.com.br", "bling.com.br", "amazon.com.br", "shopee.com.br")
+
+
+def _caminho_navegador(nome: str):
+    exe, candidatos = _NAVEGADOR_EXE[nome]
+    for c in candidatos:
+        p = os.path.expandvars(c)
+        if os.path.isfile(p):
+            return p
+    try:  # instalação em outro lugar: o Windows registra o caminho em App Paths
+        import winreg
+        for raiz in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+            try:
+                with winreg.OpenKey(raiz, rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{exe}") as k:
+                    p = winreg.QueryValue(k, None)
+                    if p and os.path.isfile(p):
+                        return p
+            except OSError:
+                continue
+    except ImportError:
+        pass
+    return None
+
+
+def _link_permitido(url: str) -> bool:
+    from urllib.parse import urlparse
+    try:
+        u = urlparse(url)
+    except ValueError:
+        return False
+    host = (u.hostname or "").lower()
+    return u.scheme == "https" and any(host == d or host.endswith("." + d) for d in _DOMINIOS_LINK)
+
+
 @app.post("/sistema/abrir-link")
 async def abrir_link(payload: dict):
-    """Abre um anúncio do Mercado Livre no navegador padrão do Windows (fora da janela do app)."""
+    """Abre um link no navegador da empresa dona da conta (fora da janela do app).
+    Sem conta, ou se o navegador não estiver instalado, abre no navegador padrão do Windows."""
+    import subprocess
     import webbrowser
     url = str(payload.get("url", ""))
-    # só páginas de anúncio: MLB no Mercado Livre e ASIN (10 caracteres) na Amazon
-    asin = url[len("https://www.amazon.com.br/dp/"):] if url.startswith("https://www.amazon.com.br/dp/") else ""
-    permitido = url.startswith("https://produto.mercadolivre.com.br/MLB-") or (len(asin) == 10 and asin.isalnum())
-    if not permitido:
+    if not _link_permitido(url):
         raise HTTPException(status_code=400, detail="Endereço não permitido")
+    conta = str(payload.get("conta", "")).strip().lower()
+    nome = NAVEGADOR_DA_EMPRESA.get(EMPRESA_DA_CONTA.get(conta, ""))
+    caminho = _caminho_navegador(nome) if nome else None
+    if caminho:
+        subprocess.Popen([caminho, url], close_fds=True)  # lista de argumentos, sem shell
+        return {"success": True, "navegador": nome}
     webbrowser.open(url, new=2)
-    return {"success": True}
+    return {"success": True, "navegador": "padrao", "aviso": f"{nome} não encontrado" if nome else None}
 
 
 @app.get("/ads/{conta}/{mlb}/dias")

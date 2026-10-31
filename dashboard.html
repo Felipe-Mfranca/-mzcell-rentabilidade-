@@ -541,6 +541,8 @@ html:not([data-tema="claro"]) .pivo-l.on-P{background:#2563eb;color:#fff;}html:n
 .mx-aviso.full-zerado{color:#991b1b;background:rgba(239,68,68,.14);border-color:rgba(239,68,68,.6);}
 .mx-aviso.full-critico{color:#991b1b;background:rgba(239,68,68,.10);border-color:rgba(239,68,68,.5);}
 .mx-aviso.full-atencao{color:#92400e;background:rgba(245,158,11,.16);border-color:rgba(245,158,11,.6);}
+.bling-tag{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid rgba(37,99,235,.5);color:#1d4ed8;background:rgba(37,99,235,.10);vertical-align:middle;cursor:help;}
+.mx-aviso.bling-aviso{color:#1d4ed8;background:rgba(37,99,235,.10);border-color:rgba(37,99,235,.5);}
 .full-tag{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid;vertical-align:middle;}
 .full-tag.zerado,.full-tag.critico{color:#991b1b;background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.5);}
 .full-tag.atencao{color:#92400e;background:rgba(245,158,11,.16);border-color:rgba(245,158,11,.55);}
@@ -961,7 +963,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
         <button class="btn-sync-produto" id="btn-sync-produto"><span id="sync-icon">↻</span> Sincronizar MLB</button>
       </div>
     </div>
-    <div class="mx-avisos" id="m-avisos"><span id="m-aviso-full"></span><span id="m-aviso-rebot"></span><span id="m-pivo"></span></div>
+    <div class="mx-avisos" id="m-avisos"><span id="m-aviso-full"></span><span id="m-aviso-bling"></span><span id="m-aviso-rebot"></span><span id="m-pivo"></span></div>
     <div class="mx-tags" id="m-tags"></div>
     <div class="mx-strip-wrap">
       <div class="mx-strip-cap">Últimos 30 dias (fixo)</div>
@@ -1007,7 +1009,8 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
         <button class="btn-sync-produto btn-azul" id="amz-btn-link" title="Abre o anúncio na Amazon">Link do anúncio ↗</button>
       </div>
     </div>
-    <div class="mx-avisos" id="amz-avisos"><span id="amz-aviso-full"></span></div>
+    <div class="mx-avisos" id="amz-avisos"><span id="amz-aviso-full"></span><span id="amz-aviso-bling"></span><span id="amz-pivo"></span></div>
+    <div class="mx-tags" id="amz-tags"></div>
     <div class="mx-strip-wrap">
       <div class="mx-strip-cap">Últimos 30 dias (fixo)</div>
       <div class="mx-strip" id="amz-strip"></div>
@@ -1432,6 +1435,7 @@ function amzLinhaReposicao(conta, l) {
   const cob = l.cobertura_dias == null ? '—' : fmtN(l.cobertura_dias,1);
   return `<tr data-asin="${amzEscHtml(l.asin)}">
     <td>${amzEscHtml(l.asin)}</td>
+    <td style="white-space:nowrap" title="${amzEscHtml(l.sku || '')}">${amzEscHtml(l.sku || '—')}</td>
     <td title="${amzEscHtml(l.titulo)}">${amzEscHtml((l.titulo || '').slice(0, 50))}</td>
     <td style="text-align:right">${fmtN(l.velocidade,2)}</td>
     <td style="text-align:right">${l.estoque_valido}</td>
@@ -1453,7 +1457,7 @@ async function amzCarregarReposicao(conta, btn) {
     alvo.innerHTML = `
       <div style="margin:10px 0;font-size:13px">ASINs: <b>${d.total_asins}</b> · A repor: <b>${d.a_repor}</b> · Unidades sugeridas: <b>${d.unidades_sugeridas}</b> · Com caixa master: <b id="repo-total-${conta}">${d.unidades_ajustadas}</b> · Meta: ${d.meta_dias} dias${d.comparativo_amazon ? '' : ' · sem conferência da Amazon'}</div>
       <div style="overflow-x:auto"><table class="tbl">
-        <thead><tr><th>ASIN</th><th>Produto</th><th style="text-align:right">Vel./dia</th><th style="text-align:right">Estoque válido</th><th style="text-align:right">Cobertura (dias)</th><th style="text-align:right">Sugestão</th><th style="text-align:right">Caixa master</th><th style="text-align:right">Sugerido (ajustado)</th><th>Situação</th></tr></thead>
+        <thead><tr><th>ASIN</th><th>SKU</th><th>Produto</th><th style="text-align:right">Vel./dia</th><th style="text-align:right">Estoque válido</th><th style="text-align:right">Cobertura (dias)</th><th style="text-align:right">Sugestão</th><th style="text-align:right">Caixa master</th><th style="text-align:right">Sugerido (ajustado)</th><th>Situação</th></tr></thead>
         <tbody>${d.itens.map(l => amzLinhaReposicao(conta, l)).join('')}</tbody>
       </table></div>`;
   } catch (e) {
@@ -1468,7 +1472,7 @@ async function amzSalvarCaixa(conta, asin, input) {
     const r = await fetch(`${API}/amazon/reposicao/${conta}/caixa`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({asin, caixa: v === '' ? null : Number(v)})});
     if (!r.ok) throw new Error((await r.json()).detail || 'erro');
     const linha = input.closest('tr');
-    const sug = Number(linha.children[5].textContent);
+    const sug = Number(linha.children[6].textContent);
     const caixa = v === '' ? 0 : Number(v);
     const ajustada = caixa > 0 && sug > 0 ? Math.ceil(sug / caixa) * caixa : sug;
     linha.querySelector('.repo-ajustada').textContent = ajustada;
@@ -1483,6 +1487,8 @@ async function amzSalvarCaixa(conta, asin, input) {
 
 function amzAbrirAba(conta) {
   amzMontarReposicao(conta);
+  amzPivoCarregar(conta);
+  tagsCarregar(conta);   // Ranqueamento, Sazonalidade, Revisado e Atenção: mesmas tags do Meli, chave = SKU
   if (!AMZ[conta]) {
     AMZ[conta] = {dias: 30, dados: null};
     document.getElementById(`painel-${conta}`).innerHTML = `
@@ -1552,7 +1558,7 @@ function amzDesenhar(conta, d) {
     {l:'SKUs vendidos', v:x.skus_total, s:'no período', va:'', c:'var(--text)'},
   ];
   document.getElementById(`amzk-${conta}`).innerHTML = cards.map(k => `<div class="kpi" style="--kpi-color:${k.c}"><div class="kpi-label">${k.l}</div><div class="kpi-val">${k.v}</div><div class="kpi-footer"><span class="kpi-sub">${k.s}</span><span class="kpi-var">${k.va}</span></div></div>`).join('');
-  const chips = [['todos','Todos'],['sem_cmv','Sem CMV'],['negativa','Margem negativa'],['baixa','Margem abaixo de 10%']];
+  const chips = [['todos','Todos'],['sem_cmv','Sem CMV'],['negativa','Margem negativa'],['baixa','Margem abaixo de 10%'],['rank','🏆 Ranqueamento'],['sazon','🗓 Sazonalidade']];
   const st = _amzFiltro[conta] || (_amzFiltro[conta] = {busca: '', chip: 'todos'});
   document.getElementById(`amzt-${conta}`).innerHTML = `
     <div class="tb-toolbar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px">
@@ -1588,13 +1594,15 @@ function amzTabelaDesenhar(conta) {
     if (st.chip === 'sem_cmv') return !s.completo;
     if (st.chip === 'negativa') return !!s.completo && (s.margem_pct || 0) < 0;
     if (st.chip === 'baixa') return !!s.completo && (s.margem_pct || 0) < 10;
+    if (st.chip === 'rank') return !!_tags[conta]?.[s.sku]?.ranqueamento;
+    if (st.chip === 'sazon') return !!_tags[conta]?.[s.sku]?.sazonalidade;
     return true;
   };
   const lista = todos.filter(passa);
   const linhas = lista.map(s => {
     const mc = s.margem_pct == null ? 'var(--muted2)' : (s.margem_pct < 0 ? 'var(--red)' : s.margem_pct < 10 ? 'var(--gold)' : 'var(--green)');
     return `<tr onclick="amzAbrir('${conta}',decodeURIComponent('${encodeURIComponent(s.sku)}'))">
-      <td><div style="display:flex;gap:10px;align-items:center"><img data-amz-foto="${sacEsc(s.asin || '')}" data-amz-sku="${sacEsc(s.sku || '')}" alt="" style="display:none;width:44px;height:44px;object-fit:contain;border-radius:6px;flex:none"/><div><div style="font-weight:600;line-height:1.3">${sacEsc((s.titulo||s.sku).slice(0,70))}</div><div class="modal-sku">${sacEsc(s.sku)}${s.asin?' · '+sacEsc(s.asin):''}</div></div></div></td>
+      <td><div style="display:flex;gap:10px;align-items:center"><img data-amz-foto="${sacEsc(s.asin || '')}" data-amz-sku="${sacEsc(s.sku || '')}" alt="" style="display:none;width:44px;height:44px;object-fit:contain;border-radius:6px;flex:none"/><div><div style="font-weight:600;line-height:1.3">${sacEsc((s.titulo||s.sku).slice(0,70))}</div><div class="modal-sku">${sacEsc(s.sku)}${s.asin?' · '+sacEsc(s.asin):''}</div><span data-tagtable="${sacEsc(s.sku)}">${renderTagsLinha(conta, s.sku)}</span><span data-amzpivo="${sacEsc(s.sku)}" style="margin-left:4px">${amzPivoLetras(conta, s.sku, 'mini')}</span></div></div></td>
       <td>${r(s.un_liquidas)}</td><td>${amzBrl(s.receita_liquida)}${amzSeta(s.receita_liquida,s.receita_liquida_anterior)}</td>
       <td>${amzBrl(s.comissao)}</td><td>${amzBrl(s.taxa_fba)}</td><td>${amzBrl(s.outras_taxas)}</td>
       <td>${s.completo ? amzBrl(s.imposto) : '—'}</td><td>${s.completo ? amzBrl(s.cmv) : '<span class="pos-badge none">sem CMV</span>'}</td>
@@ -1646,7 +1654,7 @@ function amzAcompanhar(conta) {
 
 // ── Modal do SKU (mesmo layout do anúncio do ML) ──
 let _amz = null;
-function amzFechar() { document.getElementById('modal-amz').classList.remove('open'); _amz = null; }
+function amzFechar() { document.getElementById('modal-amz').classList.remove('open'); _amz = null; _mapa = null; }
 document.getElementById('modal-amz').addEventListener('click', function(e){ if (e.target === this) amzFechar(); });
 async function amzAbrir(conta, sku) {
   _amz = {conta, sku, dias: 7, d: null};
@@ -1655,7 +1663,10 @@ async function amzAbrir(conta, sku) {
   document.getElementById('amz-aviso-full').innerHTML = '';
   document.getElementById('amz-body').innerHTML = '<div class="sac-mut">Carregando…</div>';
   document.getElementById('amz-strip').innerHTML = '';
+  document.getElementById('amz-tags').innerHTML = '';
   document.getElementById('modal-amz').classList.add('open');
+  if (_tags[conta]) mostrarTagsModal(conta, sku, 'amz-tags'); else tagsCarregar(conta);
+  document.getElementById('amz-pivo').innerHTML = ''; amzPivoModal(conta, sku);
   amzModalPeriodo(7, document.getElementById('amzp-7'));
 }
 function amzModalPeriodo(dias, btn) {
@@ -1763,8 +1774,11 @@ function amzMontarAdsTab(d) {
              rotA: t.rotA, rotB: t.rotB, rotC: t.rotC, rotD: t.rotD};
   const box = document.getElementById('ads-tab'); if (box) box.innerHTML = adsTabela();
 }
+const AMZ_SEM_VENDA = {un_liquidas: 0, receita_liquida: 0, receita: 0, comissao: 0, taxa_fba: 0, outras_taxas: 0, imposto: 0, cmv: 0, margem: 0, margem_pct: 0, completo: false};
 function amzDesenharModal(d) {
-  const a = d.atual, p = d.periodo_anterior, conta = d.conta, sku = d.sku;
+  const a = d.atual || AMZ_SEM_VENDA, p = d.periodo_anterior, conta = d.conta, sku = d.sku;
+  // base do simulador: o período; sem vendas nele, o período anterior; sem vendas em nenhum, os campos começam zerados
+  const base = a.un_liquidas > 0 ? a : (p && p.un_liquidas > 0 ? p : null);
   document.getElementById('amz-title').textContent = d.titulo || sku;
   document.getElementById('amz-sku').textContent = sku; document.getElementById('amz-asin').textContent = d.asin || '';
   // Faixa fixa (30D): a Amazon não entrega Ads por SKU sem a Advertising API
@@ -1772,19 +1786,19 @@ function amzDesenharModal(d) {
   // link do anúncio na Amazon: página do ASIN (sem ASIN, o botão fica desabilitado)
   const btnLink = document.getElementById('amz-btn-link');
   btnLink.disabled = !d.asin;
-  btnLink.onclick = () => abrirLink('https://www.amazon.com.br/dp/' + d.asin);
+  btnLink.onclick = () => abrirLink('https://www.amazon.com.br/dp/' + d.asin, d.conta);
   amzMostrarFull(d);
+  amzMostrarBling(d);
   amzMostrarFoto(d);
   document.getElementById('amz-strip').style.setProperty('--cols', 8);
   document.getElementById('amz-strip').innerHTML = ['Vendas por ADS', 'Vendas orgânicas', 'Receita por ADS', 'Investimento', 'ACOS', 'TACOS', 'ROAS', 'ROAS objetivo']
     .map(l => `<div class="mx-kpi"><div class="mx-kpi-l">${l}</div><div class="mx-kpi-v">${nd}</div></div>`).join('');
-  if (!a) { document.getElementById('amz-body').innerHTML = '<div class="sac-mut">Sem vendas deste SKU no período selecionado.</div>'; amzCarregarAds(d); return; }
-  const un = a.un_liquidas || 0, rl = a.receita_liquida || 0;
+  const un = base ? base.un_liquidas : 0, rl = base ? base.receita_liquida || 0 : 0;
   const c = d.custo || {}, al = d.aliquotas;
   const preco = un > 0 ? rl / un : 0;
   const temSt = c.tem_st ?? true;
   const impPct = c.imposto_pct != null ? c.imposto_pct : al.com_st;
-  const comPct = rl > 0 ? Math.abs(a.comissao) / rl : 0;
+  const comPct = rl > 0 ? Math.abs(base.comissao) / rl : 0;
   const fld = (lbl, id, val) => `<div class="sim-field"><label>${lbl}</label><input type="number" id="${id}" value="${val}" step="0.01" oninput="amzCalc()" onblur="fmt2(this)"/></div>`;
   const diasP = Math.round((new Date(d.periodo.ate) - new Date(d.periodo.de)) / 86400000) + 1;
   const prepA = o => o ? {unidades: o.un_liquidas, media_dia: o.un_liquidas / diasP, visitas: null, conv_c: null} : null;
@@ -1803,12 +1817,12 @@ function amzDesenharModal(d) {
             <input type="number" id="as-imp" value="${(impPct*100).toFixed(2)}" step="0.01" oninput="amzCalc()" style="min-width:0"/></div></div>
           ${fld('Comissão (%)','as-com',(comPct*100).toFixed(2))}
           <div id="amz-com-pct" class="sac-mut" style="font-size:11px;margin:-4px 0 6px"></div>
-          ${fld('Taxa FBA (R$)','as-fba',un>0?(Math.abs(a.taxa_fba)/un).toFixed(2):'0.00')}
-          ${fld('Outras taxas (R$)','as-out',un>0?(Math.abs(a.outras_taxas)/un).toFixed(2):'0.00')}
+          ${fld('Taxa FBA (R$)','as-fba',un>0?(Math.abs(base.taxa_fba)/un).toFixed(2):'0.00')}
+          ${fld('Outras taxas (R$)','as-out',un>0?(Math.abs(base.outras_taxas)/un).toFixed(2):'0.00')}
           ${fld('TACOS 30 dias (%)','as-tacos','0.00')}
         </div>
         <div id="amz-sim-out" class="mx-sim-out"></div>
-        <div class="mx-sim-info" style="margin-top:8px">CMV ${c.origem==='base'?'da base central (arquivo do Grupo)':(c.cmv_unit!=null?'cadastrado para este SKU':'não encontrado: importe o CMV em Configurações')}. Os valores iniciais são as médias do período selecionado.</div>
+        <div class="mx-sim-info" style="margin-top:8px">CMV ${c.origem==='base'?'da base central (arquivo do Grupo)':(c.cmv_unit!=null?'cadastrado para este SKU':'não encontrado: importe o CMV em Configurações')}. ${d.atual ? 'Os valores iniciais são as médias do período selecionado.' : (base ? 'Sem vendas no período: os valores iniciais são as médias do período anterior.' : 'Sem vendas no período nem no anterior: preencha o preço e as taxas para simular.')}</div>
       </aside>`;
   document.getElementById('amz-body').innerHTML = `
     <div class="mx-main">
@@ -2349,6 +2363,7 @@ async function buscarPeriodo(conta) {
     carregarPosicoes(conta);
     pivoCarregar(conta);
     fullCarregar(conta);
+    blingCarregar(conta);
     tagsCarregar(conta);
     fotoCarregar(conta);
   } catch(e){
@@ -2604,7 +2619,7 @@ function renderTable(conta, produtos) {
       <tr class="${per.margem_pct<0?'row-neg':''}" onclick="openModal('${p.mlb}','${conta}')">
         <td><div class="td-flex">${fotoHtml(p.mlb)}<div>
           <div class="td-prod">${p.titulo||p.mlb}</div><span data-tagtable="${p.mlb}">${renderTagsLinha(conta, p.mlb)}</span>
-          <div class="td-sku">${p.sku||''}<span data-fulltag="${p.mlb}">${renderFullTag(conta,p.mlb)}</span></div>
+          <div class="td-sku">${p.sku||''}<span data-fulltag="${p.mlb}">${renderFullTag(conta,p.mlb)}</span><span data-blingtag="${p.sku||''}" data-blingmlb="${p.mlb}">${renderBlingTag(conta,p.sku,p.mlb)}</span></div>
           ${p.arquivado?'<div class="td-arq">Arquivado</div>':''}
           <div class="td-mlb">${p.mlb}</div>
           ${p.catalogo?`<div class="td-mlb" title="Vínculo de catálogo" style="color:var(--gold)">🔗 ${p.catalogo.eh_vencedor?'anúncio vencedor do catálogo':'vinculado a '+(p.catalogo.vencedor||'—')}</div>`:''}
@@ -2636,7 +2651,7 @@ function renderTable(conta, produtos) {
 function filterTable(conta) {
   const q=document.getElementById(`search-${conta}`)?.value.toLowerCase()||'';
   const data=db[conta]; if(!data) return;
-  const txt=q?data.produtos.filter(p=>(p.titulo||'').toLowerCase().includes(q)||(p.sku||'').toLowerCase().includes(q)||p.mlb.toLowerCase().includes(q)):data.produtos;
+  const txt=q?data.produtos.filter(p=>(p.titulo||'').toLowerCase().includes(q)||(p.sku||'').toLowerCase().includes(q)||(_blingEst[conta]?.filhos?.[p.mlb]||'').toLowerCase().includes(q)||p.mlb.toLowerCase().includes(q)):data.produtos;
   renderTable(conta, txt);
 }
 
@@ -2774,9 +2789,9 @@ function _setModalPresetActive(de, ate) {
   });
 }
 
-// abre o anúncio no navegador padrão (pelo backend); se o backend não responder, tenta abrir em aba
-function abrirLink(url) {
-  fetch(`${API}/sistema/abrir-link`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({url})})
+// abre o link no navegador da empresa da conta (pelo backend); se o backend não responder, tenta abrir em aba
+function abrirLink(url, conta) {
+  fetch(`${API}/sistema/abrir-link`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({url, conta})})
     .then(r => { if (!r.ok) throw new Error(r.status); })
     .catch(() => window.open(url, '_blank'));
 }
@@ -2803,7 +2818,7 @@ function openModal(mlb, conta) {
   btnArq.onclick = () => arquivarProduto(_modalMlb, _modalConta);
 
   // página de vendas: o MLB-número abre o anúncio no Mercado Livre
-  document.getElementById('btn-pag-venda').onclick = () => abrirLink('https://produto.mercadolivre.com.br/' + mlb.replace(/^MLB/, 'MLB-'));
+  document.getElementById('btn-pag-venda').onclick = () => abrirLink('https://produto.mercadolivre.com.br/' + mlb.replace(/^MLB/, 'MLB-'), conta);
 
   renderModalContent(mlb, conta);
   document.getElementById('modal-prod').classList.add('open');
@@ -2831,6 +2846,7 @@ function renderModalContent(mlb, conta) {
   }
   mostrarPivoModal(conta, mlb);
   mostrarAvisoFull(conta, mlb);
+  mostrarAvisoBling(conta, p.sku, 'm-aviso-bling', p.mlb);
   mostrarTagsModal(conta, mlb);
   const de  = document.getElementById('modal-de')?.value || '';
   const ate = document.getElementById('modal-ate')?.value || '';
@@ -3012,6 +3028,122 @@ async function trocarSt(mlb, conta, sel) {
     .catch(() => toast('Erro ao salvar o imposto', 'error'));
 }
 
+// ── Estoque no Bling por SKU: saldo do depósito Geral. O Bling da empresa da conta na tela, os outros dois no tooltip ──
+const _blingEst = {};
+const _blingNome = {bling01:'Bling 01 (Techseller)', bling02:'Bling 02 (Seller Info)', bling03:'Bling 03 (Mizi)'};
+const fmtUn = n => (Number(n)||0).toLocaleString('pt-BR');
+async function blingCarregar(conta) {
+  try {
+    const d = await (await fetch(`${API}/bling/estoque/${conta}`)).json();
+    if (!d.itens) return;
+    _blingEst[conta] = d;
+    document.querySelectorAll(`#tab-${conta} span[data-blingtag]`).forEach(sp => { sp.innerHTML = renderBlingTag(conta, sp.dataset.blingtag, sp.dataset.blingmlb); });
+  } catch(e) {}
+}
+function blingInfo(conta, sku) {
+  const d = _blingEst[conta], k = String(sku || '').trim().toUpperCase();
+  if (!d || !k) return null;
+  const pai = d.pais && d.pais[k];
+  if (pai) {
+    const sug = Object.keys(d.itens).filter(x => x.startsWith(k + '-')).slice(0, 8);
+    return {it: null, tip: `${k} é cadastro pai com variações no Bling e não tem saldo próprio. O anúncio deve usar o SKU da variação${sug.length ? ': ' + sug.join(', ') : ''}`, pai: true};
+  }
+  const it = d.itens[k];
+  if (!it) return {it: null, tip: ''};
+  const linhas = [`${_blingNome[d.principal]}: ${fmtUn(it[0] ?? 0)} un`];
+  d.outros.forEach(b => { linhas.push(`${_blingNome[b]}: ${it[1][b] == null ? 'sem cadastro' : fmtUn(it[1][b]) + ' un'}`); });
+  return {it, tip: linhas.join('\n')};
+}
+function blingSkuFilho(conta, sku, mlb) { return (mlb && _blingEst[conta]?.filhos?.[mlb]) || sku; }
+function renderBlingTag(conta, sku, mlb) {
+  sku = blingSkuFilho(conta, sku, mlb);
+  const d = _blingEst[conta];
+  if (!d) return '';
+  if (d.erros && d.erros[d.principal]) return `<span class="bling-tag" title="${sacEsc('Bling indisponível: ' + d.erros[d.principal])}">Bling ?</span>`;
+  if (!String(sku || '').trim()) return `<span class="bling-tag" title="Anúncio sem SKU: não dá para consultar o Bling">Bling —</span>`;
+  const b = blingInfo(conta, sku);
+  if (b.pai) return `<span class="bling-tag" title="${sacEsc(b.tip)}">Bling — SKU pai</span>`;
+  if (!b.it) return `<span class="bling-tag" title="SKU sem cadastro no Bling">Bling —</span>`;
+  return `<span class="bling-tag" title="${sacEsc(b.tip)}">Bling ${fmtUn(b.it[0] ?? 0)} un</span>`;
+}
+async function mostrarAvisoBling(conta, sku, id, mlb) {
+  const box = document.getElementById(id); if (!box) return;
+  box.innerHTML = '';
+  if (!_blingEst[conta]) await blingCarregar(conta);
+  if (document.getElementById(id) !== box || !_blingEst[conta]) return;
+  if (!sku || sku === 'Sem SKU') { box.innerHTML = `<span class="mx-aviso bling-aviso" title="Anúncio sem SKU: não dá para consultar o Bling">Bling —</span>`; return; }
+  sku = blingSkuFilho(conta, sku, mlb);
+  const b = blingInfo(conta, sku);
+  if (b.pai) { box.innerHTML = `<span class="mx-aviso bling-aviso" title="${sacEsc(b.tip)}">Bling — SKU pai</span>`; return; }
+  box.innerHTML = b.it ? `<span class="mx-aviso bling-aviso" title="${sacEsc(b.tip)}">Bling ${fmtUn(b.it[0] ?? 0)} un</span>` : `<span class="mx-aviso bling-aviso" title="SKU sem cadastro no Bling">Bling —</span>`;
+}
+// ── PIVO manual da Amazon: a Amazon não tem leitura equivalente à do Meli, então o analista marca cada letra ──
+const _amzPivo = {};
+const AMZ_PIVO_LETRAS = {P: 'Palavras-chave indexadas (título e descrição)', I: 'Imagens', V: 'Vídeo', O: 'Otimização: promoção e ADS'};
+async function amzPivoCarregar(conta) {
+  try {
+    _amzPivo[conta] = (await (await fetch(`${API}/amazon/pivo/${conta}`)).json()).itens || {};
+    document.querySelectorAll(`#amzTbody-${conta} span[data-amzpivo]`).forEach(sp => { sp.innerHTML = amzPivoLetras(conta, sp.dataset.amzpivo, 'mini'); });
+    if (_amz && _amz.conta === conta) amzPivoModal(conta, _amz.sku);
+  } catch(e) {}
+}
+function amzPivoLetras(conta, sku, tam) {
+  const it = _amzPivo[conta]?.[sku] || {};
+  return Object.keys(AMZ_PIVO_LETRAS).map(l => `<span class="pivo-l ${tam} ${it[l] === true ? 'on-' + l : ''}" title="${sacEsc(AMZ_PIVO_LETRAS[l] + ': ' + (it[l] === true ? 'ok' : it[l] === false ? 'falta' : 'não confirmado'))}">${l}</span>`).join('');
+}
+function amzPivoModal(conta, sku) {
+  const box = document.getElementById('amz-pivo'); if (!box) return;
+  if (!_amzPivo[conta]) { box.innerHTML = ''; return; }
+  const it = _amzPivo[conta][sku] || {};
+  const letras = Object.keys(AMZ_PIVO_LETRAS).map(l => {
+    const est = it[l] === true ? 'ok' : it[l] === false ? 'falta' : 'não confirmado';
+    return `<span class="pivo-l lg clicavel ${it[l] === true ? 'on-' + l : ''}" title="${sacEsc(AMZ_PIVO_LETRAS[l] + ': ' + est + ' (clique para alternar: não confirmado, ok, falta)')}" onclick="amzPivoAlternar('${conta}',decodeURIComponent('${encodeURIComponent(sku)}'),'${l}')">${l}</span>`;
+  }).join('');
+  const ok = Object.keys(AMZ_PIVO_LETRAS).filter(l => it[l] === true).length, tot = Object.keys(AMZ_PIVO_LETRAS).length;
+  const quem = it.por ? `Última marcação: ${it.por} em ${it.em}` : 'Marcação manual: ninguém marcou ainda';
+  box.innerHTML = `<span class="mx-pivo" title="${sacEsc(quem)}"><span class="t">PIVO</span>${letras}<span class="n ${ok === tot ? 'ok' : 'atencao'}">${ok === tot ? 'completo' : 'manual · ' + ok + '/' + tot}</span></span>`;
+}
+async function amzPivoAlternar(conta, sku, letra) {
+  const atual = _amzPivo[conta]?.[sku]?.[letra];
+  const prox = atual === true ? false : (atual === false ? null : true);   // não confirmado → ok → falta → não confirmado
+  try {
+    const r = await fetch(`${API}/amazon/pivo/${conta}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({sku, letra, valor: prox, nome: user?.nome || user?.login || ''})});
+    const d = await r.json(); if (!r.ok) throw new Error(d.detail || r.status);
+    (_amzPivo[conta] = _amzPivo[conta] || {})[sku] = d.item;
+    amzPivoModal(conta, sku);
+    document.querySelectorAll(`#amzTbody-${conta} span[data-amzpivo]`).forEach(sp => { if (sp.dataset.amzpivo === sku) sp.innerHTML = amzPivoLetras(conta, sku, 'mini'); });
+  } catch(e) { toast('Erro ao salvar o PIVO: ' + e.message, 'error'); }
+}
+// Amazon: o SKU do FBA pode ser outro. Se o SKU não existe no Bling, procura pelo ASIN os outros SKUs (FBA, DBA, inventário) que existem lá
+const _skusAsin = {};
+async function amzSkusDoAsin(conta, asin) {
+  const k = conta + '|' + asin;
+  if (!_skusAsin[k]) {
+    try { _skusAsin[k] = (await (await fetch(`${API}/amazon/skus-do-asin/${conta}?asin=${encodeURIComponent(asin)}`)).json()).skus || []; }
+    catch(e) { return []; }
+  }
+  return _skusAsin[k];
+}
+async function amzMostrarBling(d) {
+  const box = document.getElementById('amz-aviso-bling'); if (!box) return;
+  box.innerHTML = '';
+  const conta = d.conta;
+  if (!_blingEst[conta]) await blingCarregar(conta);
+  if (!_blingEst[conta] || document.getElementById('amz-sku').textContent !== d.sku) return;
+  const noBling = s => { const b = blingInfo(conta, s); return b && b.it ? b : null; };
+  let mesmos = [d.sku];
+  if (d.asin) mesmos = [...new Set([d.sku, ...((AMZ[conta]?.dados?.skus) || []).filter(s => s.asin === d.asin).map(s => s.sku), ...await amzSkusDoAsin(conta, d.asin)])];
+  if (document.getElementById('amz-sku').textContent !== d.sku) return;
+  const achados = mesmos.map(s => ({sku: s, b: noBling(s)})).filter(x => x.b);
+  if (!achados.length) { box.innerHTML = `<span class="mx-aviso bling-aviso" title="${sacEsc('Nenhum SKU deste ASIN está cadastrado no Bling: ' + mesmos.join(', '))}">Bling —</span>`; return; }
+  const total = achados.reduce((t, x) => t + (x.b.it[0] ?? 0), 0);
+  const viaAsin = !achados.some(x => x.sku === d.sku);   // o SKU da Amazon não existe no Bling: o saldo vem de outro SKU do mesmo ASIN
+  const cab = viaAsin ? `O SKU ${d.sku} não existe no Bling. Saldo de outro SKU do mesmo ASIN (${d.asin}):\n`
+    : (achados.length > 1 ? `Soma dos SKUs do mesmo ASIN (${d.asin}):\n` : '');
+  const tip = cab + achados.map(x => (viaAsin || achados.length > 1 ? `[${x.sku}]\n` : '') + x.b.tip).join('\n');
+  box.innerHTML = `<span class="mx-aviso bling-aviso" title="${sacEsc(tip)}">Bling ${fmtUn(total)} un${viaAsin ? ' · via ASIN' : ''}</span>`;
+}
+
 // ── Full: aviso de estoque zerado ou perto de romper (média diária dos 7 dias contra o saldo) ──
 const _fullAl = {};
 // ── Tags de análise (Eduardo/Michel): visíveis para todos; marcar exige comentário do mesmo dia no anúncio ──
@@ -3027,9 +3159,11 @@ async function tagsCarregar(conta) {
     const d = await (await fetch(`${API}/tags/${conta}`)).json();
     _tags[conta] = d.tags || {};
     if (db[conta]) filterTable(conta);   // redesenha a tabela com as tags e atualiza os filtros
+    if (conta.startsWith('amazon') && AMZ[conta]?.dados) amzTabelaDesenhar(conta);
     document.querySelectorAll(`#tab-${conta} span[data-tagtable]`).forEach(sp => { sp.innerHTML = renderTagsLinha(conta, sp.dataset.tagtable); });
     const aberto = document.getElementById('m-tags')?.dataset.mlb;
     if (aberto) mostrarTagsModal(conta, aberto);
+    if (_amz && _amz.conta === conta) mostrarTagsModal(conta, _amz.sku, 'amz-tags');
   } catch(e) {}
 }
 function renderTagsLinha(conta, mlb) {
@@ -3040,8 +3174,8 @@ function renderTagsLinha(conta, mlb) {
     return `<span class="tag-anot ${k}" title="${sacEsc(tip)}">${TAG_INFO[k].icon} ${TAG_INFO[k].rot}</span>`;
   }).join('');
 }
-function mostrarTagsModal(conta, mlb) {
-  const box = document.getElementById('m-tags'); if (!box) return;
+function mostrarTagsModal(conta, mlb, boxId = 'm-tags') {
+  const box = document.getElementById(boxId); if (!box) return;
   box.dataset.mlb = mlb;
   const login = (user?.login || '').toLowerCase();
   const t = _tags[conta]?.[mlb] || {};
@@ -3050,12 +3184,12 @@ function mostrarTagsModal(conta, mlb) {
     const tip = ativa ? `${info.rot} por ${r.nome} em ${r.comentario_em}\n${r.comentario}`
       : (pode ? (k === 'revisado' || k === 'atencao' ? 'Clique para marcar (exige comentário de hoje neste anúncio)' : 'Clique para marcar')
         : 'Só ' + info.perm.join(' e ') + ' marcam');
-    return `<button class="tag-btn ${k} ${ativa ? 'on' : ''}" ${pode ? '' : 'disabled'} title="${sacEsc(tip)}" onclick="marcarTag('${conta}','${mlb}','${k}',${!ativa})">${info.icon} ${info.rot}</button>`;
+    return `<button class="tag-btn ${k} ${ativa ? 'on' : ''}" ${pode ? '' : 'disabled'} title="${sacEsc(tip)}" onclick="marcarTag('${conta}',decodeURIComponent('${encodeURIComponent(mlb)}'),'${k}',${!ativa})">${info.icon} ${info.rot}</button>`;
   }).join('');
 }
 async function marcarTag(conta, mlb, tipo, ativa) {
   try {
-    const r = await fetch(`${API}/tags/${conta}/${mlb}`, {method: 'POST', headers: {'Content-Type': 'application/json'},
+    const r = await fetch(`${API}/tags/${conta}/${encodeURIComponent(mlb)}`, {method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({tipo, ativa, login: user?.login || '', nome: user?.nome || ''})});
     const d = await r.json();
     if (!r.ok) { toast(d.detail || 'Não foi possível marcar a tag', 'error'); return; }
