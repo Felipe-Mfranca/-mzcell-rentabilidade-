@@ -18,6 +18,7 @@ import asyncio
 import math
 import os
 import sys
+import threading
 import time
 import warnings
 from collections import defaultdict
@@ -40,32 +41,40 @@ SEM_MOVIMENTO = "sem_movimento"
 STATUS_PT = {"active": "ativo", "paused": "pausado", "closed": "encerrado", "under_review": "em revisão"}
 
 
+_TRAVA_RENOVACAO = defaultdict(threading.Lock)  # uma renovação por vez em cada conta (o refresh_token do ML é de uso único)
+
+
 class ML:
     def __init__(self, conta: str):
         self.conta = conta
         self.cli = httpx.Client(timeout=30, verify=False)
         self.renovou = False
 
-    def _renovar(self):
+    def _renovar(self, token_usado: str):
         """Renova o token no 401. O ML limita o grant refresh_token (429): espera e tenta de novo.
-        Se não conseguir, levanta com o motivo (o aviso antes engolia o erro e só mostrava 'HTTP 401')."""
+        Se não conseguir, levanta com o motivo (o aviso antes engolia o erro e só mostrava 'HTTP 401').
+        Chamadas simultâneas da mesma conta renovam uma vez só: quem chega depois vê o token já trocado e só repete a requisição."""
         self.renovou = True
-        r = {}
-        for espera in (0, 30, 60, 120):
-            time.sleep(espera)
-            r = asyncio.run(ml_api.refresh_token(self.conta))
-            if r.get("success"):
+        with _TRAVA_RENOVACAO[self.conta]:
+            if ml_api.get_token(self.conta) != token_usado:
                 return
-            if "429" not in str(r.get("error", "")) and "too_many" not in str(r.get("error", "")):
-                break
-        raise RuntimeError(f"token expirado e a renovação falhou: {str(r.get('error'))[:200]}")
+            r = {}
+            for espera in (0, 30, 60, 120):
+                time.sleep(espera)
+                r = asyncio.run(ml_api.refresh_token(self.conta))
+                if r.get("success"):
+                    return
+                if "429" not in str(r.get("error", "")) and "too_many" not in str(r.get("error", "")):
+                    break
+            raise RuntimeError(f"token expirado e a renovação falhou: {str(r.get('error'))[:200]}")
 
     def get(self, path: str, **params):
         espera, n429 = 2, 0
         while True:
-            r = self.cli.get(B + path, params=params, headers=ml_api._headers(self.conta))
+            usado = ml_api.get_token(self.conta)
+            r = self.cli.get(B + path, params=params, headers={"Authorization": f"Bearer {usado}"})
             if r.status_code == 401 and not self.renovou:
-                self._renovar()
+                self._renovar(usado)
                 continue
             if (r.status_code == 429 or r.status_code >= 500) and n429 < 6:
                 n429 += 1
@@ -199,7 +208,9 @@ def estoque(ml: ML, inv: str) -> dict:
             "outros_indisp": (b.get("not_available_quantity", 0) or 0) - det.get("transfer", 0), "total": b.get("total", 0)}
 
 
-def calcular(conta: str, ate) -> list:
+def calcular(conta: str, ate, pesos_uso: dict = None) -> list:
+    """pesos_uso: pesos por janela em dias (padrão PESOS). O módulo de compras usa {7: 0.4, 30: 0.6}."""
+    pesos_uso = pesos_uso or PESOS
     cfg = ml_api.load_config()["contas"][conta]
     seller_id = str(cfg["seller_id"])
     ml = ML(conta)
@@ -287,11 +298,11 @@ def calcular(conta: str, ate) -> list:
             tend = med[7] / med[30] if med[30] > 0 else (math.inf if med[7] > 0 else 1.0)
         else:
             tend = 1.0  # sem base para medir tendência
-        pesos = {j: p for j, p in PESOS.items() if confiavel[j]}
+        pesos = {j: p for j, p in pesos_uso.items() if confiavel[j]}
         demanda = sum(med[j] * p for j, p in pesos.items()) / sum(pesos.values())
         if tend > ALTA:
             demanda = max(demanda, *(med[j] for j in pesos))
-        descartadas = [f"{j}d" for j in PESOS if not confiavel[j]]
+        descartadas = [f"{j}d" for j in pesos_uso if not confiavel[j]]
         if descartadas:
             obs.append(f"janela {', '.join(descartadas)} ignorada (poucos dias válidos)")
         considerado = (est.get("disponivel") or 0) + (est.get("transferencia") or 0)
