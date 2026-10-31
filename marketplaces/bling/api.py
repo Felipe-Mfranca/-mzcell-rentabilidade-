@@ -9,7 +9,9 @@ Regra do projeto: dados do Bling NÃO entram no cálculo de margem/CMV.
 import base64
 import json
 import os
+import threading
 import time
+from collections import defaultdict
 from datetime import datetime, timedelta
 
 import httpx
@@ -21,6 +23,7 @@ AUTHORIZE_URL = "https://www.bling.com.br/Api/v3/oauth/authorize"
 TOKEN_URL = f"{API}/oauth/token"
 REDIRECT_PORTA = 8765
 REDIRECT_URI = f"http://127.0.0.1:{REDIRECT_PORTA}/bling/callback"
+_TRAVA_RENOVACAO = defaultdict(threading.Lock)  # o refresh_token do Bling é de uso único: uma renovação por vez em cada conta
 
 
 def load_config() -> dict:
@@ -51,7 +54,7 @@ def trocar_code(conta_id: str, code: str) -> dict:
     """Troca o authorization code (válido por 1 minuto) pelos tokens."""
     c = load_config()["contas"][conta_id]
     r = httpx.post(TOKEN_URL, data={"grant_type": "authorization_code", "code": code},
-                   headers={"Authorization": _basic(c), "Accept": "1.0",
+                   headers={"Authorization": _basic(c), "Accept": "1.0", "enable-jwt": "1",
                             "Content-Type": "application/x-www-form-urlencoded"}, timeout=30)
     if r.status_code != 200:
         return {"success": False, "error": f"{r.status_code} {r.text[:300]}"}
@@ -59,12 +62,20 @@ def trocar_code(conta_id: str, code: str) -> dict:
     return {"success": True}
 
 
-def refresh_token(conta_id: str) -> dict:
-    c = load_config()["contas"][conta_id]
+def refresh_token(conta_id: str, token_usado: str = None) -> dict:
+    """Renova o token. Chamadas simultâneas esperam a primeira: se o token já mudou desde o que a chamada usou, não renova de novo."""
+    with _TRAVA_RENOVACAO[conta_id]:
+        c = load_config()["contas"][conta_id]
+        if token_usado and c.get("access_token") != token_usado:
+            return {"success": True}
+        return _renovar(conta_id, c)
+
+
+def _renovar(conta_id: str, c: dict) -> dict:
     if not c.get("refresh_token") or str(c["refresh_token"]).startswith("COLE_AQUI"):
         return {"success": False, "error": "sem refresh_token — rode python -m marketplaces.bling.auth"}
     r = httpx.post(TOKEN_URL, data={"grant_type": "refresh_token", "refresh_token": c["refresh_token"]},
-                   headers={"Authorization": _basic(c), "Accept": "1.0",
+                   headers={"Authorization": _basic(c), "Accept": "1.0", "enable-jwt": "1",
                             "Content-Type": "application/x-www-form-urlencoded"}, timeout=30)
     if r.status_code != 200:
         return {"success": False, "error": f"{r.status_code} {r.text[:300]}"}
@@ -76,16 +87,16 @@ def get(conta_id: str, path: str, **params):
     """GET com renovação automática do token (expirado ou 401) e espera em 429 (limite 3/s)."""
     c = load_config()["contas"][conta_id]
     exp = c.get("token_expires_at")
-    if exp and datetime.fromisoformat(exp) < datetime.now() + timedelta(minutes=5):
-        refresh_token(conta_id)
+    if not c.get("access_token") or (exp and datetime.fromisoformat(exp) < datetime.now() + timedelta(minutes=5)):
+        refresh_token(conta_id, c.get("access_token"))
     renovou, espera = False, 1
     for _ in range(8):
         tok = load_config()["contas"][conta_id]["access_token"]
         r = httpx.get(API + path, params=params, timeout=30,
-                      headers={"Authorization": f"Bearer {tok}", "Accept": "application/json"})
+                      headers={"Authorization": f"Bearer {tok}", "Accept": "application/json", "enable-jwt": "1"})
         if r.status_code == 401 and not renovou:
             renovou = True
-            if refresh_token(conta_id)["success"]:
+            if refresh_token(conta_id, tok)["success"]:
                 continue
         if r.status_code == 429:
             time.sleep(espera)

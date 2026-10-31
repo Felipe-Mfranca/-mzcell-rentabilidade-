@@ -61,9 +61,9 @@ def main(conta_id: str):
     servidor.serve_forever()
     timer.cancel()
     if resultado.get("success"):
-        print("✅ Tokens salvos em bling_config.json")
+        print("[OK] Tokens salvos em bling_config.json")
     else:
-        print("❌ Não autorizado:", resultado.get("erro") or resultado.get("error") or "tempo esgotado (5 min)")
+        print("[ERRO] Não autorizado:", resultado.get("erro") or resultado.get("error") or "tempo esgotado (5 min)")
 
 
 if __name__ == "__main__":
