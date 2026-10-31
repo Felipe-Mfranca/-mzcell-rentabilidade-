@@ -152,6 +152,60 @@ def full_asin(conta: str, asin: str):
             "em_transito": item.get("em_transito", 0), "media_7d": media, "dias_cobertura": dias, "nivel": nivel}
 
 
+@router.get("/pivo/{conta}")
+def pivo_conta(conta: str):
+    """PIVO manual dos SKUs da conta: {SKU: {P, I, V, O: true|false, por, em}}."""
+    from marketplaces.amazon import pivo_manual
+    api.conta_cfg(conta)
+    return {"conta": conta, "itens": pivo_manual.ler(conta)}
+
+
+@router.post("/pivo/{conta}")
+def pivo_marcar(conta: str, corpo: dict):
+    """Marca uma letra do PIVO de um SKU: {"sku", "letra": P|I|V|O, "valor": true|false|null, "nome"}."""
+    from marketplaces.amazon import pivo_manual
+    api.conta_cfg(conta)
+    sku = str(corpo.get("sku") or "").strip()
+    if not sku:
+        raise HTTPException(status_code=400, detail="informe o sku")
+    try:
+        return {"sku": sku, "item": pivo_manual.marcar(conta, sku, str(corpo.get("letra") or ""), corpo.get("valor"), str(corpo.get("nome") or ""))}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/skus-do-asin/{conta}")
+def skus_do_asin(conta: str, asin: str):
+    """Todos os SKUs conhecidos de um ASIN (inventário FBA e SKUs com venda no painel). Serve para achar o estoque no Bling
+    quando o SKU da Amazon não existe lá, mas outro SKU do mesmo ASIN existe."""
+    import time
+    skus = set()
+    try:
+        quando, itens = _inventario.get(conta, (0, None))
+        if itens is None or time.time() - quando > INVENTARIO_VALIDADE_S:
+            itens = api.estoque_fba(conta)
+            _inventario[conta] = (time.time(), itens)
+        for i in itens:
+            if i.get("asin") == asin:
+                skus.update(i.get("skus") or [])
+    except api.ErroAmazon:
+        pass
+    try:
+        for sku, t in (painel._exige_cache(conta).get("titulos") or {}).items():
+            if t.get("asin") == asin:
+                skus.add(sku)
+    except api.ErroAmazon:
+        pass
+    try:   # amarração ASIN -> SKUs (o SKU "irmão" do FBA é o mesmo do Bling e dos melis)
+        import json, os
+        caminho = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "amazon_asin_skus.json")
+        with open(caminho, encoding="utf-8") as f:
+            skus.update((json.load(f).get(conta) or {}).get("asin_skus", {}).get(asin, []))
+    except Exception:
+        pass
+    return {"asin": asin, "skus": sorted(skus)}
+
+
 @router.get("/vendas/{conta}")
 def vendas(conta: str, asin: str, rede: str = None):
     try:
