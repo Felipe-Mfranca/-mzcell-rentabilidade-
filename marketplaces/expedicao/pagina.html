@@ -41,11 +41,16 @@
   .tag { display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:700; background:var(--czb); color:var(--cz); margin-right:4px; }
   .tag.ok { background:var(--okb); color:var(--ok); } .tag.am { background:var(--amb); color:var(--am); } .tag.vm { background:var(--vmb); color:var(--vm); }
   .erro { background:var(--vmb); color:var(--vm); padding:8px 12px; border-radius:8px; margin-bottom:10px; }
+  .canc { background:var(--vmb); border:1px solid var(--vm); border-left:6px solid var(--vm); border-radius:8px; padding:10px 14px; margin-bottom:12px; }
+  .canc h3 { margin:0 0 6px; font-size:13px; color:var(--vm); }
+  .canc .ci { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; padding:6px 0; border-top:1px solid var(--bd); font-size:12px; }
+  .canc .ci:first-of-type { border-top:0; }
   .nota { color:var(--mut); font-size:12px; margin-top:20px; }
   .mont { display:grid; grid-template-columns:72px 1fr; gap:12px; background:var(--card); border:1px solid var(--bd); border-radius:8px; padding:10px 12px; margin-bottom:8px; }
   .foto { width:72px; height:72px; object-fit:cover; border-radius:6px; background:var(--czb); }
   .foto.sem { display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--mut); }
   .mt { font-weight:700; }
+  .bal { font-size:12px; margin-top:4px; color:var(--mut); } .bal b { color:var(--txt); } .bal.neg, .bal.neg b { color:var(--vm); font-weight:700; }
   .quebra { font-size:16px; font-weight:700; margin-top:4px; color:var(--ok); }
   .btn-m { background:var(--card); color:var(--txt); border:1px solid var(--bd); padding:3px 10px; border-radius:6px; font:inherit; font-size:11px; font-weight:600; margin-right:4px; cursor:pointer; }
   .btn-m.on { background:var(--okb); color:var(--ok); border-color:var(--ok); }
@@ -66,6 +71,7 @@
 </header>
 <div id="prog" class="prog"></div>
 <main>
+  <div id="cancelamentos"></div>
   <div class="kpis" id="kpis"></div>
   <div class="abas"><button id="aba-hoje" class="ativa" type="button">Hoje</button><button id="aba-proximos" type="button">Próximos dias</button></div>
   <div id="erros"></div>
@@ -74,28 +80,55 @@
   Amazon DBA (corte 11h, ponto até 14h) e Shopee (12h) entram nas próximas etapas. Verde: mais de 60 min. Amarelo: até 60 min. Vermelho: vencido.</p>
 </main>
 <script>
+  var estBling = {};
+  // Balanço do estoquista: saldo do depósito Geral no Bling (mesmo SKU do anúncio) menos o que vai ser montado
+  function saldoBling(conta, sku, mlb) {
+    var d = estBling[conta]; if (!d) return null;
+    sku = (mlb && d.filhos && d.filhos[mlb]) || sku;   // anúncio com SKU do pai: vale o SKU da variação (atributo SELLER_SKU)
+    if (!sku) return null;
+    var k = String(sku).trim().toUpperCase();
+    if (d.pais && d.pais[k]) return "pai";   // cadastro pai de variações: sem saldo próprio
+    var it = d.itens[k];
+    return it ? it[0] : null;
+  }
+  function balancoHtml(conta, sku, un, mlb) {
+    if (!estBling[conta]) return "";
+    var sb = saldoBling(conta, sku, mlb);
+    if (sb === "pai") return "<div class='bal neg'>Estoque Bling: <b>SKU pai</b> (tem variações, sem saldo próprio): ajustar o SKU do anúncio</div>";
+    if (sb == null) return "<div class='bal'>Estoque Bling: <b>sem cadastro</b> para este SKU</div>";
+    var fica = sb - un;
+    return "<div class='bal" + (fica < 0 ? " neg" : "") + "'>Estoque Bling <b>" + sb + "</b> − montar <b>" + un + "</b> = fica <b>" + fica + "</b>" + (fica < 0 ? " · FALTAM " + (-fica) : "") + "</div>";
+  }
   var dados = null, AMARELO_MIN = 60, aba = 'hoje', fotos = {}, vista = 'geral';
   function dia(iso) { return iso ? new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) : ''; }
   function hojeStr() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }); }
   function ehHoje(l) { var d = dia(l.meta || l.prazo_ml); return !d || d <= hojeStr(); }
   // Montagem = pedidos com prazo hoje ainda não postados (em montagem agora).
   // Prazo de dias anteriores: fica fora da contagem e vira alerta (atraso na montagem ou na postagem).
+  // Postado no ML (na agência, na lista de postagem ou já coletado): sai da montagem e do atraso, mesmo sem marca do estoquista.
+  function postadoML(l) {
+    return l.status === "ready_to_ship" && (l.substatus === "in_hub" || l.substatus === "in_packing_list" || l.substatus === "dropped_off");
+  }
   function emAberto(l) {
-    if (l.status === "ready_to_ship" && (l.substatus === "in_hub" || l.substatus === "in_packing_list")) return false;
+    if (postadoML(l)) return false;
     return l.status === "pending" || l.status === "ready_to_ship";
   }
   function atrasoAnterior(l) { var d = dia(l.meta || l.prazo_ml); return !!d && d < hojeStr(); }
+  // A etiqueta emitida não tira o pedido da montagem (a montagem é a lista de separação); só a marca manual do estoquista tira.
+  // Checkout feito no Bling (situação Verificado) vale como embalado e checkout: sai da montagem e o tempo de embalagem não conta mais.
+  function verificadoBling(l) { return l.bling_checkout === true; }
+  function jaMontado(l) { return marcado(l, "embalado") || marcado(l, "checkout") || verificadoBling(l); }
+  function checkoutEf(l) { return marcado(l, "checkout") || verificadoBling(l); }
   // Adiados (pending, aguardando liberação) não entram na montagem do dia; aparecem só na montagem de Próximos dias.
   function aMontar(l) {
     if (l.status === "pending") return aba === "proximos";
-    return l.status === "ready_to_ship" && emAberto(l) && !atrasoAnterior(l) && !marcadoEf(l, "embalado") && !marcadoEf(l, "checkout");
+    return l.status === "ready_to_ship" && emAberto(l) && !atrasoAnterior(l) && !jaMontado(l);
   }
   // Marcas do galpão (por envio): embalado e checkout ok. Guardadas no servidor até a integração com o Bling.
   var marcasExp = {};
   function marcado(l, campo) { return !!(marcasExp[l.envio] && marcasExp[l.envio][campo]); }
-  // Etiqueta já emitida (printed / ready_to_print): embalado e checkout ok são automáticos, sem marca do estoquista.
-  function etapaAuto(l) { return l.status === "ready_to_ship" && (l.substatus === "printed" || l.substatus === "ready_to_print"); }
-  function marcadoEf(l, campo) { return marcado(l, campo) || ((campo === "embalado" || campo === "checkout") && etapaAuto(l)); }
+  // Marcas manuais do estoquista. Etiqueta impressa e nota emitida não contam como embalado nem checkout.
+  function marcadoEf(l, campo) { return marcado(l, campo); }
   function marcarEnvio(envio, campo, valor) {
     fetch("/expedicao/marca", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ envio: String(envio), campo: campo, valor: valor }) })
       .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
@@ -107,8 +140,9 @@
   function hm(iso) { var d = new Date(iso); return d.toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" }); }
   function falta(l) {
     // Já postado (in_hub) ou na lista de postagem: a parte do vendedor está feita, não conta como atraso
-    if (l.status === "ready_to_ship" && (l.substatus === "in_hub" || l.substatus === "in_packing_list")) return { cls: "cz", txt: "postado · aguardando coleta", min: null };
+    if (postadoML(l)) return { cls: "cz", txt: "postado · aguardando coleta", min: null };
     if (marcado(l, "liberado")) return { cls: "cz", txt: "liberado pelo galpão", min: null };
+    if (verificadoBling(l)) return { cls: "cz", txt: "checkout feito (Bling " + l.bling_numero + ") · aguardando coleta/postagem", min: null };
     if (marcadoEf(l, "embalado") && marcadoEf(l, "checkout")) return { cls: "cz", txt: "embalado e checkout ok · aguardando liberação", min: null };
     if (!l.meta) return { cls: "cz", txt: "sem prazo", min: null };
     var min = Math.round((new Date(l.meta) - new Date()) / 60000);
@@ -121,7 +155,7 @@
   }
   function dur(m) { var h = Math.floor(m / 60), r = m % 60; return h ? h + "h" + (r < 10 ? "0" : "") + r : r + " min"; }
   // Já postado (lista de postagem ou agência) não aparece: a tela mostra só o que ainda vai ser postado.
-  function naoPostado(l) { return !(l.status === "ready_to_ship" && (l.substatus === "in_hub" || l.substatus === "in_packing_list")) && !marcado(l, "liberado"); }
+  function naoPostado(l) { return !postadoML(l) && !marcado(l, "liberado"); }
   function desenhar() {
     if (!dados) return;
     var abertas = dados.linhas.filter(naoPostado).filter(passaFiltro);
@@ -152,14 +186,20 @@
     var nomes = { meli01: 'Meli01 (coleta)', meli02: 'Meli02 (agência)', meli03: 'Meli03 (agência)' };
     var logHtml = Object.keys(logi).map(function (k) { return "<div class='n'><span>" + esc(k) + "</span><b>" + logi[k].p + " ped · " + logi[k].u + " un</b></div>"; }).join('');
     // 1º: montagem de hoje por canal (pedidos e unidades). 2º: totais. 3º (abaixo): próximos dias.
-    var mHoje = abertas.filter(function (l) { return l.status === "ready_to_ship" && emAberto(l) && !atrasoAnterior(l) && ehHoje(l); });
-    var porCanalMont = {};
+    var mHoje = abertas.filter(function (l) { return l.status === "ready_to_ship" && emAberto(l) && !atrasoAnterior(l) && ehHoje(l) && !jaMontado(l); });
+    var porCanalMont = {}, porCanalExp = {};
+    abertas.filter(function (l) { return jaMontado(l) && emAberto(l) && l.status === "ready_to_ship"; }).forEach(function (l) {
+      var x = porCanalExp[l.canal] = porCanalExp[l.canal] || { p: 0, u: 0 }; x.p++; x.u += l.unidades || 0;
+    });
+    var expHtml = Object.keys(porCanalExp).sort().map(function (k) { return "<div class='n'><span>" + esc(k) + "</span><b>" + porCanalExp[k].p + " ped · " + porCanalExp[k].u + " un</b></div>"; }).join("");
     mHoje.forEach(function (l) { var x = porCanalMont[l.canal] = porCanalMont[l.canal] || { p: 0, u: 0 }; x.p++; x.u += l.unidades || 0; });
     var montHtml = Object.keys(porCanalMont).sort().map(function (k) { return "<div class='n'><span>" + esc(k) + "</span><b>" + porCanalMont[k].p + " ped · " + porCanalMont[k].u + " un</b></div>"; }).join("");
     el("kpis").innerHTML = "<div class='kpi'><h3>Montagem de hoje (por canal)</h3>" + (montHtml || "<span class='meta'>nenhum pedido para montar hoje</span>") + "</div>" +
+      "<div class='kpi'><h3>Checkout feito · levar ou aguardar coleta</h3>" + (expHtml || "<span class='meta'>nenhum pedido aguardando coleta/postagem</span>") + "</div>" +
       "<div class='kpi'><h3>Logística (todas as contas)</h3>" + (logHtml || "<span class='meta'>sem envios</span>") + "</div>" +
       card('Total', Object.assign(tot, { canais: {} })) + ['meli01','meli02','meli03'].map(function (k) { return card(nomes[k], contas[k] || { total: 0, hoje: 0, prox: 0, vm: 0, aguardando: 0, canais: {} }); }).join('');
     el("erros").innerHTML = Object.keys(dados.erros || {}).map(function (c) { return "<div class='erro'>❌ " + esc(c) + ": " + esc(dados.erros[c]) + " (conta não carregada)</div>"; }).join("");
+    el("erros").innerHTML += Object.keys(dados.errosBling || {}).map(function (c) { return "<div class='erro'>⚠ " + esc(dados.errosBling[c]) + " (sem a situação do Bling; valem só as marcas do galpão)</div>"; }).join("");
     var html = "";
     Object.keys(porCanal).sort().forEach(function (k) {
       var ls = porCanal[k].sort(function (a, b) { return (a.meta || "9") < (b.meta || "9") ? -1 : 1; });
@@ -170,10 +210,10 @@
         html += "<div class='linha " + f.cls + "'><div><div class='tempo'>" + esc(f.txt) + "</div>" +
           "<div class='meta'>meta " + (l.meta ? hm(l.meta) : "-") + "</div>" + (l.prazo_ml ? "<div class='meta'>ML até " + hm(l.prazo_ml) + "</div>" : "") +
           (f.extra ? "<div class='meta'>" + esc(f.extra) + "</div>" : "") + "</div>" +
-          "<div><span class='tag'>aguardando liberação pelo galpão</span>" +
+          "<div><span class='tag" + (verificadoBling(l) ? " ok'>checkout feito no Bling · levar ou aguardar coleta" : "'>aguardando liberação pelo galpão") + "</span>" +
           (porEnvio[l.envio] > 1 ? "<span class='tag am'>mesmo envio de " + porEnvio[l.envio] + " pedidos</span>" : "") +
-          "<div class='marcas'><button class='btn-m" + (marcadoEf(l, 'embalado') ? " on" : "") + "' onclick=\"marcarEnvio('" + l.envio + "','embalado'," + !marcado(l, 'embalado') + ")\" title=\"" + (etapaAuto(l) && !marcado(l, 'embalado') ? "automático: etiqueta emitida" : "") + "\">Embalado</button>" +
-          "<button class='btn-m" + (marcadoEf(l, 'checkout') ? " on" : "") + "' onclick=\"marcarEnvio('" + l.envio + "','checkout'," + !marcado(l, 'checkout') + ")\" title=\"" + (etapaAuto(l) && !marcado(l, 'checkout') ? "automático: etiqueta emitida" : "") + "\">Checkout ok</button>" +
+          "<div class='marcas'><button class='btn-m" + (marcado(l, 'embalado') ? " on" : "") + "' onclick=\"marcarEnvio('" + l.envio + "','embalado'," + !marcado(l, 'embalado') + ")\">Embalado</button>" +
+          "<button class='btn-m" + (checkoutEf(l) ? " on" : "") + "' onclick=\"marcarEnvio('" + l.envio + "','checkout'," + !marcado(l, 'checkout') + ")\" title=\"" + (verificadoBling(l) && !marcado(l, 'checkout') ? "automático: Verificado no Bling" : "") + "\">Checkout ok</button>" +
           "<button class='btn-m' onclick=\"marcarEnvio('" + l.envio + "','liberado',true)\" title=\"Libera o pedido: sai da tela\">Liberar pedido</button></div>" +
           "<span class='tag'>" + esc(l.situacao || l.status) + "</span><span class='meta'>" + numVenda(l) + "</span>" + its + "</div></div>";
       });
@@ -188,8 +228,11 @@
         [['todas', 'Todas'], ['flex', 'Flex'], ['places', 'Places (Coleta e Agência)']].map(function (o) { return "<option value='" + o[0] + "'" + (filtroMod === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") +
       "</select> <button class='btn-m' onclick='imprimirMontagem()'>Imprimir montagem</button></div>";
     var paraMontar = doAba.filter(aMontar);
-    var atrasados = abertas.filter(function (l) { return emAberto(l) && atrasoAnterior(l); });
-    var alertaAtraso = atrasados.length ? "<div class='erro'>⚠ " + plural(atrasados.length, 'pedido', 'pedidos') + " com prazo de dia anterior, fora da montagem: verificar atraso na montagem ou na postagem.</div>" : "";
+    var atrasadosTodos = abertas.filter(function (l) { return emAberto(l) && atrasoAnterior(l); });
+    var atrasados = atrasadosTodos.filter(function (l) { return !verificadoBling(l); });
+    var atrasadosPostar = atrasadosTodos.filter(verificadoBling);
+    var alertaAtraso = (atrasados.length ? "<div class='erro'>⚠ " + plural(atrasados.length, 'pedido', 'pedidos') + " com prazo de dia anterior, fora da montagem: verificar atraso na montagem ou na postagem.</div>" : "") +
+      (atrasadosPostar.length ? "<div class='erro'>⚠ " + plural(atrasadosPostar.length, 'pedido', 'pedidos') + " com checkout feito e prazo de dia anterior, ainda sem postagem/coleta: levar ou cobrar a coleta.</div>" : "");
     var listaPedidos = html || "<p class='meta'>" + (aba === "hoje" ? "Nenhum envio para hoje." : "Nenhum envio para os próximos dias.") + "</p>";
     var conteudo = vista === 'pedidos' ? listaPedidos
       : alertaAtraso + (vista === 'geral' ? montagemHtml(paraMontar) : montagemContasHtml(paraMontar));
@@ -203,7 +246,7 @@
     ls.forEach(function (l) {
       if (l.itens.length !== 1) { mistos.push(l); return; }
       var i = l.itens[0], k = i.mlb || i.titulo;
-      var x = g[k] = g[k] || { mlb: i.mlb, sku: i.sku, titulo: i.titulo, un: 0, ped: 0, pac: {} };
+      var x = g[k] = g[k] || { mlb: i.mlb, sku: i.sku, conta: l.conta, titulo: i.titulo, un: 0, ped: 0, pac: {} };
       x.un += i.qtd || 0; x.ped++; x.pac[i.qtd] = (x.pac[i.qtd] || 0) + 1;
     });
     var lista = Object.keys(g).map(function (k) { return g[k]; }).sort(function (a, b) { return b.un - a.un; });
@@ -215,7 +258,7 @@
       h += "<div class='mont'>" + foto + "<div><div class='mt'>" + esc((x.titulo || '').slice(0, 90)) + "</div>" +
         "<div class='meta'>" + (x.sku ? esc(x.sku) + " · " : "") + esc(x.mlb || '') + "</div>" +
         "<div><b>" + plural(x.un, 'unidade', 'unidades') + "</b> em " + plural(x.ped, 'pedido', 'pedidos') + "</div>" +
-        "<div class='quebra'>" + quebra + "</div></div></div>";
+        "<div class='quebra'>" + quebra + "</div>" + balancoHtml(x.conta, x.sku, x.un, x.mlb) + "</div></div>";
     });
     if (mistos.length) {
       h += "<h2>Pedidos com mais de um produto <small>· " + mistos.length + "</small></h2>";
@@ -246,7 +289,7 @@
   // Impressão da montagem do dia: Flex primeiro (primeira embalagem), depois Places por horário. Sai o que já está embalado.
   function imprimirMontagem() {
     var base = dados.linhas.filter(naoPostado).filter(passaFiltro).filter(function (l) {
-      return l.status === "ready_to_ship" && emAberto(l) && !atrasoAnterior(l) && ehHoje(l) && !marcadoEf(l, "embalado") && !marcadoEf(l, "checkout");
+      return l.status === "ready_to_ship" && emAberto(l) && !atrasoAnterior(l) && ehHoje(l) && !jaMontado(l);
     });
     var grupos = {};
     base.forEach(function (l) {
@@ -261,25 +304,30 @@
         total += l.unidades || 0;
         (l.itens || []).forEach(function (i) {
           var chave = i.mlb || i.titulo;
-          var p = prod[chave] = prod[chave] || { titulo: i.titulo, sku: i.sku, un: 0 };
+          var p = prod[chave] = prod[chave] || { mlb: i.mlb, titulo: i.titulo, sku: i.sku, conta: l.conta, un: 0 };
           p.un += i.qtd || 0;
         });
       });
       var lista = Object.keys(prod).map(function (c) { return prod[c]; }).sort(function (a, b) { return b.un - a.un; });
-      var titulo = (g.canal === "Flex" ? "Flex" : "Places · " + g.canal) + " · " + g.conta + (g.hora ? " · horário " + g.hora : "");
-      return "<h2>" + esc(titulo) + "</h2><p>" + plural(g.linhas.length, "pedido", "pedidos") + " · " + plural(total, "unidade", "unidades") + "</p>" +
-        "<table><tr><th>Produto</th><th>SKU</th><th>Qtd</th></tr>" +
-        lista.map(function (p) { return "<tr><td>" + esc((p.titulo || "").slice(0, 70)) + "</td><td>" + esc(p.sku || "") + "</td><td class='q'>" + p.un + "</td></tr>"; }).join("") +
+      var titulo = (g.canal === "Flex" ? "Flex" : "Places · " + g.canal) + " · " + g.conta.toUpperCase() + (g.hora ? " · horário " + g.hora : "");
+      var cor = { meli01: "#1d4ed8", meli02: "#15803d", meli03: "#c2410c" }[g.conta] || "#111";
+      return "<h2 style='color:" + cor + "'>" + esc(titulo) + "</h2><p>" + plural(g.linhas.length, "pedido", "pedidos") + " · " + plural(total, "unidade", "unidades") + "</p>" +
+        "<table><tr><th>Produto</th><th>SKU</th><th>Montar</th><th>Estoque</th><th>Fica</th></tr>" +
+        lista.map(function (p) {
+          var sb = saldoBling(p.conta, p.sku, p.mlb), fica = typeof sb === "number" ? sb - p.un : null;
+          return "<tr><td>" + esc((p.titulo || "").slice(0, 40)) + "</td><td class='sk'>" + esc(p.sku || "") + "</td><td class='q'>" + p.un + "</td><td class='q'>" + (typeof sb === "number" ? sb : (sb === "pai" ? "pai" : "-")) + "</td><td class='q" + (fica != null && fica < 0 ? " falta" : "") + "'>" + (fica == null ? "-" : fica) + "</td></tr>";
+        }).join("") +
         "</table>";
     }).join("");
     var w = window.open("", "_blank");
     if (!w) { el("sub").textContent = "o navegador bloqueou a janela de impressão"; return; }
     w.document.write("<!doctype html><html><head><meta charset='utf-8'><title>Montagem do dia</title><style>" +
-      "@page{size:A4 portrait;margin:10mm}" +
+      "@page{margin:10mm}" +  /* sem size fixo: o navegador usa o Layout (Retrato/Paisagem) escolhido na impressão, no papel e no PDF */
       "body{font:12px Arial,sans-serif;margin:0;color:#000}h1{font-size:14px;margin:0 0 4px}h2{font-size:12px;margin:12px 0 2px;border-bottom:2px solid #000}" +
       "p{margin:2px 0}table{width:100%;border-collapse:collapse;margin-top:3px;font-size:10px;table-layout:fixed}th,td{border-bottom:1px solid #999;padding:2px 4px;text-align:left;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}" +
-      "th:nth-child(1){width:auto}th:nth-child(2){width:130px}th:nth-child(3),td.q{width:34px}td.q{font-size:12px;font-weight:700;text-align:right}" +
-      "</style></head><body><h1>Montagem do dia · " + esc(hojeStr()) + "</h1>" + (corpo || "<p>Nenhum pedido para montar.</p>") + "</body></html>");
+      "th:nth-child(1){width:auto}th:nth-child(2){width:50mm}th:nth-child(n+3),td.q{width:44px}td.q{font-size:12px;font-weight:700;text-align:right}td.falta{color:#b91c1c;text-decoration:underline}" +
+      "td.sk{white-space:normal;word-break:break-all;font-size:10px}" +
+      "</style></head><body><h1>Montagem do dia · " + esc(hojeStr().split("-").reverse().join("-")) + "</h1>" + (corpo || "<p>Nenhum pedido para montar.</p>") + "</body></html>");
     w.document.close(); w.focus(); w.print();
   }
   // Filtro da tela (vale para todas as abas): conta e modalidade
@@ -334,13 +382,13 @@
   function progParar() { clearInterval(progTimer); progRender(); setTimeout(function () { el("prog").style.display = "none"; }, 4000); }
   function carregar(forcar) {
     el("sub").textContent = "carregando…"; el("atualizar").disabled = true;
-    var acc = { gerado_em: null, linhas: [], erros: {} }, faltam = CONTAS_EXP.length;
+    var acc = { gerado_em: null, linhas: [], erros: {}, errosBling: {} }, faltam = CONTAS_EXP.length;
     dados = acc; progIniciar();
     fetch("/expedicao/marcas").then(function (r) { return r.ok ? r.json() : {}; }).then(function (m) { marcasExp = m || {}; desenhar(); }).catch(function () {});
     CONTAS_EXP.forEach(function (c) {
       var erro = null;
       fetch("/expedicao/galpao?contas=" + c + (forcar ? "&atualizar=true" : "")).then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-        .then(function (d) { acc.linhas = acc.linhas.concat(d.linhas || []); Object.assign(acc.erros, d.erros || {}); acc.gerado_em = d.gerado_em || acc.gerado_em; })
+        .then(function (d) { acc.linhas = acc.linhas.concat(d.linhas || []); Object.assign(acc.erros, d.erros || {}); Object.assign(acc.errosBling, d.erros_bling || {}); acc.gerado_em = d.gerado_em || acc.gerado_em; })
         .catch(function (e) { erro = e.message; acc.erros[c] = e.message; })
         .then(function () {
           progFim(c, erro);
@@ -351,13 +399,54 @@
         });
     });
   }
-  el("atualizar").addEventListener("click", function () { carregar(true); });
+  // Cancelados no ML que seguem ativos no Bling: o aviso fica até o Bling passar para Cancelado
+  function abrirNoBling(conta, url) {
+    fetch("/sistema/abrir-link", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: url, conta: conta }) })
+      .catch(function () { window.open(url, "_blank"); });
+  }
+  var cancAberto = false;
+  function carregarCancelamentos(forcar) {
+    fetch("/expedicao/cancelamentos" + (forcar ? "?atualizar=true" : "")).then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (d) {
+        var box = el("cancelamentos"), lista = d.pendentes || [], h = "";
+        if (lista.length) {
+          h += "<div class='canc'><h3 id='canc-aviso' style='cursor:pointer;margin:0 0 " + (cancAberto ? "6px" : "0") + "' title='Clique para " + (cancAberto ? "recolher" : "ver a lista") + "'>⚠ Você tem " +
+            (lista.length === 1 ? "1 pedido que precisa" : lista.length + " pedidos que precisam") + " ser cancelado" + (lista.length === 1 ? "" : "s") + " no Bling <span class='meta'>· " + (cancAberto ? "recolher ▲" : "ver lista ▼") + "</span></h3>";
+          lista.forEach(function (c, i) {
+            if (!cancAberto) return;
+            var its = (c.itens || []).map(function (x) { return esc(x.sku || x.mlb) + " ×" + x.qtd; }).join(", ");
+            h += "<div class='ci'><b>" + esc(c.conta) + "</b><span>pedido " + esc(String(c.pedido)) + (c.pacote ? " · pacote " + esc(String(c.pacote)) : "") + "</span>" +
+              "<span class='tag vm'>Bling " + esc(String(c.bling_numero)) + " · " + esc(c.bling_situacao) + "</span><span>" + its + "</span>" +
+              "<span><b>" + esc(c.acao) + "</b></span>" +
+              "<button class='btn-m' type='button' data-i='" + i + "'>Abrir no Bling</button></div>";
+          });
+          h += "</div>";
+        }
+        var e = Object.keys(d.erros || {});
+        if (e.length) h += "<div class='erro'>Não consegui conferir cancelamentos: " + e.map(function (k) { return esc(k + " (" + d.erros[k] + ")"); }).join("; ") + "</div>";
+        box.innerHTML = h;
+        var aviso = el("canc-aviso");
+        if (aviso) aviso.addEventListener("click", function () { cancAberto = !cancAberto; carregarCancelamentos(false); });
+        Array.prototype.forEach.call(box.querySelectorAll("button[data-i]"), function (b) {
+          b.addEventListener("click", function () { var c = lista[Number(b.getAttribute("data-i"))]; abrirNoBling(c.conta_bling, c.bling_url); });
+        });
+      }).catch(function () {});
+  }
+  function carregarBling() {
+    CONTAS_EXP.forEach(function (c) {
+      fetch("/bling/estoque/" + c).then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+        .then(function (d) { if (d.itens) { estBling[c] = d; desenhar(); } }).catch(function () {});
+    });
+  }
+  el("atualizar").addEventListener("click", function () { carregar(true); carregarCancelamentos(true); carregarBling(); });
   function irAba(a) { aba = a; el("aba-hoje").className = a === "hoje" ? "ativa" : ""; el("aba-proximos").className = a === "proximos" ? "ativa" : ""; desenhar(); }
   el("aba-hoje").addEventListener("click", function () { irAba("hoje"); });
   el("aba-proximos").addEventListener("click", function () { irAba("proximos"); });
   setInterval(desenhar, 30000);
-  setInterval(function () { carregar(false); }, 300000);
+  setInterval(function () { carregar(false); carregarCancelamentos(false); carregarBling(); }, 300000);
   carregar(false);
+  carregarCancelamentos(false);
+  carregarBling();
 </script>
 </body>
 </html>
