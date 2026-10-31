@@ -124,3 +124,11 @@ amazon_asin_skus.json
 Setup-MZCell.ps1
 
 marcacao_expedicao.json
+
+balanco_catalogo.json
+amazon_pivo.json
+compras_cache.json
+
+# manutenção: backups locais (contêm credenciais)
+backups/
+docs/
