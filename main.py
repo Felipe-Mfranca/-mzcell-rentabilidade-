@@ -109,17 +109,34 @@ try:
 except ImportError as e:
     print(f"[startup] Módulo Expedição indisponível: {e}")
 
+# Módulos em construção: o código vem no instalador, mas só sobem se estiverem abertos em
+# modulos_liberados.py. Sem esse arquivo (instalação antiga), ficam todos fechados.
 try:
-    from marketplaces.balanco.router import router as balanco_router
-    app.include_router(balanco_router)
-except ImportError as e:
-    print(f"[startup] Módulo Balanço indisponível: {e}")
+    from modulos_liberados import liberado as modulo_liberado
+except ImportError:
+    def modulo_liberado(nome: str) -> bool:
+        return False
 
-try:
-    from marketplaces.compras.router import router as compras_router
-    app.include_router(compras_router)
-except ImportError as e:
-    print(f"[startup] Módulo Compras indisponível: {e}")
+if modulo_liberado("balanco"):
+    try:
+        from marketplaces.balanco.router import router as balanco_router
+        app.include_router(balanco_router)
+    except ImportError as e:
+        print(f"[startup] Módulo Balanço indisponível: {e}")
+
+if modulo_liberado("compras"):
+    try:
+        from marketplaces.compras.router import router as compras_router
+        app.include_router(compras_router)
+    except ImportError as e:
+        print(f"[startup] Módulo Compras indisponível: {e}")
+
+if modulo_liberado("radar"):
+    try:
+        from marketplaces.radar.router import router as radar_router
+        app.include_router(radar_router)
+    except ImportError as e:
+        print(f"[startup] Módulo Radar indisponível: {e}")
 
 try:
     from marketplaces.bling.router import router as bling_router

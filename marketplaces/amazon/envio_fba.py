@@ -78,18 +78,43 @@ def validar(qtd, caixas, por_caixa, peso) -> int:
 
 
 def corpo_plano(sku, total, origem, marketplace, nome) -> dict:
-    """createInboundPlan. SKU sem preparo exige prepOwner NONE (a Amazon recusa SELLER nesses casos)."""
+    """createInboundPlan. SKU sem preparo exige prepOwner NONE (a Amazon recusa SELLER nesses casos).
+    `sku`/`total` podem ser listas de mesmo tamanho (caixa mista: vários SKUs no mesmo plano)."""
+    skus, totais = ([sku], [total]) if isinstance(sku, str) else (list(sku), list(total))
     return {"destinationMarketplaces": [marketplace], "name": nome, "sourceAddress": origem["endereco"],
-            "items": [{"msku": sku, "quantity": total, "labelOwner": "SELLER", "prepOwner": "NONE"}]}
+            "items": [{"msku": k, "quantity": t, "labelOwner": "SELLER", "prepOwner": "NONE"} for k, t in zip(skus, totais)]}
 
 
 def corpo_embalagem(grupo, sku, caixas, por_caixa, peso, dim) -> dict:
+    """`sku`/`por_caixa` podem ser listas de mesmo tamanho: cada caixa leva todos os SKUs (caixa mista)."""
     c, l, a = dim
+    skus, qtds = ([sku], [por_caixa]) if isinstance(sku, str) else (list(sku), list(por_caixa))
     return {"packageGroupings": [{"packingGroupId": grupo, "boxes": [{
         "contentInformationSource": "BOX_CONTENT_PROVIDED", "quantity": caixas,
         "dimensions": {"length": c, "width": l, "height": a, "unitOfMeasurement": "CM"},
         "weight": {"unit": "KG", "value": peso},
-        "items": [{"labelOwner": "SELLER", "msku": sku, "quantity": por_caixa, "prepOwner": "NONE"}]}]}]}
+        "items": [{"labelOwner": "SELLER", "msku": k, "quantity": q, "prepOwner": "NONE"} for k, q in zip(skus, qtds)]}]}]}
+
+
+def nome_padrao(skus, totais) -> str:
+    """Nome do plano; a Amazon aceita no máximo 40 caracteres."""
+    nome = " + ".join(f"{k} {t}un" for k, t in zip(skus, totais)) + " - MZ"
+    if len(nome) > 40:
+        nome = f"MZ {len(skus)} SKUs {sum(totais)}un {date.today():%d/%m}"
+    return nome[:40]
+
+
+def parse_itens(texto: str) -> list:
+    """'SKU1=15,SKU2=10' → [('SKU1', 15), ('SKU2', 10)]: unidades de cada SKU por caixa (caixa mista)."""
+    itens = []
+    for parte in texto.split(","):
+        sku, _, q = parte.strip().rpartition("=")
+        if not sku or not q.strip().isdigit() or int(q) < 1:
+            raise ErroEnvio(f"Item inválido: '{parte}'. Use SKU=unidades_por_caixa, separados por vírgula.")
+        itens.append((sku.strip(), int(q)))
+    if len({k for k, _ in itens}) != len(itens):
+        raise ErroEnvio("SKU repetido em --itens.")
+    return itens
 
 
 def inicio_coleta(opcao) -> str:
@@ -172,36 +197,51 @@ def _opcoes_transporte(conta, plano, placement, envio):
 
 # ─── Comandos ────────────────────────────────────────────────────────────────
 
+def _itens(a) -> list:
+    """[(sku, unidades_por_caixa)]: um SKU (--sku/--por-caixa) ou caixa mista (--itens)."""
+    if getattr(a, "itens", None):
+        if a.sku or a.qtd:
+            raise ErroEnvio("Use --itens sozinho (sem --sku/--qtd).")
+        return parse_itens(a.itens)
+    if not a.sku or not a.por_caixa:
+        raise ErroEnvio("Informe --sku e --por-caixa, ou --itens SKU=un,SKU2=un.")
+    return [(a.sku, a.por_caixa)]
+
+
 def _parametros(a):
-    total = validar(a.qtd, a.caixas, a.por_caixa, a.peso)
-    return total, parse_dim(a.dim)
+    itens = _itens(a)
+    totais = [validar(a.qtd if len(itens) == 1 else None, a.caixas, q, a.peso) for _, q in itens]
+    return itens, totais, parse_dim(a.dim)
 
 
 def cmd_simular(a):
-    total, dim = _parametros(a)
+    itens, totais, dim = _parametros(a)
     origem = ler_origem(a.conta)
-    inv = _sku_do_inventario(a.conta, a.sku)
     print(f"SIMULAÇÃO (nada foi enviado) — {a.conta}")
-    print(f"  Produto: {a.sku} · ASIN {inv.get('asin')} · FNSKU {inv.get('fnsku')}")
-    print(f"  {total} un em {a.caixas} caixa(s) de {a.por_caixa} un · {a.peso} kg · {dim[0]:g}x{dim[1]:g}x{dim[2]:g} cm cada")
+    for (sku, q), total in zip(itens, totais):
+        inv = _sku_do_inventario(a.conta, sku)
+        print(f"  Produto: {sku} · ASIN {inv.get('asin')} · FNSKU {inv.get('fnsku')} · {total} un ({q} por caixa)")
+        print(f"    Etiqueta do produto: sua (FNSKU {inv.get('fnsku')}) · preparo: nenhum")
+    print(f"  {a.caixas} caixa(s){' MISTAS' if len(itens) > 1 else ''} · {a.peso} kg · {dim[0]:g}x{dim[1]:g}x{dim[2]:g} cm cada")
     e = origem["endereco"]
     print(f"  Origem: {e.get('addressLine1')} {e.get('addressLine2', '')}, {e.get('city')} ({e.get('postalCode')})")
-    print(f"  Etiqueta do produto: sua (FNSKU {inv.get('fnsku')}) · preparo: nenhum")
     print(f"  Primeiro dia útil possível para coleta: {proximo_dia_util(date.today()):%d/%m/%Y}")
     print("  Para criar o plano: repita o comando trocando 'simular' por 'criar' e adicionando --confirmar.")
 
 
 def cmd_criar(a):
-    total, dim = _parametros(a)
+    itens, totais, dim = _parametros(a)
+    skus = [k for k, _ in itens]
     if not a.confirmar:
         print("Faltou --confirmar. Mostrando só a simulação:\n")
         return cmd_simular(a)
     origem = ler_origem(a.conta)
     cfg = api.conta_cfg(a.conta)
     mkt = cfg.get("marketplace_id") or "A2Q3Y263D00KWC"
-    _sku_do_inventario(a.conta, a.sku)
-    nome = a.nome or f"{a.sku} {total}un - MZ"
-    s, r = api.post(a.conta, f"{BASE}/inboundPlans", corpo_plano(a.sku, total, origem, mkt, nome))
+    for k in skus:
+        _sku_do_inventario(a.conta, k)
+    nome = a.nome or nome_padrao(skus, totais)
+    s, r = api.post(a.conta, f"{BASE}/inboundPlans", corpo_plano(skus, totais, origem, mkt, nome))
     _ok(s, r, "createInboundPlan"); plano = r["inboundPlanId"]
     _op(a.conta, r, "createInboundPlan")
     print(f"Plano criado: {plano}")
@@ -210,9 +250,12 @@ def cmd_criar(a):
     _op(a.conta, r, "generatePackingOptions")
     s, r = api.get(a.conta, P + "/packingOptions"); _ok(s, r, "packingOptions")
     po = r["packingOptions"][0]
+    if len(po["packingGroups"]) != 1:
+        raise ErroEnvio(f"A Amazon dividiu o plano {plano} em {len(po['packingGroups'])} grupos de embalagem (caixa mista não suportada "
+                        f"assim). Nada foi confirmado; cancele com: cancelar {a.conta} --plano {plano} --confirmar")
     s, r = api.post(a.conta, f"{P}/packingOptions/{po['packingOptionId']}/confirmation", {}); _ok(s, r, "confirmPackingOption")
     _op(a.conta, r, "confirmPackingOption")
-    s, r = api.post(a.conta, P + "/packingInformation", corpo_embalagem(po["packingGroups"][0], a.sku, a.caixas, a.por_caixa, a.peso, dim))
+    s, r = api.post(a.conta, P + "/packingInformation", corpo_embalagem(po["packingGroups"][0], skus, a.caixas, [q for _, q in itens], a.peso, dim))
     _ok(s, r, "setPackingInformation")
     for p in _op(a.conta, r, "setPackingInformation"):
         print(f"  aviso da Amazon: {p.get('message')}")
@@ -220,6 +263,9 @@ def cmd_criar(a):
     _op(a.conta, r, "generatePlacementOptions")
     s, r = api.get(a.conta, P + "/placementOptions"); _ok(s, r, "placementOptions")
     pl = r["placementOptions"][0]
+    if len(pl["shipmentIds"]) != 1:
+        raise ErroEnvio(f"A Amazon dividiu o plano {plano} em {len(pl['shipmentIds'])} envios (destinos). Nada foi confirmado; "
+                        f"cancele com: cancelar {a.conta} --plano {plano} --confirmar")
     taxa = sum((f.get("value") or {}).get("amount", 0) for f in pl.get("fees", []))
     s, r = api.post(a.conta, f"{P}/placementOptions/{pl['placementOptionId']}/confirmation", {}); _ok(s, r, "confirmPlacementOption")
     _op(a.conta, r, "confirmPlacementOption")
@@ -233,7 +279,7 @@ def cmd_criar(a):
     _ok(s, r, "generateTransportationOptions"); _op(a.conta, r, "generateTransportationOptions")
     opcoes = _opcoes_transporte(a.conta, plano, pl["placementOptionId"], envio)
     estado = {"conta": a.conta, "plano": plano, "placement": pl["placementOptionId"], "envio": envio,
-              "confirmacao": r_get(a.conta, P, envio), "sku": a.sku, "total": total, "destino": destino}
+              "confirmacao": r_get(a.conta, P, envio), "sku": " + ".join(skus), "total": sum(totais), "destino": destino}
     _salvar_estado(estado)
     print(f"Destino: {destino} · taxa de alocação R$ {taxa:.2f} · envio {estado['confirmacao']}")
     print("Coletas disponíveis (transportadora parceira, dias úteis):")
@@ -319,8 +365,9 @@ def main(argv=None):
     for nome, fn in (("simular", cmd_simular), ("criar", cmd_criar), ("agendar", cmd_agendar), ("cancelar", cmd_cancelar), ("status", cmd_status)):
         s = sub.add_parser(nome); s.set_defaults(fn=fn); s.add_argument("conta")
         if nome in ("simular", "criar"):
-            s.add_argument("--sku", required=True); s.add_argument("--qtd", type=int)
-            s.add_argument("--caixas", type=int, required=True); s.add_argument("--por-caixa", type=int, required=True, dest="por_caixa")
+            s.add_argument("--sku"); s.add_argument("--qtd", type=int)
+            s.add_argument("--caixas", type=int, required=True); s.add_argument("--por-caixa", type=int, dest="por_caixa")
+            s.add_argument("--itens", help="caixa mista: SKU=un_por_caixa,SKU2=un_por_caixa (no lugar de --sku/--por-caixa)")
             s.add_argument("--peso", type=float, required=True, help="kg por caixa"); s.add_argument("--dim", required=True, help="CxLxA em cm")
             s.add_argument("--nome"); s.add_argument("--pronto-em", dest="pronto_em", help="AAAA-MM-DD (padrão: próximo dia útil)")
         else:

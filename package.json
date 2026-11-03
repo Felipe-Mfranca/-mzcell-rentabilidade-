@@ -56,7 +56,6 @@
           "rebot_visual.py",
           "buybox_monitor.py",
           "marketplaces/**",
-          "!marketplaces/radar/**",
           "!marketplaces/**/__pycache__/**",
           "!marketplaces/shopee/*.zip",
           "shared_config.json",
@@ -67,6 +66,7 @@
           "posicoes.json",
           "impostos.json",
           "impostos.py",
+          "modulos_liberados.py",
           "email_config.json",
           "python-embed/**",
           "version.txt"

@@ -57,6 +57,7 @@ const ARQUIVOS_ONLINE = [
   'marketplaces/amazon/ads.py',
   'marketplaces/amazon/promocoes.py',
   'produtos_store.py',
+  'modulos_liberados.py',
   'marketplaces/shopee/precificador.py'
 ];
 // Arquivo novo não precisa mais de instalador: a lista também vem do GitHub (arquivos_online.json) e é somada a esta.

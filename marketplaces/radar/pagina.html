@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<title>Ranking — posição no Mercado Livre</title>
+<style>
+  :root { --bg:#f3f4f6; --card:#fff; --txt:#111827; --mut:#6b7280; --bd:#e5e7eb; --hd:#1f2937;
+          --ok:#166534; --okb:#dcfce7; --am:#854d0e; --amb:#fef9c3; --vm:#991b1b; --vmb:#fee2e2; --az:#1d4ed8; --czb:#f3f4f6; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1318; --card:#1a1f27; --txt:#e8eaee; --mut:#9aa3b2; --bd:#2f3642; --hd:#0b0e12;
+          --ok:#4ade80; --okb:#12301d; --am:#fbbf24; --amb:#352a0b; --vm:#f87171; --vmb:#3a1414; --az:#60a5fa; --czb:#252b34; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:14px/1.45 "Outfit", system-ui, "Segoe UI", sans-serif; }
+  header { background:var(--hd); color:#fff; padding:14px 20px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; }
+  header h1 { margin:0; font-size:18px; } header .sub { color:#9ca3af; font-size:12px; }
+  button { background:#fff; color:#111; border:0; border-radius:6px; padding:7px 14px; font:inherit; font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.55; cursor:default; }
+  button.sec { background:var(--czb); color:var(--txt); border:1px solid var(--bd); padding:4px 10px; font-size:12px; }
+  main { max-width:1180px; margin:0 auto; padding:16px; }
+  .barra { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+  select, input { background:var(--card); color:var(--txt); border:1px solid var(--bd); border-radius:6px; padding:6px 10px; font:inherit; }
+  input.busca { flex:1; min-width:200px; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:14px; }
+  .kpi { background:var(--card); border:1px solid var(--bd); border-radius:8px; padding:10px 14px; }
+  .kpi b { display:block; font-size:22px; } .kpi span { color:var(--mut); font-size:12px; }
+  .aviso { padding:8px 12px; border-radius:8px; margin-bottom:10px; background:var(--amb); color:var(--am); }
+  .aviso.erro { background:var(--vmb); color:var(--vm); }
+  h2 { font-size:13px; letter-spacing:.1em; text-transform:uppercase; margin:20px 0 8px; border-bottom:2px solid var(--hd); padding-bottom:4px; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--bd); border-radius:8px; overflow:hidden; }
+  th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--bd); font-size:13px; }
+  th { color:var(--mut); font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
+  td.n { font-variant-numeric:tabular-nums; }
+  .mlb { font-family:ui-monospace, Consolas, monospace; font-size:12px; color:var(--mut); }
+  .tag { display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:700; background:var(--czb); color:var(--mut); }
+  .tag.ok { background:var(--okb); color:var(--ok); } .tag.vm { background:var(--vmb); color:var(--vm); } .tag.am { background:var(--amb); color:var(--am); }
+  .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:10px; }
+  .par { background:var(--card); border:1px solid var(--bd); border-radius:8px; padding:10px 14px; }
+  .par h3 { margin:0 0 2px; font-size:14px; } .par .meta { color:var(--mut); font-size:12px; margin-bottom:6px; }
+  .par svg { width:100%; height:70px; display:block; }
+  .par details { margin-top:6px; } .par summary { cursor:pointer; color:var(--az); font-size:12px; }
+  .form { display:flex; flex-wrap:wrap; gap:8px; background:var(--card); border:1px solid var(--bd); border-radius:8px; padding:10px 14px; }
+  .vazio { color:var(--mut); padding:18px; text-align:center; }
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Ranking — posição no Mercado Livre</h1>
+       <div class="sub" id="sub">Posição de cada anúncio na busca, por palavra-chave. O robô pesquisa 3 vezes ao dia.</div></div>
+  <button id="btn-atualizar" onclick="atualizarAgora()">↻ Atualizar posições agora</button>
+</header>
+<main>
+  <div id="avisos"></div>
+  <div class="barra">
+    <select id="f-conta" onchange="render()"><option value="">Todas as contas</option><option>meli01</option><option>meli02</option><option>meli03</option></select>
+    <input class="busca" id="f-busca" placeholder="Buscar por título, MLB, SKU ou palavra-chave" oninput="render()">
+  </div>
+  <div class="kpis" id="kpis"></div>
+
+  <h2>Resumo atual</h2>
+  <div id="resumo"></div>
+
+  <h2>Histórico por palavra-chave</h2>
+  <div class="cards" id="historico"></div>
+
+  <h2>Acompanhar uma palavra-chave</h2>
+  <div class="form">
+    <select id="n-conta"><option>meli01</option><option selected>meli02</option><option>meli03</option></select>
+    <input id="n-mlb" placeholder="MLB do anúncio" size="16">
+    <input id="n-kw" placeholder="Palavra-chave" size="26">
+    <input id="n-sku" placeholder="SKU (opcional)" size="12">
+    <button onclick="adicionar()" style="background:var(--hd);color:#fff">Adicionar</button>
+  </div>
+</main>
+<script>
+const Q = new URLSearchParams(location.search);
+let LINHAS = [];
+let S = {watch: [], resultados: [], estado: 'idle', execucao: {}, robo_nesta_maquina: false};
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const chave = o => `${o.conta}|${o.mlb}|${o.keyword}`;
+const autor = () => { try { return JSON.parse(localStorage.getItem('user') || '{}').login || ''; } catch (e) { return ''; } };
+
+function quando(iso) {
+  if (!iso) return '—';
+  const min = Math.round((Date.now() - new Date(iso)) / 60000);
+  if (min < 1) return 'agora'; if (min < 60) return `há ${min} min`;
+  const h = Math.round(min / 60); return h < 48 ? `há ${h} h` : `há ${Math.round(h / 24)} dias`;
+}
+// mesmo formato do modal: "Página 02 · posição #60" (50 posições orgânicas por página; ADS não conta)
+function pagPos(pagina, posicao) { return `Página ${String(pagina).padStart(2, '0')} · posição #${posicao}`; }
+function posTxt(r) { return r && r.posicao != null ? pagPos(r.pagina, r.posicao) : (r && r.verificado_em ? `fora das ${r.max_pagina || 20} págs.` : 'aguardando 1ª verificação'); }
+function seta(v) { return {subiu: '<span class="tag ok">▲ subiu</span>', caiu: '<span class="tag vm">▼ caiu</span>', igual: '<span class="tag">= igual</span>',
+  fora: '<span class="tag am">saiu das páginas</span>', novo: '<span class="tag ok">novo</span>'}[v] || ''; }
+
+async function carregar() {
+  try { S = await (await fetch('/radar/estado')).json(); } catch (e) { document.getElementById('avisos').innerHTML = '<div class="aviso erro">Sem conexão com o servidor.</div>'; return; }
+  render();
+}
+
+function filtrados() {
+  const conta = document.getElementById('f-conta').value, b = document.getElementById('f-busca').value.trim().toLowerCase();
+  const res = Object.fromEntries(S.resultados.map(r => [chave(r), r]));
+  return S.watch.filter(w => w.ativo !== false && (!conta || w.conta === conta)).map(w => ({w, r: res[chave(w)]}))
+    .filter(({w}) => !b || [w.titulo, w.mlb, w.sku, w.keyword].some(x => String(x || '').toLowerCase().includes(b)));
+}
+
+function render() {
+  const linhas = LINHAS = filtrados(), ex = S.execucao || {};
+  const av = [];
+  if (S.estado === 'queued') av.push('<div class="aviso">Pedido na fila. O robô atende em alguns minutos.</div>');
+  if (S.estado === 'running') av.push('<div class="aviso">Verificando posições… o resultado aparece sozinho.</div>');
+  if (ex.erro) av.push(`<div class="aviso erro">${esc(ex.erro)}</div>`);
+  document.getElementById('avisos').innerHTML = av.join('');
+  document.getElementById('btn-atualizar').disabled = S.estado !== 'idle';
+  document.getElementById('btn-atualizar').textContent = S.estado === 'queued' ? 'Na fila…' : S.estado === 'running' ? 'Verificando…' : '↻ Atualizar posições agora';
+  document.getElementById('sub').textContent = ex.terminou_em ? `Última verificação ${quando(ex.terminou_em)} — ${ex.resumo || ''}` : 'Ainda sem verificação.';
+
+  const achados = linhas.filter(x => x.r && x.r.posicao != null);
+  const melhor = achados.length ? Math.min(...achados.map(x => x.r.posicao)) : null;
+  document.getElementById('kpis').innerHTML = [
+    [new Set(linhas.map(x => x.w.keyword)).size, 'palavras-chave'], [new Set(linhas.map(x => x.w.conta + x.w.mlb)).size, 'anúncios'],
+    [linhas.reduce((n, x) => n + (x.r ? x.r.historico.length : 0), 0), 'verificações'], [melhor != null ? '#' + melhor : '—', 'melhor posição'],
+    [achados.length + '/' + linhas.length, 'encontrados']].map(([n, t]) => `<div class="kpi"><b>${n}</b><span>${t}</span></div>`).join('');
+
+  document.getElementById('resumo').innerHTML = linhas.length ? `<table><tr><th>Anúncio</th><th>Palavra-chave</th><th>Posição</th><th>Variação</th><th>Verificado</th><th></th></tr>` +
+    linhas.map(({w, r}, i) => `<tr><td>${esc(w.titulo || '—')}<br><span class="mlb">${esc(w.mlb)} · ${esc(w.conta)}${w.sku ? ' · ' + esc(w.sku) : ''}</span></td>
+      <td>${esc(w.keyword)}${w.principal ? ' <span class="tag ok">principal</span>' : ''}</td>
+      <td class="n">${r && r.posicao != null ? `<b>${esc(posTxt(r))}</b>${r.pagina_pos ? `<br><span class="mlb">${r.pagina_pos}º orgânico da página</span>` : ''}` : esc(posTxt(r))}</td>
+      <td>${seta(r && r.variacao)}</td><td>${quando(r && r.verificado_em)}</td>
+      <td><button class="sec" onclick="acao('verificar',${i})">Verificar só este</button>
+          <button class="sec" onclick="acao('principal',${i})" title="Mostrar este termo no modal do anúncio">★</button>
+          <button class="sec" onclick="acao('remover',${i})" title="Tirar da lista (o histórico fica)">✕</button></td></tr>`).join('') + '</table>'
+    : '<div class="vazio">Nenhuma palavra-chave acompanhada. Adicione abaixo.</div>';
+
+  document.getElementById('historico').innerHTML = linhas.filter(x => x.r && x.r.historico.length).map(({w, r}) => {
+    const h = r.historico;
+    return `<div class="par"><h3>${esc(w.keyword)}</h3><div class="meta">${esc(w.titulo || w.mlb)} · ${esc(w.mlb)} ${seta(r.variacao)}</div>${grafico(h)}
+      <details><summary>${h.length} ${h.length === 1 ? 'verificação' : 'verificações'}</summary><table>${h.slice().reverse().map(x =>
+        `<tr><td>${new Date(x.em).toLocaleString('pt-BR')}</td><td class="n">${x.posicao != null ? pagPos(x.pagina, x.posicao) : 'fora'}</td><td>${esc(x.origem)}</td></tr>`).join('')}</table></details></div>`;
+  }).join('') || '<div class="vazio">O histórico aparece depois da primeira verificação.</div>';
+}
+
+function grafico(h) {                       // menor posição = melhor = mais alto no gráfico
+  const pts = h.map((x, i) => [i, x.posicao]).filter(p => p[1] != null);
+  if (pts.length < 2) return `<div class="meta">${pts.length ? 'Uma verificação até agora.' : 'Fora das páginas verificadas em todas as verificações.'}</div>`;
+  const max = Math.max(...pts.map(p => p[1])), min = Math.min(...pts.map(p => p[1])), L = 300, A = 60;
+  const x = i => 4 + i * (L - 8) / Math.max(1, h.length - 1), y = v => 4 + (v - min) / Math.max(1, max - min) * (A - 8);
+  const linha = pts.map(p => `${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 ${L} ${A}" preserveAspectRatio="none"><polyline points="${linha}" fill="none" stroke="var(--az)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    ${pts.map(p => `<circle cx="${x(p[0]).toFixed(1)}" cy="${y(p[1]).toFixed(1)}" r="2.5" fill="var(--az)"/>`).join('')}</svg>
+    <div class="meta">melhor #${min} · pior #${max}</div>`;
+}
+
+async function enviar(url, opts) {
+  const r = await fetch(url, opts); const d = await r.json().catch(() => ({}));
+  if (!r.ok) alert(d.detail || 'Não foi possível concluir.');
+  await carregar(); return r.ok;
+}
+const J = (method, body) => ({method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+const atualizarAgora = () => enviar('/radar/executar', J('POST', {escopo: document.getElementById('f-conta').value || 'todas', autor: autor()}));
+function acao(tipo, i) {                    // índice, não texto: palavra-chave com aspas não quebra o HTML
+  const w = LINHAS[i] && LINHAS[i].w; if (!w) return;
+  if (tipo === 'verificar') return verificarUm(w.conta, w.mlb, w.keyword);
+  if (tipo === 'principal') return principal(w.conta, w.mlb, w.keyword);
+  return remover(w.conta, w.mlb, w.keyword);
+}
+const verificarUm = (conta, mlb, keyword) => enviar('/radar/executar', J('POST', {escopo: conta, mlb, keyword, autor: autor()}));
+const principal = (conta, mlb, keyword) => enviar('/radar/watch', J('POST', {conta, mlb, keyword, principal: true, autor: autor()}));
+const remover = (conta, mlb, keyword) => confirm('Tirar este termo da lista? O histórico continua guardado.') &&
+  enviar(`/radar/watch?${new URLSearchParams({conta, mlb, keyword, autor: autor()})}`, {method: 'DELETE'});
+async function adicionar() {
+  const ok = await enviar('/radar/watch', J('POST', {conta: document.getElementById('n-conta').value, mlb: document.getElementById('n-mlb').value,
+    keyword: document.getElementById('n-kw').value, sku: document.getElementById('n-sku').value || null, autor: autor()}));
+  if (ok) { document.getElementById('n-kw').value = ''; }
+}
+
+if (Q.get('conta')) document.getElementById('f-conta').value = Q.get('conta');
+if (Q.get('conta')) document.getElementById('n-conta').value = Q.get('conta');
+if (Q.get('mlb')) { document.getElementById('n-mlb').value = Q.get('mlb'); document.getElementById('f-busca').value = Q.get('mlb'); }
+carregar(); setInterval(carregar, 15000);
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "robo_ativo": false,
+  "horarios": ["08:30", "13:30", "19:30"],
+  "viewer": "SM ONLINE",
+  "max_paginas": 20,
+  "navegador": "chrome",
+  "headless": false
+}

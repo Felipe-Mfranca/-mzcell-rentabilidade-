@@ -1,0 +1,4 @@
+# Só na máquina que roda o robô do Radar ML (a do Eduardo). As demais máquinas não precisam.
+# Instalar com:  .\venv\Scripts\python.exe -m pip install -r requirements-radar.txt
+# Usa o Chrome instalado ("navegador": "chrome" em radar_config.json); sem Chrome:  python -m playwright install chromium
+playwright==1.55.0

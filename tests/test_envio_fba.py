@@ -48,6 +48,26 @@ class TestEnvioFba(unittest.TestCase):
         self.assertIsNone(e.escolher_opcao(ops, data=date(2026, 11, 7)))   # sábado nunca
         self.assertIsNone(e.escolher_opcao(ops))
 
+    def test_caixa_mista(self):
+        self.assertEqual(e.parse_itens("A-FBA=15, B-FBA=10"), [("A-FBA", 15), ("B-FBA", 10)])
+        for ruim in ("A-FBA", "A-FBA=0", "=5", "A=1,A=2"):
+            with self.assertRaises(e.ErroEnvio):
+                e.parse_itens(ruim)
+        plano = e.corpo_plano(["A-FBA", "B-FBA"], [30, 20], {"endereco": {}}, "M", "n")
+        self.assertEqual([(i["msku"], i["quantity"], i["prepOwner"]) for i in plano["items"]], [("A-FBA", 30, "NONE"), ("B-FBA", 20, "NONE")])
+        emb = e.corpo_embalagem("g1", ["A-FBA", "B-FBA"], 2, [15, 10], 4.1, (57, 33, 33))
+        caixa = emb["packageGroupings"][0]["boxes"][0]
+        self.assertEqual(caixa["quantity"], 2)
+        self.assertEqual([(i["msku"], i["quantity"]) for i in caixa["items"]], [("A-FBA", 15), ("B-FBA", 10)])
+        # um SKU só continua igual ao formato antigo
+        self.assertEqual(len(e.corpo_plano("A-FBA", 5, {"endereco": {}}, "M", "n")["items"]), 1)
+
+    def test_nome_do_plano_ate_40_caracteres(self):
+        self.assertEqual(e.nome_padrao(["KIT2MIC-FBA"], [90]), "KIT2MIC-FBA 90un - MZ")
+        longo = e.nome_padrao(["KIT3-ESCVCANT-FBA", "Control-Gamer-BT"], [30, 20])
+        self.assertLessEqual(len(longo), 40)
+        self.assertIn("50un", longo)
+
 
 if __name__ == "__main__":
     unittest.main()
