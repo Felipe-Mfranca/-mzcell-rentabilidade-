@@ -12,6 +12,12 @@ router = APIRouter(prefix="/bling", tags=["bling"])
 threading.Timer(20, estoque.aquecer).start()  # depois que o servidor terminou de subir
 
 
+@router.get("/estado")
+def estado():
+    """Saúde dos três Blings: precisa reautorizar (token morto)? saldo desatualizado? Alimenta o aviso do dashboard."""
+    return estoque.estado()
+
+
 @router.get("/estoque/{conta}")
 def estoque_conta(conta: str, atualizar: bool = False):
     """Estoque por SKU no Bling da empresa da conta e, para o tooltip, nos outros dois."""

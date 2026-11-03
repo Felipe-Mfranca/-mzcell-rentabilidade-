@@ -836,6 +836,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
         <div style="font-size:11px;color:var(--muted2);font-family:var(--mono)" id="sync-time"></div>
       </div>
     </div>
+    <div id="bling-aviso" style="display:none"></div>
     <div class="content">
       <div class="tab active" id="tab-meli01"><div id="painel-meli01"></div></div>
       <div class="tab" id="tab-meli02"><div id="painel-meli02"></div></div>
@@ -3037,9 +3038,30 @@ async function blingCarregar(conta) {
     const d = await (await fetch(`${API}/bling/estoque/${conta}`)).json();
     if (!d.itens) return;
     _blingEst[conta] = d;
+    blingEstadoCarregar();
     document.querySelectorAll(`#tab-${conta} span[data-blingtag]`).forEach(sp => { sp.innerHTML = renderBlingTag(conta, sp.dataset.blingtag, sp.dataset.blingmlb); });
   } catch(e) {}
 }
+// ── Saúde dos Blings: aviso vermelho se o acesso morreu (reautorizar) e amarelo se o saldo mostrado é o último conhecido ──
+const _blingNavegador = {bling01:'Chrome', bling02:'Edge', bling03:'Firefox'};
+async function blingEstadoCarregar() {
+  const box = document.getElementById('bling-aviso');
+  if (!box) return;
+  try {
+    const d = await (await fetch(`${API}/bling/estado`)).json();
+    const hm = iso => iso ? iso.slice(11, 16) : '?';
+    const msgs = [];
+    Object.keys(d).forEach(b => {
+      const e = d[b];
+      if (e.reautorizar) msgs.push(`<div style="background:#7f1d1d;color:#fff;padding:8px 16px;font-size:13px"><b>${_blingNome[b]} desconectado.</b> O acesso venceu e só volta reautorizando: abra o PowerShell na pasta do app, rode <code>.\\scripts\\mz.ps1</code>, opção 16, e escolha ${b} (no ${_blingNavegador[b]}). Enquanto isso o saldo mostrado é o último conhecido${e.saldo_de ? ' (das ' + hm(e.saldo_de) + ')' : ''}.</div>`);
+      else if (e.desatualizado) msgs.push(`<div style="background:#854d0e;color:#fff;padding:6px 16px;font-size:12px">Saldo do ${_blingNome[b]} é das ${hm(e.saldo_de)}: a última atualização falhou (${sacEsc(e.erro || '')}). Tentando de novo em segundo plano.</div>`);
+    });
+    box.innerHTML = msgs.join('');
+    box.style.display = msgs.length ? 'block' : 'none';
+  } catch (e) {}
+}
+setTimeout(blingEstadoCarregar, 4000);
+setInterval(blingEstadoCarregar, 300000);
 function blingInfo(conta, sku) {
   const d = _blingEst[conta], k = String(sku || '').trim().toUpperCase();
   if (!d || !k) return null;

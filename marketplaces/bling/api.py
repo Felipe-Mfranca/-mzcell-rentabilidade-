@@ -24,6 +24,18 @@ TOKEN_URL = f"{API}/oauth/token"
 REDIRECT_PORTA = 8765
 REDIRECT_URI = f"http://127.0.0.1:{REDIRECT_PORTA}/bling/callback"
 _TRAVA_RENOVACAO = defaultdict(threading.Lock)  # o refresh_token do Bling é de uso único: uma renovação por vez em cada conta
+_ESPERA_APOS_FALHA = 300  # conta marcada para reautorizar: só tenta renovar de novo depois disso (ou se o refresh_token mudou)
+_ESTADO = {}  # conta -> {"motivo", "refresh_falho", "quando", "ts"} quando o acesso morreu e precisa de reautorização
+
+
+def estado_contas() -> dict:
+    """Contas que precisam de reautorização (sem o token). Some sozinho quando uma chamada volta a funcionar."""
+    return {c: {"motivo": v["motivo"], "quando": v["quando"]} for c, v in _ESTADO.items()}
+
+
+def _marcar_morta(conta_id: str, motivo: str, refresh):
+    _ESTADO[conta_id] = {"motivo": str(motivo)[:200], "refresh_falho": refresh, "ts": time.time(),
+                         "quando": datetime.now().isoformat(timespec="seconds")}
 
 
 def load_config() -> dict:
@@ -68,18 +80,25 @@ def refresh_token(conta_id: str, token_usado: str = None) -> dict:
         c = load_config()["contas"][conta_id]
         if token_usado and c.get("access_token") != token_usado:
             return {"success": True}
+        morta = _ESTADO.get(conta_id)
+        if morta and morta["refresh_falho"] == c.get("refresh_token") and time.time() - morta["ts"] < _ESPERA_APOS_FALHA:
+            return {"success": False, "error": "reautorização necessária: " + morta["motivo"]}
         return _renovar(conta_id, c)
 
 
 def _renovar(conta_id: str, c: dict) -> dict:
     if not c.get("refresh_token") or str(c["refresh_token"]).startswith("COLE_AQUI"):
+        _marcar_morta(conta_id, "sem refresh_token", None)
         return {"success": False, "error": "sem refresh_token — rode python -m marketplaces.bling.auth"}
     r = httpx.post(TOKEN_URL, data={"grant_type": "refresh_token", "refresh_token": c["refresh_token"]},
                    headers={"Authorization": _basic(c), "Accept": "1.0", "enable-jwt": "1",
                             "Content-Type": "application/x-www-form-urlencoded"}, timeout=30)
     if r.status_code != 200:
+        if r.status_code in (400, 401):   # invalid_grant: o refresh_token morreu; só reautorizando
+            _marcar_morta(conta_id, f"{r.status_code} {r.text[:120]}", c.get("refresh_token"))
         return {"success": False, "error": f"{r.status_code} {r.text[:300]}"}
     _salvar_tokens(conta_id, r.json())
+    _ESTADO.pop(conta_id, None)
     return {"success": True}
 
 
@@ -103,6 +122,8 @@ def get(conta_id: str, path: str, **params):
             espera = min(espera * 2, 30)
             continue
         break
+    if r.status_code == 200:
+        _ESTADO.pop(conta_id, None)   # voltou a funcionar (por exemplo, depois de reautorizar)
     time.sleep(0.35)  # mantém abaixo de 3 requisições por segundo
     try:
         return r.status_code, r.json()

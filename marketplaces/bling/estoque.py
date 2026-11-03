@@ -7,8 +7,11 @@ reservas de pedidos em aberto não são descontadas, para o estoquista comparar 
 A tabela mostra o Bling da empresa dona da conta; os outros dois aparecem ao passar o mouse.
 """
 
+import json
+import os
 import threading
 import time
+from datetime import datetime
 
 from marketplaces.bling import api
 
@@ -18,7 +21,30 @@ BLING_DA_CONTA = {"meli01": "bling01", "amazon01": "bling01", "shopee": "bling01
                   "meli02": "bling02", "amazon02": "bling02", "meli03": "bling03"}
 CACHE_SEG = 600
 _cache = {}
+_falha = {}   # bling -> {"erro", "desde"} quando a última leitura falhou e o saldo mostrado é o último conhecido
 _trava = threading.Lock()
+CACHE_ARQ = os.path.join(api.BASE_DIR, "bling_estoque_cache.json")   # último saldo bom: sobrevive a reinício e a falha do Bling
+
+
+def _salvar_disco():
+    try:
+        with open(CACHE_ARQ, "w", encoding="utf-8") as f:   # direto no arquivo (os.replace falha com WinError 32 no Windows)
+            json.dump({b: {"ts": ts, "dados": d} for b, (ts, d) in _cache.items()}, f, ensure_ascii=False)
+    except OSError:
+        pass
+
+
+def _ler_disco():
+    try:
+        with open(CACHE_ARQ, encoding="utf-8") as f:
+            for b, v in json.load(f).items():
+                if b in BLING_DA_CONTA.values():
+                    _cache[b] = (v["ts"], v["dados"])
+    except (OSError, ValueError, KeyError):
+        pass
+
+
+_ler_disco()
 
 
 def chave(sku) -> str:
@@ -86,8 +112,11 @@ def _renovar_fundo(conta_bling: str):
     try:
         dados = _carregar(conta_bling)
         _cache[conta_bling] = (time.time(), dados)
-    except Exception:
-        pass  # mantém o saldo anterior; a próxima consulta tenta de novo
+        _falha.pop(conta_bling, None)
+        _salvar_disco()
+    except Exception as e:
+        _falha[conta_bling] = {"erro": f"{type(e).__name__}: {str(e)[:120]}", "desde": datetime.now().isoformat(timespec="seconds")}
+        # mantém o saldo anterior; a próxima consulta tenta de novo
     finally:
         _renovando.discard(conta_bling)
 
@@ -103,9 +132,29 @@ def saldos(conta_bling: str, forcar: bool = False) -> dict:
     with _trava:  # primeira leitura: uma por vez, as telas que pedirem juntas esperam a mesma varredura
         if conta_bling in _cache and not forcar:
             return _cache[conta_bling][1]
-        dados = _carregar(conta_bling)
+        try:
+            dados = _carregar(conta_bling)
+        except Exception as e:
+            if conta_bling in _cache:   # Bling fora do ar ou sem autorização: devolve o último saldo bom, marcado como desatualizado
+                _falha[conta_bling] = {"erro": f"{type(e).__name__}: {str(e)[:120]}", "desde": datetime.now().isoformat(timespec="seconds")}
+                return _cache[conta_bling][1]
+            raise
         _cache[conta_bling] = (time.time(), dados)
+        _falha.pop(conta_bling, None)
+        _salvar_disco()
         return dados
+
+
+def estado() -> dict:
+    """Por Bling: precisa reautorizar? o saldo mostrado é velho? de quando é?"""
+    morto = api.estado_contas()
+    out = {}
+    for b in BLINGS:
+        c, f = _cache.get(b), _falha.get(b)
+        out[b] = {"reautorizar": b in morto, "motivo": (morto.get(b) or {}).get("motivo"),
+                  "desatualizado": bool(f), "erro": (f or {}).get("erro"),
+                  "saldo_de": datetime.fromtimestamp(c[0]).isoformat(timespec="seconds") if c else None}
+    return out
 
 
 def aquecer():
@@ -131,4 +180,5 @@ def por_conta(conta: str, forcar: bool = False) -> dict:
     itens = {}
     for sku in set().union(*[set(t) for t in tabelas.values()]):
         itens[sku] = [tabelas.get(principal, {}).get(sku), {b: tabelas[b][sku] for b in outros if b in tabelas and sku in tabelas[b]}]
-    return {"principal": principal, "outros": outros, "itens": itens, "pais": pais.get(principal, {}), "erros": erros}
+    velhos = {b: dict(_falha[b], saldo_de=datetime.fromtimestamp(_cache[b][0]).isoformat(timespec="seconds")) for b in tabelas if b in _falha and b in _cache}
+    return {"principal": principal, "outros": outros, "itens": itens, "pais": pais.get(principal, {}), "erros": erros, "desatualizados": velhos}
