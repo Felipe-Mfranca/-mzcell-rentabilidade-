@@ -5,7 +5,9 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 
-const PORT = 8001;
+const net = require('net');
+const PORT_PADRAO = 8001;
+let PORT = PORT_PADRAO;   // muda só se a 8001 não liberar (ver escolherPorta)
 const HOST = '127.0.0.1';
 const RESOURCES = app.isPackaged
   ? path.join(process.resourcesPath)
@@ -198,6 +200,27 @@ async function liberarPorta() {
   } catch (_) {}
 }
 
+function portaLivre(porta) {
+  return new Promise(resolve => {
+    const s = net.createServer();
+    s.once('error', () => resolve(false));
+    s.once('listening', () => s.close(() => resolve(true)));
+    s.listen(porta, HOST);
+  });
+}
+
+// Confirma que a porta ficou livre (espera até ~4 s); se a 8001 não liberar, usa a primeira livre de 8002 a 8010.
+async function escolherPorta() {
+  for (let i = 0; i < 8; i++) {
+    if (await portaLivre(PORT_PADRAO)) return PORT_PADRAO;
+    await new Promise(r => setTimeout(r, 500));
+  }
+  for (let p = PORT_PADRAO + 1; p <= PORT_PADRAO + 9; p++) {
+    if (await portaLivre(p)) return p;
+  }
+  return PORT_PADRAO;   // nada livre: segue na 8001 e o erro aparece no aviso de inicialização
+}
+
 function iniciarBackend() {
   const pythonExe = fs.existsSync(path.join(RESOURCES, 'python-embed', 'python.exe'))
     ? path.join(RESOURCES, 'python-embed', 'python.exe')
@@ -214,17 +237,18 @@ function iniciarBackend() {
   const logStream = fs.createWriteStream(logPath, {flags:'w'});
   backendProc.stderr.on('data', d => { logStream.write(d); console.error('[backend]', d.toString()); });
   backendProc.stdout.on('data', d => { logStream.write(d); });
+  logStream.write(`[app] versão ${app.getVersion()} · porta ${PORT}${PORT !== PORT_PADRAO ? ` (a ${PORT_PADRAO} não liberou)` : ''}\n`);
 }
 
 function aguardarBackend(tentativas = 0) {
-  if (tentativas > 40) {
+  if (tentativas > 90) {   // a 1ª abertura após atualizar pode levar mais de 1 minuto
     const logPath = path.join(app.getPath('userData'), 'server_error.log');
     let logMsg = '';
     try { logMsg = fs.readFileSync(logPath, 'utf8').slice(-500); } catch(e) {}
     dialog.showErrorBox('Erro ao iniciar servidor',
       'Não foi possível iniciar o servidor.\n\n' +
       'Possíveis causas:\n' +
-      '- Porta 8001 em uso por outro programa\n' +
+      `- Porta ${PORT} em uso por outro programa\n` +
       '- Antivírus bloqueando o Python\n\n' +
       (logMsg ? 'Último erro:\n' + logMsg : 'Tente reiniciar o aplicativo.')
     );
@@ -250,6 +274,7 @@ app.whenReady().then(async () => {
     }).catch(() => {});
   }
   await liberarPorta();
+  PORT = await escolherPorta();
   iniciarBackend();
   aguardarBackend();
 });
