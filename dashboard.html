@@ -2847,7 +2847,7 @@ function renderModalContent(mlb, conta) {
   }
   mostrarPivoModal(conta, mlb);
   mostrarAvisoFull(conta, mlb);
-  mostrarAvisoBling(conta, p.sku, 'm-aviso-bling', p.mlb);
+  mostrarAvisoBling(conta, db[conta]?.produtos?.find(x => x.mlb === mlb)?.sku, 'm-aviso-bling', mlb);
   mostrarTagsModal(conta, mlb);
   const de  = document.getElementById('modal-de')?.value || '';
   const ate = document.getElementById('modal-ate')?.value || '';
