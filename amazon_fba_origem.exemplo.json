@@ -1,0 +1,6 @@
+{
+  "amazon01": {
+    "endereco": {"phoneNumber": "11999999999", "city": "Cidade", "countryCode": "BR", "postalCode": "00000000", "companyName": "Empresa", "name": "Nome do responsável", "addressLine1": "Rua Exemplo 1", "addressLine2": "Galpão", "stateOrProvinceCode": "SP", "email": "contato@exemplo.com.br"},
+    "contato": {"name": "Nome do responsável", "phoneNumber": "11999999999", "email": "contato@exemplo.com.br"}
+  }
+}

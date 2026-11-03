@@ -132,3 +132,5 @@ compras_cache.json
 # manutenção: backups locais (contêm credenciais)
 backups/
 docs/
+amazon_fba_origem.json
+amazon_fba_planos.json
