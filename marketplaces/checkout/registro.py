@@ -18,7 +18,7 @@ _trava = threading.Lock()
 
 SIT_ABERTAS = (None, 6, 15, 21, 753338)
 SIT_FEITO = (24, 9)          # Verificado, Atendido
-SIT_RUIM = (12, 753339)      # Cancelado, Em devolução
+SIT_RUIM = (12, 753339, 828830)   # Cancelado, Em devolução (ID muda por conta)
 
 
 def acao_prevista(r: dict) -> str:

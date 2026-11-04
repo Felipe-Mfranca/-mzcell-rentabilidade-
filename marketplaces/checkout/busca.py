@@ -13,8 +13,10 @@ PARES = {"meli01": "bling01", "meli02": "bling02", "meli03": "bling03"}
 CANAIS = {"self_service": "Flex", "cross_docking": "Coleta", "xd_drop_off": "Agência", "drop_off": "Agência",
           "fulfillment": "Full", "default": "Correios/Places"}
 SITUACOES = {6: "Em aberto", 9: "Atendido", 12: "Cancelado", 15: "Em andamento", 21: "Em digitação",
-             24: "Verificado", 753338: "Pagamento aprovado", 753339: "Em devolução"}
-SIT_VERIFICADO, SIT_CANCELADO, SIT_ATENDIDO, SIT_DEVOLUCAO = 24, 12, 9, 753339
+             24: "Verificado", 753338: "Pagamento aprovado", 753339: "Em devolução", 828829: "Aguardando etiqueta",
+             828830: "Em devolução"}
+# Verificado/Atendido/Cancelado têm o mesmo ID nas 3 contas; "Em devolução" muda (bling01 753339, bling03 828830).
+SIT_VERIFICADO, SIT_CANCELADO, SIT_ATENDIDO, SIT_DEVOLUCAO = 24, 12, 9, (753339, 828830)
 
 
 def _padrao_ml(conta):
@@ -88,7 +90,7 @@ def _veredito(envio, sit_bling, achou_bling, bling_erro):
         return "aviso", "Pedido NÃO encontrado no Bling (últimos 8 dias). Pode faltar lançar o pedido."
     if sit_bling == SIT_CANCELADO:
         return "bloqueio", "Pedido CANCELADO no Bling. Não despachar."
-    if sit_bling == SIT_DEVOLUCAO:
+    if sit_bling in SIT_DEVOLUCAO:
         return "bloqueio", "Pedido em devolução no Bling."
     if sit_bling == SIT_VERIFICADO:
         return "aviso", "Checkout já feito (Verificado). Etiqueta lida de novo?"

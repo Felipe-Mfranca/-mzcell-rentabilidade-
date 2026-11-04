@@ -7,7 +7,7 @@ import unittest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from marketplaces.checkout import busca, leitura, registro
+from marketplaces.checkout import busca, gravacao, leitura, registro
 from marketplaces.checkout.router import router
 
 QR_GARBLED = "^id^Ç^48424630205^,^sender_id^Ç1874506744,^hash_code^Çnull,^security_digit^Çnull{"
@@ -134,11 +134,93 @@ class TestRota(unittest.TestCase):
     def test_modulo_nao_tem_codigo_de_gravacao_no_bling(self):
         pasta = os.path.dirname(busca.__file__)
         for nome in os.listdir(pasta):
-            if nome.endswith(".py"):
+            if nome.endswith(".py") and nome != "gravacao.py":   # gravacao.py é o único ponto de escrita
                 with open(os.path.join(pasta, nome), encoding="utf-8") as f:
                     codigo = f.read()
                 for proibido in ("bling.post", "bling.put", "bling.patch", "bling.delete", ".put(", ".patch(", ".delete("):
                     self.assertNotIn(proibido, codigo, f"{nome}: {proibido}")
+
+
+SITS = {"data": [{"id": 6, "nome": "Em aberto"}, {"id": 24, "nome": "Verificado"}]}
+
+
+def pedido_bling(sit=6, obs="TESTE CHECKOUT MZ - cancelar depois"):
+    return {"data": {"numero": 2427, "situacao": {"id": sit}, "observacoesInternas": obs}}
+
+
+class GetFalso:
+    def __init__(self, antes=6, depois=24, obs="TESTE CHECKOUT MZ - cancelar depois"):
+        self.chamadas, self.antes, self.depois, self.obs, self.leituras = [], antes, depois, obs, 0
+
+    def __call__(self, conta, caminho, **_):
+        self.chamadas.append(caminho)
+        if caminho.startswith("/situacoes"):
+            return 200, SITS
+        self.leituras += 1
+        return 200, pedido_bling(self.antes if self.leituras == 1 else self.depois, self.obs)
+
+
+class TestGravacao(unittest.TestCase):
+    def setUp(self):
+        self.log = os.path.join(tempfile.mkdtemp(), "g.jsonl")
+        self.enviados = []
+
+    def enviar(self, conta, metodo, caminho):
+        self.enviados.append((conta, metodo, caminho))
+        return 200, {}
+
+    def rodar(self, get=None, simular=True, ligado=True):
+        return gravacao.mudar_situacao("bling03", 27304166639, "Verificado", simular, get=get or GetFalso(),
+                                       enviar=self.enviar, interruptor=lambda: ligado, arquivo_log=self.log)
+
+    def test_simulacao_nao_envia_nada(self):
+        r = self.rodar()
+        self.assertFalse(r["enviado"])
+        self.assertEqual(self.enviados, [])
+        self.assertEqual(r["requisicao"], "PATCH /pedidos/vendas/27304166639/situacoes/24")
+        self.assertFalse(os.path.exists(self.log))
+
+    def test_grava_e_confirma(self):
+        r = self.rodar(simular=False)
+        self.assertEqual(self.enviados, [("bling03", "PATCH", "/pedidos/vendas/27304166639/situacoes/24")])
+        self.assertTrue(r["confirmado"])
+        self.assertEqual((r["de"], r["para"], r["situacao_depois"]), (6, 24, 24))
+        self.assertEqual(len(open(self.log, encoding="utf-8").readlines()), 1)
+
+    def test_nao_confirma_se_a_situacao_nao_mudou(self):
+        r = self.rodar(get=GetFalso(depois=6), simular=False)
+        self.assertFalse(r["confirmado"])
+
+    def test_trava_de_pedido_de_teste(self):
+        with self.assertRaises(gravacao.ErroGravacao):
+            self.rodar(get=GetFalso(obs="pedido real"), simular=False)
+        self.assertEqual(self.enviados, [])
+
+    def test_interruptor_desligado(self):
+        with self.assertRaises(gravacao.ErroGravacao):
+            self.rodar(simular=False, ligado=False)
+        self.assertEqual(self.enviados, [])
+
+    def test_so_marca_se_estiver_em_aberto(self):
+        with self.assertRaises(gravacao.ErroGravacao):
+            self.rodar(get=GetFalso(antes=24), simular=False)
+        self.assertEqual(self.enviados, [])
+
+    def test_interruptor_le_o_arquivo(self):
+        d = tempfile.mkdtemp()
+        p = os.path.join(d, "c.json")
+        self.assertFalse(gravacao.interruptor_ligado(p))
+        open(p, "w").write('{"gravacao": true}')
+        self.assertTrue(gravacao.interruptor_ligado(p))
+        open(p, "w").write('{"gravacao": "sim"}')
+        self.assertFalse(gravacao.interruptor_ligado(p))
+
+    def test_rota_confirmar_e_simulacao_por_padrao(self):
+        app = FastAPI()
+        app.include_router(router)
+        c = TestClient(app)
+        r = c.post("/checkout/confirmar", json={"bling_conta": "outra", "pedido_id": 1})
+        self.assertEqual(r.status_code, 400)
 
 
 def entrada(**kw):

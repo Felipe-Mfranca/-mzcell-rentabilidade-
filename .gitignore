@@ -146,3 +146,5 @@ expedicao_snapshot.json.tmp
 
 # Checkout: registro das leituras (dados operacionais)
 checkout_registro.jsonl
+checkout_config.json
+checkout_gravacoes.jsonl
