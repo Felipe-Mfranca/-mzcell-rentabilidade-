@@ -15,6 +15,7 @@ LIBERADOS = {
     "radar": False,
     "montagem": False,    # fila de montagem dos envios Full (Meli, Amazon, Shopee) + painel de TV
     "financeiro": False,
+    "paineis": False,     # painéis de TV por área e gestão geral da diretoria
 }
 
 # Abertura POR MÁQUINA: o arquivo modulos_locais.json (fora do git e do instalador), por exemplo

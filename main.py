@@ -138,6 +138,13 @@ if modulo_liberado("montagem"):
     except ImportError as e:
         print(f"[startup] Módulo Montagem indisponível: {e}")
 
+if modulo_liberado("paineis"):
+    try:
+        from marketplaces.paineis.router import router as paineis_router
+        app.include_router(paineis_router)
+    except ImportError as e:
+        print(f"[startup] Painéis de TV indisponíveis: {e}")
+
 if modulo_liberado("radar"):
     try:
         from marketplaces.radar.router import router as radar_router
