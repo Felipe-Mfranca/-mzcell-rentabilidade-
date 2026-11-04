@@ -38,19 +38,27 @@
 .canal{display:inline-block;padding:1px 12px;border-radius:12px;font-size:18px;margin-right:8px;background:#64748b}
 .canal.meli{background:#b45309}.canal.amazon{background:#1d4ed8}.canal.shopee{background:#c2410c}
 .vazio{color:#64748b;font-size:24px;padding:12px 0}
+.principal{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(380px,1fr);gap:18px;padding:0 28px 24px;align-items:start}
+.principal .grade{padding:14px 0 0;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.principal .cortes{padding:14px 0 0}.principal .full{margin:0}.principal .env{grid-template-columns:1fr}
+.principal .grande{font-size:56px}
+.topo-geral{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}.topo-geral .alertas{flex:1;min-width:320px}
+@media (max-width:1300px){.principal{grid-template-columns:1fr}}
 </style></head><body>
 <div class="topo"><a id="voltar" href="/expedicao" style="color:#94a3b8;font-size:16px;text-decoration:none;margin-right:14px">← Expedição</a><h1 id="titulo">Expedição</h1><span id="simtag"></span><span class="relogio" id="relogio">--:--</span></div>
 <div class="ctl" id="ctl">
- <label>Modo <select id="modo"><option value="sim">Simulação (amanhã)</option><option value="real">Real (hoje)</option></select></label>
+ <label>Modo <select id="modo"><option value="real">Real (hoje)</option><option value="sim">Simulação (amanhã)</option></select></label>
  <label>Dia <input type="date" id="dia"></label>
  <span id="boxhora"><label>Hora <input type="range" id="hora" min="300" max="1200" step="5" value="300"> <b id="horatxt">05:00</b></label>
  <button id="play">▶ Reproduzir o dia</button></span>
  <span style="opacity:.7">Para a TV, abra com <code>?tv=1</code>. Simulação usa dados fictícios.</span>
 </div>
-<div class="geral" id="geral"></div><div class="alertas" id="alertas"></div>
-<div class="cortes" id="cortes"></div>
-<div class="grade" id="grade"></div>
-<div class="full"><h2>Planejamento da montagem do Full no dia</h2><div id="full"></div></div>
+<div class="topo-geral"><div class="geral" id="geral"></div><div class="alertas" id="alertas"></div></div>
+<div class="principal">
+ <div class="esq"><div class="grade" id="grade"></div></div>
+ <div class="dir"><div class="cortes" id="cortes"></div>
+  <div class="full"><h2>Planejamento da montagem do Full no dia</h2><div id="full"></div></div></div>
+</div>
 <script>
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $=id=>document.getElementById(id);
@@ -58,13 +66,16 @@ const P=new URLSearchParams(location.search);const TV=P.get('tv')==='1';
 if(TV){$('ctl').style.display='none';$('voltar').style.display='none'}
 const amanha=new Date();amanha.setDate(amanha.getDate()+1);   // data local do navegador, não UTC
 const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-$('dia').value=P.get('dia')||iso(amanha);$('modo').value=P.get('real')==='1'?'real':'sim';
+const REAL0=TV||P.get('real')==='1';const DIA_FIXO=P.get('dia');
+const hojeIso=()=>iso(new Date());
+$('dia').value=DIA_FIXO||(REAL0?hojeIso():iso(amanha));$('modo').value=REAL0?'real':'sim';
 const NOMES={meli:'Mercado Livre',amazon:'Amazon',shopee:'Shopee'};
 const hhmm=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
 function fmtMin(m){if(m==null)return '—';const a=Math.abs(m),h=Math.floor(a/60);return (m<0?'−':'')+(h?h+'h ':'')+String(a%60).padStart(2,'0')+'min'}
 let timer=null;
 async function carregar(){
  const sim=$('modo').value==='sim';$('boxhora').style.display=sim?'':'none';
+ if(!sim&&!DIA_FIXO&&$('dia').dataset.auto!=='0')$('dia').value=hojeIso();      // real: sempre o dia de hoje (muda sozinho à meia-noite)
  const q=new URLSearchParams({dia:$('dia').value});if(sim){q.set('simular','1');q.set('hora',hhmm(+$('hora').value))}
  let d;try{const r=await fetch('/expedicao/dia?'+q);if(!r.ok)throw new Error(r.status===404?'Painel fechado nesta máquina (modulos_locais.json).':'Erro '+r.status);d=await r.json()}
  catch(e){$('grade').innerHTML='<div class="vazio">'+esc(e.message)+'</div>';return}
@@ -94,7 +105,7 @@ async function carregar(){
   return '<div class="cartao '+c.canal+'"><h2><span>'+c.canal+'</span><span style="font-size:20px;color:#94a3b8">'+c.unidades+' un.</span></h2>'+
   '<div class="grande">'+c.checkout+'<small> / '+c.pedidos+'</small></div>'+
   '<div class="barra"><div style="width:'+c.percentual+'%"></div></div>'+
-  '<div class="linha"><span>Liberados</span><b>'+c.liberados+'</b></div><div class="linha"><span>Embalados</span><b>'+c.embalados+'</b></div>'+
+  '<div class="linha"><span>Prontos para o envio</span><b>'+c.checkout+'</b></div><div class="linha"><span>Liberados</span><b>'+c.liberados+'</b></div><div class="linha"><span>Embalados</span><b>'+c.embalados+'</b></div>'+
   '<div class="linha"><span>'+(c.canal==='DBA'?'Etiquetas pendentes':'Pendentes')+'</span><b>'+c.pendentes+'</b></div>'+
   (c.no_ponto!=null?'<div class="linha"><span>No ponto de coleta (até 14:00)</span><b>'+c.no_ponto+' / '+c.pedidos+'</b></div>':'')+
   '<div class="meta '+cls+'">'+(c.pedidos===0?'sem pedidos':(c.pendentes===0?'✔ concluído':(c.atrasados?c.atrasados+' atrasado(s)':'meta em '+fmtMin(c.minutos_ate_meta))))+'</div>'+
@@ -106,7 +117,8 @@ async function carregar(){
   '<div class="sub" style="font-size:19px;color:#cbd5e1">'+f.produtos.map(x=>esc(x.sku)+'<br>Estoque: <b>'+esc(x.estoquista||'—')+'</b> · Embalagem: <b>'+esc(x.embalador||'—')+'</b><div style="margin-top:6px">'+['T','E','OK'].map(t=>'<span class="chip '+(x.etapas[t]?'on':'')+'">'+t+'</span>').join('')+'</div>').join('<hr>')+'</div>'+
   '<div class="meta '+cls+'" style="text-align:right">'+(f.concluido?'✔ pronto':(f.atrasado?'atrasado '+fmtMin(-f.minutos_ate_prazo):'faltam '+fmtMin(f.minutos_ate_prazo)))+'</div></div>'}).join(''):'<div class="vazio">Nenhum envio Full neste dia</div>';
 }
-$('modo').onchange=carregar;$('dia').onchange=carregar;$('hora').oninput=carregar;
+$('modo').onchange=()=>{$('dia').dataset.auto='1';if(!DIA_FIXO)$('dia').value=$('modo').value==='real'?hojeIso():iso(amanha);carregar()};
+$('dia').onchange=()=>{$('dia').dataset.auto='0';carregar()};$('hora').oninput=carregar;
 $('play').onclick=()=>{if(timer){clearInterval(timer);timer=null;$('play').textContent='▶ Reproduzir o dia';return}
  $('play').textContent='⏸ Pausar';if(+$('hora').value>=1195)$('hora').value=300;
  timer=setInterval(()=>{const v=+$('hora').value+5;if(v>1200){clearInterval(timer);timer=null;$('play').textContent='▶ Reproduzir o dia';return}$('hora').value=v;carregar()},1200)};
