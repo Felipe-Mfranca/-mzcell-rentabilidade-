@@ -3,7 +3,7 @@
 Só leitura na API do ML. Guarda em financeiro.db apenas o que mudou desde a última execução
 (filtro order.date_last_updated), com data e hora da captura. A "foto" de um dia sai do histórico.
 
-Uso:  python captura_pedidos_ml.py [meli01 meli02 meli03]   (padrão: meli01)
+Uso:  python captura_pedidos_ml.py [meli01 meli02 meli03]   (padrão: meli01 meli02 meli03)
 Agendamento: instalar_captura.ps1 (09:00, todo dia).
 """
 import asyncio
@@ -176,7 +176,7 @@ def executar(conta):
 
 
 if __name__ == "__main__":
-    contas = sys.argv[1:] or ["meli01"]
+    contas = sys.argv[1:] or ["meli01", "meli02", "meli03"]
     for c in contas:
         try:
             executar(c)

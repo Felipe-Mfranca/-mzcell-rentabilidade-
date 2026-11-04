@@ -3,7 +3,7 @@
   A captura so le a API do Mercado Livre e grava em financeiro.db.
 
   Uso:
-    .\instalar_captura.ps1                  # 09:00 todos os dias, meli01
+    .\instalar_captura.ps1                  # 09:00 todos os dias, meli01 meli02 meli03
     .\instalar_captura.ps1 -Remover         # apaga a tarefa
 
   Se o PC estiver desligado as 09:00, a tarefa executa assim que ele ligar.
@@ -11,7 +11,7 @@
 #>
 param(
     [string]$Horario = "09:00",
-    [string[]]$Contas = @("meli01"),
+    [string[]]$Contas = @("meli01","meli02","meli03"),
     [switch]$Remover,
     [string]$Nome = "MZCell Captura Pedidos ML"
 )
