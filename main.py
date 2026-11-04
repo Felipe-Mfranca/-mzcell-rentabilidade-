@@ -93,6 +93,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Servidor na rede interna: quem vem de outro PC só enxerga as telas operacionais (Expedição, Montagem, TV)
+try:
+    from marketplaces import acesso_rede
+    acesso_rede.instalar(app)
+except ImportError as e:
+    print(f"[startup] Trava de rede indisponível: {e}")
+
 # Módulos de marketplace (marketplaces/<nome>/router.py). Se o módulo não estiver
 # presente — ex.: instalação que ainda não recebeu a pasta marketplaces/ — o resto
 # do backend sobe normalmente.

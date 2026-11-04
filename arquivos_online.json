@@ -103,5 +103,6 @@
  "marketplaces/montagem/amazon_fba.py",
  "marketplaces/sac/__init__.py",
  "marketplaces/sac/devolucoes.py",
- "marketplaces/sac/router.py"
+ "marketplaces/sac/router.py",
+ "marketplaces/acesso_rede.py"
 ]
