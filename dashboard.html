@@ -867,6 +867,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
           <button onclick="sacTipo('mensagens',this)">Mensagens e perguntas</button>
           <button onclick="sacTipo('reclamacoes',this)">Reclamações</button>
           <button onclick="sacTipo('contestacoes',this)">Contestações</button>
+          <button onclick="sacTipo('devolucoes',this)">Devoluções</button>
         </div>
         <div id="sac-corpo"></div>
       </div>
@@ -1998,7 +1999,37 @@ const SAC_DESFECHO = {
 };
 const SAC_TIPO = {mediations:'Mediação', returns:'Devolução', claims:'Reclamação', cancel_purchase:'Cancelamento'};
 let _sacAba = 'geral', _sacDe = '', _sacAte = '';
-let _sacTipoSel = 'tudo';   // tudo | mensagens | reclamacoes | contestacoes
+let _sacTipoSel = 'tudo';   // tudo | mensagens | reclamacoes | contestacoes | devolucoes
+let _sacDevFase = 'todas', _sacDevTimer = null, _sacDevDados = null;
+const SAC_FASE_COR = {chegou:'alerta', nao_concluida:'alerta', a_caminho:'', aguardando_postagem:''};
+function sacDevFiltrar(f){ _sacDevFase = f; renderDevolucoes(); }
+function renderDevolucoes(){
+  const corpo=document.getElementById('sac-corpo'), d=_sacDevDados; if(!d) return;
+  const fases={chegou:'Chegaram',a_caminho:'A caminho',aguardando_postagem:'Aguardando o comprador postar',nao_concluida:'Não concluídas'};
+  const chips=`<span class="sac-chip" style="cursor:pointer;${_sacDevFase==='todas'?'font-weight:700':''}" onclick="sacDevFiltrar('todas')">Todas: ${d.itens.length}</span>`+
+    Object.entries(fases).filter(([k])=>d.resumo[k]).map(([k,r])=>`<span class="sac-chip" style="cursor:pointer;${_sacDevFase===k?'font-weight:700':''}" onclick="sacDevFiltrar('${k}')">${r}: ${d.resumo[k]}</span>`).join('');
+  const lista=d.itens.filter(i=>_sacDevFase==='todas'||i.fase===_sacDevFase).map(i=>{
+    const dv=i.devolucao||{};
+    return `<div class="sac-card ${SAC_FASE_COR[i.fase]||''}"><div class="sac-top"><span class="sac-tit">${sacEsc(i.conta.toUpperCase())} · pedido ${sacEsc(i.pedido)} · reclamação ${sacEsc(i.claim_id)}</span><span class="sac-tag">${sacEsc(i.fase_texto)}${i.aguarda_voce?' · AGUARDA VOCÊ':''}</span></div>
+      <div class="sac-lin">${sacEsc(SAC_TIPO[i.tipo]||i.tipo)} · ${sacEsc(i.etapa)} · ${sacEsc(i.status)} · motivo ${sacEsc(i.motivo)} · aberta em ${sacDmy(i.data)}</div>
+      <div class="sac-lin">Devolução ${sacEsc(dv.tipo||'-')} · envio ${sacEsc(dv.envio_status||'-')} · dinheiro ${sacEsc(dv.dinheiro||'-')}${dv.rastreio?` · rastreio ${sacEsc(dv.rastreio)}`:''}</div>
+      <div class="sac-lin"><b>${sacEsc(i.acao)}</b></div></div>`;
+  }).join('')||'<div class="sac-mut">Nenhuma devolução em andamento.</div>';
+  const erros=Object.entries(d.erros||{}).map(([c,e])=>`<div class="sac-mut">Erro em ${sacEsc(c)}: ${sacEsc(e)}</div>`).join('');
+  corpo.innerHTML=`<div class="sac-sec"><h3>Devoluções em andamento (logística reversa do ML)</h3><div class="sac-resumo">${chips}</div>${erros}${lista}</div>`;
+}
+async function carregarDevolucoes(conta){
+  const st=document.getElementById('sac-status'), corpo=document.getElementById('sac-corpo');
+  clearTimeout(_sacDevTimer);
+  try{
+    const r=await fetch(`${API}/sac/${conta==='geral'?'':conta+'/'}devolucoes`); if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    if(d.carregando){ st.textContent='primeira leitura das devoluções (cerca de 1 minuto)…'; corpo.innerHTML='<div class="sac-mut">Buscando no Mercado Livre…</div>';
+      _sacDevTimer=setTimeout(()=>{ if(_sacTipoSel==='devolucoes') carregarDevolucoes(_sacAba); },5000); return; }
+    _sacDevDados=d; renderDevolucoes();
+    st.textContent=`${d.itens.length} devolução(ões) em andamento · dados de ${d.gerado_em?d.gerado_em.slice(11,16):'-'}${d.atualizando?' · atualizando…':''}`+(conta==='geral'?'':' · '+conta);
+  }catch(e){ st.textContent='erro: '+e.message; }
+}
 function sacTipo(t, btn){
   _sacTipoSel = t;
   document.querySelectorAll('#sac-tipos button').forEach(b=>b.classList.remove('active'));
@@ -2028,6 +2059,7 @@ function sacIr(aba, btn){
   _sacAba = aba;
   if(btn){ document.querySelectorAll('#sac-subtabs button').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); }
   else document.querySelectorAll('#sac-subtabs button').forEach(b=>b.classList.toggle('active', b.textContent.trim().toLowerCase()===aba));
+  if(_sacTipoSel==='devolucoes'){ carregarDevolucoes(aba); return; }
   if(aba==='geral') carregarSacGeral(); else carregarSacConta(aba);
 }
 async function carregarSacGeral(){

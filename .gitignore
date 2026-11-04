@@ -148,3 +148,5 @@ expedicao_snapshot.json.tmp
 checkout_registro.jsonl
 checkout_config.json
 checkout_gravacoes.jsonl
+sac_devolucoes_cache.json
+sac_devolucoes_cache.json.tmp

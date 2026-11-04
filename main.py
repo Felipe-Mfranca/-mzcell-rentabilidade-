@@ -164,6 +164,13 @@ if modulo_liberado("magalu"):
     except ImportError as e:
         print(f"[startup] Módulo Magalu indisponível: {e}")
 
+# SAC: devoluções pela logística reversa do ML (somente leitura). O restante do SAC segue nas rotas abaixo.
+try:
+    from marketplaces.sac.router import router as sac_router
+    app.include_router(sac_router)
+except ImportError as e:
+    print(f"[startup] SAC (devoluções) indisponível: {e}")
+
 if modulo_liberado("paineis"):
     try:
         from marketplaces.paineis.router import router as paineis_router

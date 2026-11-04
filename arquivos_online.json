@@ -100,5 +100,8 @@
  "marketplaces/magalu/__init__.py",
  "marketplaces/magalu/router.py",
  "marketplaces/expedicao/snapshot.py",
- "marketplaces/montagem/amazon_fba.py"
+ "marketplaces/montagem/amazon_fba.py",
+ "marketplaces/sac/__init__.py",
+ "marketplaces/sac/devolucoes.py",
+ "marketplaces/sac/router.py"
 ]
