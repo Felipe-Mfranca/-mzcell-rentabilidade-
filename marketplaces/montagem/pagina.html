@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Montagem de envios Full — Gestão</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box}body{font:14px/1.4 system-ui,Segoe UI,Arial;margin:0;background:#f4f5f7;color:#1f2933}
+header{background:#374151;color:#fff;padding:12px 20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+header h1{font-size:18px;margin:0;flex:1}header label{font-size:12px;opacity:.85}
+header input,header select{padding:5px 8px;border-radius:5px;border:0;margin-left:4px}
+main{max-width:1150px;margin:0 auto;padding:16px}
+.card{background:#fff;border-radius:8px;padding:14px 16px;margin-bottom:14px;box-shadow:0 1px 3px #0002}
+h2{font-size:15px;margin:0 0 10px}table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #e5e7eb;vertical-align:middle}th{font-size:12px;color:#6b7280}
+input,select{font:inherit;padding:5px 7px;border:1px solid #cbd2d9;border-radius:5px}
+button{font:inherit;padding:6px 12px;border:0;border-radius:5px;background:#166534;color:#fff;cursor:pointer}
+button.sec{background:#e5e7eb;color:#1f2933}button.perigo{background:#991b1b}
+.chip{display:inline-block;min-width:38px;text-align:center;padding:4px 8px;margin-right:4px;border-radius:5px;border:1px solid #cbd2d9;background:#fff;cursor:pointer;font-weight:600}
+.chip.on{background:#166534;color:#fff;border-color:#166534}
+.aviso{background:#fef3c7;color:#854d0e;padding:6px 10px;border-radius:5px;margin:6px 0}
+.erro{background:#fee2e2;color:#991b1b;padding:6px 10px;border-radius:5px;margin:6px 0}
+.mut{color:#6b7280;font-size:12px}.barra{height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden}
+.barra>div{height:100%;background:#166534}.atraso{color:#991b1b;font-weight:700}
+.top{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:700;color:#fff;background:#6b7280}
+.badge.meli{background:#b45309}.badge.amazon{background:#1d4ed8}.badge.shopee{background:#c2410c}
+</style></head><body>
+<header><h1>Montagem de envios Full — Gestão</h1>
+<label>Eu sou <input id="eu" placeholder="seu nome" style="width:150px"></label>
+<label>Papel <select id="papel"><option value="estoquista">Estoquista</option><option value="lider">Líder</option></select></label>
+<a href="/montagem/tv" target="_blank" style="color:#fff">Abrir painel da TV ↗</a></header>
+<main>
+<div class="card"><h2>Novo envio</h2>
+<div class="top">
+<label>Canal <select id="canal" onchange="trocaCanal()"><option value="meli">Mercado Livre (PDF)</option><option value="amazon">Amazon (manual)</option><option value="shopee">Shopee (manual)</option></select></label>
+<span id="boxpdf"><input type="file" id="pdf" accept="application/pdf"> <span class="mut">PDF "instruções de preparação" do envio ao Full.</span></span>
+</div>
+<div id="previa"></div></div>
+<div id="lista"></div>
+<div class="card"><h2>Produtividade (só gestão)</h2><div id="prod" class="mut">Carregando…</div></div>
+</main>
+<script>
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=id=>document.getElementById(id);
+const NOMES={meli:'Mercado Livre',amazon:'Amazon',shopee:'Shopee'};
+$('eu').value=localStorage.getItem('mz_eu')||'';$('papel').value=localStorage.getItem('mz_papel')||'estoquista';
+$('eu').onchange=()=>localStorage.setItem('mz_eu',$('eu').value.trim());$('papel').onchange=()=>localStorage.setItem('mz_papel',$('papel').value);
+async function api(url,opt){const r=await fetch(url,opt);let d={};try{d=await r.json()}catch(e){}if(!r.ok||d.success===false)throw new Error(d.error||('Erro '+r.status));return d}
+let previa=null;
+function trocaCanal(){previa=null;$('previa').innerHTML='';$('pdf').value='';
+ if($('canal').value==='meli'){$('boxpdf').style.display=''}else{$('boxpdf').style.display='none';previa={frete:'',produtos:[{sku:'',titulo:'',unidades:''}],avisos:[],manual:true};mostrarPrevia()}}
+$('pdf').onchange=async()=>{const f=$('pdf').files[0];if(!f)return;const fd=new FormData();fd.append('file',f);
+ try{previa=await api('/montagem/pdf',{method:'POST',body:fd});mostrarPrevia()}catch(e){$('previa').innerHTML='<div class="erro">'+esc(e.message)+'</div>'}};
+function linhaProd(x,i){const m=previa.manual;
+ return '<tr><td>'+(m?'<input id="n_sku'+i+'" value="'+esc(x.sku)+'" style="width:160px">':esc(x.sku)+'<div class="mut">'+esc(x.codigo_ml)+'</div>')+'</td>'+
+ '<td>'+(m?'<input id="n_tit'+i+'" value="'+esc(x.titulo)+'" style="width:100%">':esc(x.titulo))+'</td>'+
+ '<td><input id="n_un'+i+'" type="number" min="1" value="'+esc(x.unidades)+'" style="width:80px"></td>'+
+ '<td><input id="n_es'+i+'" value="'+esc(x.estoquista||'')+'" style="width:120px"></td><td><input id="n_em'+i+'" value="'+esc(x.embalador||'')+'" style="width:120px"></td></tr>'}
+function mostrarPrevia(){const p=previa;
+ let h=(p.avisos||[]).map(a=>'<div class="aviso">'+esc(a)+'</div>').join('');
+ if(p.ja_cadastrado)h+='<div class="erro">O frete #'+esc(p.frete)+' já está cadastrado.</div>';
+ const m=p.manual,contas=m?($('canal').value==='amazon'?['amazon01','amazon02']:['shopee']):['meli01','meli02','meli03'];
+ h+='<div class="top"><label>'+(m?'Nº do envio':'Frete')+' <input id="n_frete" value="'+esc(p.frete)+'" style="width:150px"></label>'+
+ '<label>Conta <select id="n_conta"><option value="">—</option>'+contas.map(c=>'<option '+(c===p.conta_sugerida?'selected':'')+'>'+c+'</option>').join('')+'</select></label>'+
+ '<label>Coleta <input type="date" id="n_coleta"></label><label>Pronto até <input type="datetime-local" id="n_prazo"></label></div>';
+ h+='<table><tr><th>SKU</th><th>Produto</th><th>Unid.</th><th>Estoquista</th><th>Embalador</th></tr>'+p.produtos.map(linhaProd).join('')+'</table>';
+ if(m)h+='<p><button class="sec" onclick="addLinha()">+ produto</button></p>';
+ h+='<p><button onclick="criar()">Criar envio</button> <button class="sec" onclick="trocaCanal()">Cancelar</button></p><div id="n_msg"></div>';
+ $('previa').innerHTML=h}
+function lerLinhas(){return previa.produtos.map((x,i)=>({...x,sku:previa.manual?$('n_sku'+i).value:x.sku,titulo:previa.manual?$('n_tit'+i).value:x.titulo,unidades:+$('n_un'+i).value,estoquista:$('n_es'+i).value,embalador:$('n_em'+i).value}))}
+function addLinha(){previa.produtos=lerLinhas();const f=$('n_frete').value,c=$('n_conta').value,co=$('n_coleta').value,pz=$('n_prazo').value;
+ previa.produtos.push({sku:'',titulo:'',unidades:''});previa.frete=f;mostrarPrevia();$('n_conta').value=c;$('n_coleta').value=co;$('n_prazo').value=pz}
+async function criar(){const body={frete:$('n_frete').value,canal:$('canal').value,conta:$('n_conta').value,coleta:$('n_coleta').value,prazo:$('n_prazo').value,criado_por:$('eu').value,produtos:lerLinhas()};
+ try{await api('/montagem/envios',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});trocaCanal();carregar()}
+ catch(e){$('n_msg').innerHTML='<div class="erro">'+esc(e.message)+'</div>'}}
+function resta(prazo){const ms=new Date(prazo)-new Date();const m=Math.round(Math.abs(ms)/60000);const t=Math.floor(m/60)+'h'+String(m%60).padStart(2,'0');return ms<0?'<span class="atraso">atrasado '+t+'</span>':'faltam '+t}
+async function carregar(){const d=await api('/montagem/dados');
+ $('lista').innerHTML=d.envios.map(e=>{const r=e.resumo,k=esc(e.chave);
+  return '<div class="card"><div class="top"><h2 style="margin:0"><span class="badge '+esc(e.canal)+'">'+esc(NOMES[e.canal]||e.canal)+'</span> Envio #'+esc(e.numero)+' · '+esc(e.conta||'?')+(e.concluido_em?' · <span style="color:#166534">concluído</span>':'')+'</h2>'+
+  '<span>Coleta: '+esc(e.coleta||'—')+'</span><span>Pronto até: <input type="datetime-local" value="'+esc(e.prazo)+'" onchange="prazo(\''+k+'\',this.value)"> '+(e.concluido_em?'':resta(e.prazo))+'</span>'+
+  '<button class="perigo" onclick="remover(\''+k+'\')">Excluir</button></div>'+
+  '<div class="barra"><div style="width:'+r.percentual+'%"></div></div><div class="mut">'+r.unidades_prontas+' de '+r.unidades_total+' un. prontas ('+r.percentual+'%)</div>'+
+  '<table><tr><th>Produto</th><th>Unid.</th><th>Estoquista</th><th>Embalador</th><th>Etapas (T · E · OK)</th></tr>'+e.produtos.map((p,i)=>
+  '<tr><td>'+esc(p.sku)+'<div class="mut">'+esc(p.titulo)+'</div></td><td>'+p.unidades+'</td>'+
+  '<td><input value="'+esc(p.estoquista)+'" style="width:120px" onchange="resp(\''+k+'\','+i+',\'estoquista\',this.value)"></td>'+
+  '<td><input value="'+esc(p.embalador)+'" style="width:120px" onchange="resp(\''+k+'\','+i+',\'embalador\',this.value)"></td>'+
+  '<td>'+['T','E','OK'].map(t=>{const m=p.etapas[t];return '<span class="chip '+(m?'on':'')+'" title="'+(m?esc(m.por)+' ('+esc(m.papel)+') '+esc(m.em):'marcar')+'" onclick="marca(\''+k+'\','+i+',\''+t+'\','+(m?1:0)+')">'+t+'</span>'}).join('')+
+  '<div class="mut">'+['T','E','OK'].filter(t=>p.etapas[t]).map(t=>t+': '+esc(p.etapas[t].por)+' '+esc(p.etapas[t].em.slice(11,16))).join(' · ')+'</div></td></tr>').join('')+'</table></div>'}).join('')||'<div class="card mut">Nenhum envio cadastrado.</div>';
+ const pr=await api('/montagem/produtividade');
+ $('prod').innerHTML=pr.pessoas.length?'<table><tr><th>Pessoa</th><th>Marcas</th><th>Unidades</th><th>Tempo médio entre etapas</th></tr>'+pr.pessoas.map(x=>'<tr><td>'+esc(x.pessoa)+'</td><td>'+x.marcas+' ('+Object.entries(x.por_etapa).map(([k,v])=>k+':'+v).join(' ')+')</td><td>'+x.unidades+'</td><td>'+(x.tempo_medio_entre_etapas_min??'—')+' min</td></tr>').join('')+'</table>':'Sem marcas ainda.'}
+async function marca(k,i,t,on){try{
+ if(on){if(!confirm('Desfazer a marca '+t+'?'))return;await api('/montagem/envios/'+k+'/produtos/'+i+'/marcar/'+t,{method:'DELETE'})}
+ else{const por=$('eu').value.trim();if(!por){alert('Preencha "Eu sou" no alto da página.');return}
+  await api('/montagem/envios/'+k+'/produtos/'+i+'/marcar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag:t,por,papel:$('papel').value})})}
+ carregar()}catch(e){alert(e.message)}}
+async function resp(k,i,campo,v){try{await api('/montagem/envios/'+k+'/produtos/'+i+'/responsaveis',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[campo]:v})})}catch(e){alert(e.message)}}
+async function prazo(k,v){try{await api('/montagem/envios/'+k+'/prazo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prazo:v})});carregar()}catch(e){alert(e.message)}}
+async function remover(k){if(!confirm('Excluir este envio e todas as marcas dele?'))return;try{await api('/montagem/envios/'+k,{method:'DELETE'});carregar()}catch(e){alert(e.message)}}
+carregar();setInterval(()=>{if(!document.activeElement||document.activeElement.tagName!=='INPUT')carregar()},20000);
+</script></body></html>

@@ -135,3 +135,9 @@ docs/
 amazon_fba_origem.json
 amazon_fba_planos.json
 bling_estoque_cache.json
+
+# Montagem de envios Full e abertura de módulos por máquina (dados locais)
+montagem_envios.json
+montagem_envios.json.tmp
+modulos_locais.json
+cortes_plataformas.json

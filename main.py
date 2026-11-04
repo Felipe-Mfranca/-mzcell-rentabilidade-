@@ -131,6 +131,13 @@ if modulo_liberado("compras"):
     except ImportError as e:
         print(f"[startup] Módulo Compras indisponível: {e}")
 
+if modulo_liberado("montagem"):
+    try:
+        from marketplaces.montagem.router import router as montagem_router
+        app.include_router(montagem_router)
+    except ImportError as e:
+        print(f"[startup] Módulo Montagem indisponível: {e}")
+
 if modulo_liberado("radar"):
     try:
         from marketplaces.radar.router import router as radar_router

@@ -13,7 +13,9 @@ from fastapi.responses import HTMLResponse
 
 from pydantic import BaseModel
 
-from marketplaces.expedicao import bling_checkout, cancelamentos as cancelamentos_mod, marcas, ml
+from datetime import date, datetime, timedelta
+
+from marketplaces.expedicao import amazon_dba, bling_checkout, cancelamentos as cancelamentos_mod, cortes as cortes_mod, dia as dia_mod, marcas, ml, simulacao
 
 router = APIRouter(prefix="/expedicao", tags=["expedicao"])
 PAGINA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pagina.html")
@@ -65,3 +67,60 @@ def marcar(body: MarcaIn):
         raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Painel do dia (Flex, Coleta, Places e Full) — módulo "montagem": só abre onde modulos_locais.json permitir ──
+def _painel_liberado():
+    try:
+        from modulos_liberados import liberado
+    except ImportError:
+        liberado = lambda nome: False  # noqa: E731
+    if not liberado("montagem"):
+        raise HTTPException(status_code=404, detail="Não encontrado")
+
+
+@router.get("/painel", response_class=HTMLResponse)
+def painel():
+    _painel_liberado()
+    with open(os.path.join(os.path.dirname(PAGINA), "painel.html"), encoding="utf-8") as f:
+        return f.read()
+
+
+@router.get("/dia")
+def dia(simular: bool = False, dia: str = None, hora: str = None, atualizar: bool = False):
+    """Painel do dia. `simular=1` usa dados fictícios (nada real é lido nem gravado); `dia` AAAA-MM-DD (padrão: hoje;
+    na simulação, amanhã) e `hora` HH:MM (só na simulação: o relógio simulado)."""
+    _painel_liberado()
+    hoje = datetime.now(dia_mod.BRT)
+    try:
+        alvo = date.fromisoformat(dia) if dia else ((hoje + timedelta(days=1)).date() if simular else hoje.date())
+        if simular:
+            h, m = (hora or "05:00").split(":")
+            agora = datetime(alvo.year, alvo.month, alvo.day, int(h), int(m), tzinfo=dia_mod.BRT)
+        else:
+            agora = hoje
+    except ValueError:
+        raise HTTPException(status_code=400, detail="dia (AAAA-MM-DD) ou hora (HH:MM) inválidos")
+    if simular:
+        linhas, marc = simulacao.pedidos(alvo, agora)
+        full = simulacao.envios_full(alvo, agora)
+    else:
+        res = ml.mapa(None, forcar=atualizar)
+        linhas, _ = bling_checkout.enriquecer(res["linhas"])
+        linhas_dba, erros_dba = amazon_dba.linhas()
+        linhas = linhas + linhas_dba
+        res = dict(res, erros=dict(res.get("erros", {}), **erros_dba))
+        try:
+            marc = marcas.ler()
+        except RuntimeError:
+            marc = {}
+        try:
+            from marketplaces.montagem import armazenamento as arm
+            full = arm.listar()
+        except ImportError:
+            full = []
+    saida = dia_mod.montar(linhas, marc, full, agora, alvo, cortes_mod.carregar())
+    saida["modo"] = "simulacao" if simular else "real"
+    if not simular:
+        saida["erros"] = res.get("erros", {})
+    return saida

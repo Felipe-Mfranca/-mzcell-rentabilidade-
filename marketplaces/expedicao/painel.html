@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Expedição — painel do dia</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0f172a;color:#f8fafc;font:18px/1.3 system-ui,Segoe UI,Arial}
+.topo{display:flex;align-items:center;gap:24px;padding:14px 28px;background:#1e293b;flex-wrap:wrap}
+.topo h1{margin:0;font-size:30px;flex:1}.relogio{font-size:44px;font-weight:800;font-variant-numeric:tabular-nums}
+.sim{background:#b45309;color:#fff;padding:4px 14px;border-radius:14px;font-weight:800;letter-spacing:1px}
+.ctl{display:flex;gap:12px;align-items:center;padding:8px 28px;background:#111827;color:#cbd5e1;font-size:15px;flex-wrap:wrap}
+.ctl input[type=range]{width:380px}.ctl button,.ctl select,.ctl input[type=date]{font:inherit;padding:5px 12px;border-radius:6px;border:0;background:#334155;color:#f8fafc;cursor:pointer}
+.geral{display:flex;gap:28px;padding:14px 28px;align-items:center;flex-wrap:wrap}
+.geral b{font-size:34px}.geral span{color:#94a3b8}
+.alertas{padding:0 28px}.al{padding:8px 16px;border-radius:8px;margin-bottom:6px;font-size:20px;font-weight:600}
+.al.critico{background:#7f1d1d;color:#fecaca}.al.atencao{background:#78350f;color:#fde68a}
+.cortes{display:flex;gap:10px;flex-wrap:wrap;padding:4px 28px 0}
+.corte{background:#1e293b;border-radius:10px;padding:8px 14px;border-left:6px solid #475569;font-size:18px;min-width:200px}
+.corte.Flex{border-color:#22c55e}.corte.Coleta{border-color:#3b82f6}.corte.Places{border-color:#f59e0b}.corte.DBA{border-color:#a855f7}
+.corte b{font-size:26px;font-variant-numeric:tabular-nums}.corte .s{color:#94a3b8;font-size:15px}
+.corte.Amazon{border-color:#3b82f6}.corte.Shopee{border-color:#f97316}
+.corte.feito{opacity:.45}.corte.atraso b{color:#fca5a5}.corte.alerta b{color:#fcd34d}
+.grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:18px;padding:14px 28px}
+.cartao{background:#1e293b;border-radius:14px;padding:18px 22px;border-top:6px solid #475569}
+.cartao.Flex{border-color:#22c55e}.cartao.Coleta{border-color:#3b82f6}.cartao.Places{border-color:#f59e0b}.cartao.DBA{border-color:#a855f7}
+.cartao h2{margin:0 0 6px;font-size:28px;display:flex;justify-content:space-between}
+.grande{font-size:64px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}.grande small{font-size:28px;color:#94a3b8;font-weight:600}
+.barra{height:18px;background:#334155;border-radius:9px;margin:12px 0;overflow:hidden}.barra>div{height:100%;background:#22c55e;transition:width .6s}
+.linha{display:flex;justify-content:space-between;color:#cbd5e1;font-size:19px;margin:3px 0}
+.meta{font-size:30px;font-weight:800;margin-top:8px}.meta.ok{color:#86efac}.meta.alerta{color:#fcd34d}.meta.atraso{color:#fca5a5}
+.hora{display:flex;gap:6px;align-items:flex-end;height:64px;margin-top:10px}
+.hora div{flex:1;background:#334155;border-radius:4px 4px 0 0;position:relative;min-width:18px}
+.hora div i{display:block;position:absolute;bottom:0;left:0;right:0;background:#22c55e;border-radius:4px 4px 0 0}
+.hora div em{position:absolute;top:-18px;left:0;right:0;text-align:center;font-style:normal;font-size:12px;color:#94a3b8}
+.full{margin:6px 28px 28px}.full h2{font-size:26px;margin:14px 0 8px}
+.env{background:#1e293b;border-radius:14px;padding:16px 22px;margin-bottom:12px;display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:18px;align-items:center}
+.env .tt{font-size:26px;font-weight:800}.env .sub{color:#94a3b8;font-size:17px}
+.chip{display:inline-block;min-width:54px;text-align:center;padding:5px 10px;margin-right:6px;border-radius:8px;background:#334155;color:#94a3b8;font-weight:800}
+.chip.on{background:#16a34a;color:#fff}
+.canal{display:inline-block;padding:1px 12px;border-radius:12px;font-size:18px;margin-right:8px;background:#64748b}
+.canal.meli{background:#b45309}.canal.amazon{background:#1d4ed8}.canal.shopee{background:#c2410c}
+.vazio{color:#64748b;font-size:24px;padding:12px 0}
+</style></head><body>
+<div class="topo"><h1 id="titulo">Expedição</h1><span id="simtag"></span><span class="relogio" id="relogio">--:--</span></div>
+<div class="ctl" id="ctl">
+ <label>Modo <select id="modo"><option value="sim">Simulação (amanhã)</option><option value="real">Real (hoje)</option></select></label>
+ <label>Dia <input type="date" id="dia"></label>
+ <span id="boxhora"><label>Hora <input type="range" id="hora" min="300" max="1200" step="5" value="300"> <b id="horatxt">05:00</b></label>
+ <button id="play">▶ Reproduzir o dia</button></span>
+ <span style="opacity:.7">Para a TV, abra com <code>?tv=1</code>. Simulação usa dados fictícios.</span>
+</div>
+<div class="geral" id="geral"></div><div class="alertas" id="alertas"></div>
+<div class="cortes" id="cortes"></div>
+<div class="grade" id="grade"></div>
+<div class="full"><h2>Planejamento da montagem do Full no dia</h2><div id="full"></div></div>
+<script>
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=id=>document.getElementById(id);
+const P=new URLSearchParams(location.search);const TV=P.get('tv')==='1';
+if(TV)$('ctl').style.display='none';
+const amanha=new Date();amanha.setDate(amanha.getDate()+1);   // data local do navegador, não UTC
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+$('dia').value=P.get('dia')||iso(amanha);$('modo').value=P.get('real')==='1'?'real':'sim';
+const NOMES={meli:'Mercado Livre',amazon:'Amazon',shopee:'Shopee'};
+const hhmm=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+function fmtMin(m){if(m==null)return '—';const a=Math.abs(m),h=Math.floor(a/60);return (m<0?'−':'')+(h?h+'h ':'')+String(a%60).padStart(2,'0')+'min'}
+let timer=null;
+async function carregar(){
+ const sim=$('modo').value==='sim';$('boxhora').style.display=sim?'':'none';
+ const q=new URLSearchParams({dia:$('dia').value});if(sim){q.set('simular','1');q.set('hora',hhmm(+$('hora').value))}
+ let d;try{const r=await fetch('/expedicao/dia?'+q);if(!r.ok)throw new Error(r.status===404?'Painel fechado nesta máquina (modulos_locais.json).':'Erro '+r.status);d=await r.json()}
+ catch(e){$('grade').innerHTML='<div class="vazio">'+esc(e.message)+'</div>';return}
+ $('titulo').textContent='Expedição — '+d.dia.split('-').reverse().join('/');
+ $('simtag').innerHTML=d.modo==='simulacao'?'<span class="sim">SIMULAÇÃO</span>':'';
+ $('relogio').textContent=d.agora.slice(11,16);$('horatxt').textContent=hhmm(+$('hora').value);
+ const g=d.geral;
+ $('geral').innerHTML='<div><b>'+g.checkout+' / '+g.pedidos+'</b> <span>pedidos com checkout ('+g.percentual+'%)</span></div>'+
+  '<div><b style="color:'+(g.pendentes?'#fcd34d':'#86efac')+'">'+g.pendentes+'</b> <span>checkouts pendentes</span></div>'+
+  '<div><b style="color:'+(g.atrasados?'#fca5a5':'#86efac')+'">'+g.atrasados+'</b> <span>atrasados</span></div>'+
+  '<div><b>'+g.full_envios+'</b> <span>envios Full ('+g.full_unidades_restantes+' de '+g.full_unidades+' un. a montar)</span></div>';
+ $('cortes').innerHTML='<div style="width:100%;color:#94a3b8;font-size:15px;letter-spacing:1px">HORÁRIOS DE CORTE</div>'+d.cortes.map(c=>{
+  const feito=c.pendentes===0,cls=feito?'feito':(c.minutos<0?'atraso':(c.minutos<=60?'alerta':''));
+  return '<div class="corte '+c.canal+' '+cls+'"><b>'+c.corte+'</b> '+c.canal+'<div class="s">'+(c.prazo_ml?'prazo da plataforma '+c.prazo_ml+' · ':'')+c.pedidos+' pedidos</div>'+
+  '<div class="s" style="font-size:17px;color:#e2e8f0">'+(feito?'✔ checkouts feitos':c.pendentes+' checkout(s) pendente(s) · '+(c.minutos<0?'passou há '+fmtMin(-c.minutos):'em '+fmtMin(c.minutos)))+'</div></div>'}).join('')+
+ (d.cortes_plataformas&&d.cortes_plataformas.length?'<div style="width:100%;color:#94a3b8;font-size:15px;letter-spacing:1px;margin-top:6px">AMAZON DBA E SHOPEE</div>'+d.cortes_plataformas.map(c=>{
+  const passou=c.minutos<0,cls=passou?'feito':(c.minutos<=60?'alerta':'');
+  return '<div class="corte '+esc(c.plataforma)+' '+cls+'"><b>'+esc(c.corte)+'</b> '+esc(c.canal)+'<div class="s">'+esc(c.etapa)+'</div>'+
+  '<div class="s" style="font-size:17px;color:#e2e8f0">'+(passou?'corte passou':'em '+fmtMin(c.minutos))+'</div></div>'}).join(''):'');
+ $('alertas').innerHTML=d.alertas.map(a=>'<div class="al '+a.nivel+'">'+(a.nivel==='critico'?'⚠ ':'• ')+esc(a.texto)+'</div>').join('');
+ $('grade').innerHTML=d.cartoes.map(c=>{
+  const cls=c.atrasados?'atraso':(c.minutos_ate_meta!=null&&c.minutos_ate_meta<=60?'alerta':'ok');
+  const mx=Math.max(1,...c.por_hora.map(h=>h.total));
+  return '<div class="cartao '+c.canal+'"><h2><span>'+c.canal+'</span><span style="font-size:20px;color:#94a3b8">'+c.unidades+' un.</span></h2>'+
+  '<div class="grande">'+c.checkout+'<small> / '+c.pedidos+'</small></div>'+
+  '<div class="barra"><div style="width:'+c.percentual+'%"></div></div>'+
+  '<div class="linha"><span>Liberados</span><b>'+c.liberados+'</b></div><div class="linha"><span>Embalados</span><b>'+c.embalados+'</b></div>'+
+  '<div class="linha"><span>'+(c.canal==='DBA'?'Etiquetas pendentes':'Pendentes')+'</span><b>'+c.pendentes+'</b></div>'+
+  (c.no_ponto!=null?'<div class="linha"><span>No ponto de coleta (até 14:00)</span><b>'+c.no_ponto+' / '+c.pedidos+'</b></div>':'')+
+  '<div class="meta '+cls+'">'+(c.pedidos===0?'sem pedidos':(c.pendentes===0?'✔ concluído':(c.atrasados?c.atrasados+' atrasado(s)':'meta em '+fmtMin(c.minutos_ate_meta))))+'</div>'+
+  '<div class="hora">'+c.por_hora.map(h=>'<div style="height:'+Math.max(12,Math.round(100*h.total/mx))+'%"><em>'+h.hora+'</em><i style="height:'+Math.round(100*h.feitos/h.total)+'%"></i></div>').join('')+'</div></div>'}).join('');
+ $('full').innerHTML=d.full.length?d.full.map(f=>{const cls=f.atrasado?'atraso':(f.minutos_ate_prazo!=null&&f.minutos_ate_prazo<=120&&!f.concluido?'alerta':'ok');
+  const p=f.produtos[0]||{};
+  return '<div class="env"><div><div class="tt"><span class="canal '+esc(f.canal)+'">'+esc(NOMES[f.canal]||f.canal)+'</span>#'+esc(f.numero)+'</div><div class="sub">'+esc(f.conta||'')+' · '+f.unidades_total+' un. · pronto até '+esc((f.prazo||'').slice(11,16))+'</div>'+
+  '<div class="barra"><div style="width:'+f.percentual+'%"></div></div><div class="sub">'+f.unidades_prontas+' de '+f.unidades_total+' prontas ('+f.percentual+'%)</div></div>'+
+  '<div class="sub" style="font-size:19px;color:#cbd5e1">'+f.produtos.map(x=>esc(x.sku)+'<br>Estoque: <b>'+esc(x.estoquista||'—')+'</b> · Embalagem: <b>'+esc(x.embalador||'—')+'</b><div style="margin-top:6px">'+['T','E','OK'].map(t=>'<span class="chip '+(x.etapas[t]?'on':'')+'">'+t+'</span>').join('')+'</div>').join('<hr>')+'</div>'+
+  '<div class="meta '+cls+'" style="text-align:right">'+(f.concluido?'✔ pronto':(f.atrasado?'atrasado '+fmtMin(-f.minutos_ate_prazo):'faltam '+fmtMin(f.minutos_ate_prazo)))+'</div></div>'}).join(''):'<div class="vazio">Nenhum envio Full neste dia</div>';
+}
+$('modo').onchange=carregar;$('dia').onchange=carregar;$('hora').oninput=carregar;
+$('play').onclick=()=>{if(timer){clearInterval(timer);timer=null;$('play').textContent='▶ Reproduzir o dia';return}
+ $('play').textContent='⏸ Pausar';if(+$('hora').value>=1195)$('hora').value=300;
+ timer=setInterval(()=>{const v=+$('hora').value+5;if(v>1200){clearInterval(timer);timer=null;$('play').textContent='▶ Reproduzir o dia';return}$('hora').value=v;carregar()},1200)};
+carregar();if(TV||$('modo').value==='real')setInterval(carregar,30000);
+</script></body></html>

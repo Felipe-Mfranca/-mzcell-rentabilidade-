@@ -13,9 +13,27 @@ LIBERADOS = {
     "balanco": False,
     "compras": False,
     "radar": False,
+    "montagem": False,    # fila de montagem dos envios Full (Meli, Amazon, Shopee) + painel de TV
+    "financeiro": False,
 }
+
+# Abertura POR MÁQUINA: o arquivo modulos_locais.json (fora do git e do instalador), por exemplo
+# {"montagem": true, "financeiro": true}, abre o módulo só onde ele existir (servidor, máquina do Zicri).
+import json
+import os
+
+_LOCAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "modulos_locais.json")
+
+
+def _locais() -> dict:
+    try:
+        with open(_LOCAL, encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
 
 
 def liberado(nome: str) -> bool:
-    """Módulo desconhecido conta como fechado."""
-    return bool(LIBERADOS.get(nome, False))
+    """Módulo desconhecido conta como fechado. Aberto se LIBERADOS ou o arquivo local da máquina disser True."""
+    return bool(LIBERADOS.get(nome, False)) or _locais().get(nome) is True

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Envios Full em montagem</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#111827;color:#f9fafb;font:20px/1.3 system-ui,Segoe UI,Arial}
+header{padding:18px 30px;font-size:28px;font-weight:700;display:flex;justify-content:space-between;color:#d1d5db}
+.envio{margin:0 30px 24px;background:#1f2937;border-radius:14px;padding:22px 28px}
+.topo{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
+.titulo{font-size:34px;font-weight:700}.sub{color:#9ca3af;font-size:20px}
+.tempo{font-size:56px;font-weight:800;color:#86efac}.tempo.atraso{color:#fca5a5}.tempo.alerta{color:#fcd34d}
+.barra{height:22px;background:#374151;border-radius:11px;margin:16px 0 6px;overflow:hidden}
+.barra>div{height:100%;background:#22c55e}.pct{color:#9ca3af;font-size:20px;margin-bottom:12px}
+table{width:100%;border-collapse:collapse}td{padding:10px 8px;border-top:1px solid #374151;font-size:24px;vertical-align:middle}
+.chip{display:inline-block;min-width:60px;text-align:center;padding:6px 12px;margin-right:8px;border-radius:8px;background:#374151;color:#9ca3af;font-weight:700}
+.chip.on{background:#16a34a;color:#fff}.vazio{margin:80px;text-align:center;color:#6b7280;font-size:34px}
+.resp{color:#d1d5db}.tit{color:#9ca3af;font-size:18px}
+.canal{display:inline-block;padding:2px 14px;border-radius:14px;font-size:22px;margin-right:12px;background:#6b7280}
+.canal.meli{background:#b45309}.canal.amazon{background:#1d4ed8}.canal.shopee{background:#c2410c}
+</style></head><body>
+<header><span>Envios Full em montagem</span><span id="rel"></span></header><div id="c"></div>
+<script>
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const NOMES={meli:'Mercado Livre',amazon:'Amazon',shopee:'Shopee'};
+let dados=[];let desvio=0;
+function fmt(ms){const m=Math.floor(Math.abs(ms)/60000);const h=Math.floor(m/60);return (h>=24?Math.floor(h/24)+'d ':'')+String(h%24).padStart(2,'0')+':'+String(m%60).padStart(2,'0')}
+function desenhar(){const c=document.getElementById('c');
+ if(!dados.length){c.innerHTML='<div class="vazio">Nenhum envio em montagem</div>';return}
+ c.innerHTML=dados.map(e=>{const ms=new Date(e.prazo)-(Date.now()+desvio);const r=e.resumo;
+  const cls=ms<0?'atraso':(ms<3600000*3?'alerta':'');
+  return '<div class="envio"><div class="topo"><div><div class="titulo"><span class="canal '+esc(e.canal)+'">'+esc(NOMES[e.canal]||e.canal)+'</span>Envio #'+esc(e.numero)+' · '+esc(e.conta||'')+'</div>'+
+  '<div class="sub">Coleta: '+esc(e.coleta||'—')+' · pronto até '+esc((e.prazo||'').replace('T',' às '))+'</div></div>'+
+  '<div class="tempo '+cls+'">'+(ms<0?'atrasado ':'')+fmt(ms)+'</div></div>'+
+  '<div class="barra"><div style="width:'+r.percentual+'%"></div></div><div class="pct">'+r.unidades_prontas+' de '+r.unidades_total+' unidades prontas ('+r.percentual+'%)</div>'+
+  '<table>'+e.produtos.map(p=>'<tr><td>'+esc(p.sku)+' <span class="tit">· '+p.unidades+' un.</span></td>'+
+   '<td class="resp">Estoque: <b>'+esc(p.estoquista||'—')+'</b><br>Embalagem: <b>'+esc(p.embalador||'—')+'</b></td>'+
+   '<td>'+['T','E','OK'].map(t=>'<span class="chip '+(p.etapas[t]?'on':'')+'">'+t+'</span>').join('')+'</td></tr>').join('')+'</table></div>'}).join('')}
+async function carregar(){try{const d=await (await fetch('/montagem/tv/dados')).json();dados=d.envios;desvio=new Date(d.agora)-Date.now();desenhar()}catch(e){}}
+carregar();setInterval(carregar,15000);setInterval(desenhar,1000);
+setInterval(()=>{document.getElementById('rel').textContent=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})},1000);
+</script></body></html>
