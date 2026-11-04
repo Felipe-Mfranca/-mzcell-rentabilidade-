@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from datetime import date, datetime, timedelta
 
-from marketplaces.expedicao import amazon_dba, bling_checkout, cancelamentos as cancelamentos_mod, cortes as cortes_mod, dia as dia_mod, marcas, ml, simulacao
+from marketplaces.expedicao import amazon_dba, bling_checkout, cancelamentos as cancelamentos_mod, cortes as cortes_mod, dia as dia_mod, marcas, ml, simulacao, snapshot
 
 router = APIRouter(prefix="/expedicao", tags=["expedicao"])
 PAGINA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pagina.html")
@@ -117,11 +117,12 @@ def dia(simular: bool = False, dia: str = None, hora: str = None, atualizar: boo
         linhas, marc = simulacao.pedidos(alvo, agora)
         full = simulacao.envios_full(alvo, agora)
     else:
-        res = ml.mapa(None, forcar=atualizar)
-        linhas, _ = bling_checkout.enriquecer(res["linhas"])
-        linhas_dba, erros_dba = amazon_dba.linhas()
-        linhas = linhas + linhas_dba
-        res = dict(res, erros=dict(res.get("erros", {}), **erros_dba))
+        snap = snapshot.obter(forcar=atualizar)
+        if snap["dados"] is None:      # primeira carga desde que o servidor subiu: a tela mostra "carregando" e tenta de novo
+            return {"modo": "real", "carregando": True, "erro": snap["erro"], "dia": alvo.isoformat(),
+                    "agora": agora.isoformat(timespec="seconds")}
+        linhas = snap["dados"]["linhas"]
+        res = {"erros": snap["dados"]["erros"]}
         try:
             marc = marcas.ler()
         except RuntimeError:
@@ -135,4 +136,7 @@ def dia(simular: bool = False, dia: str = None, hora: str = None, atualizar: boo
     saida["modo"] = "simulacao" if simular else "real"
     if not simular:
         saida["erros"] = res.get("erros", {})
+        saida["atualizado_em"] = snap["iso"]
+        saida["idade_seg"] = snap["idade"]
+        saida["atualizando"] = snap["carregando"]
     return saida

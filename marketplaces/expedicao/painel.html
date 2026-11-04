@@ -69,7 +69,10 @@ async function carregar(){
  let d;try{const r=await fetch('/expedicao/dia?'+q);if(!r.ok)throw new Error(r.status===404?'Painel fechado nesta máquina (modulos_locais.json).':'Erro '+r.status);d=await r.json()}
  catch(e){$('grade').innerHTML='<div class="vazio">'+esc(e.message)+'</div>';return}
  $('titulo').textContent='Expedição — '+d.dia.split('-').reverse().join('/');
- $('simtag').innerHTML=d.modo==='simulacao'?'<span class="sim">SIMULAÇÃO</span>':'';
+ if(d.carregando){$('grade').innerHTML='<div class="vazio">Carregando os pedidos reais…<br><small>a primeira carga depois de ligar o servidor leva cerca de 1 minuto</small></div>'+(d.erro?'<div class="vazio" style="color:#fca5a5">'+esc(d.erro)+'</div>':'');setTimeout(carregar,5000);return}
+ let atual='';
+ if(d.modo==='real'&&d.atualizado_em){const velho=d.idade_seg>180;atual='<span style="font-size:15px;margin-left:12px;color:'+(velho?'#fca5a5':'#94a3b8')+'">dados de '+d.atualizado_em.slice(11,16)+(velho?' · DESATUALIZADO':'')+(d.atualizando?' · atualizando…':'')+'</span>'}
+ $('simtag').innerHTML=(d.modo==='simulacao'?'<span class="sim">SIMULAÇÃO</span>':'')+atual;
  $('relogio').textContent=d.agora.slice(11,16);$('horatxt').textContent=hhmm(+$('hora').value);
  const g=d.geral;
  $('geral').innerHTML='<div><b>'+g.checkout+' / '+g.pedidos+'</b> <span>pedidos com checkout ('+g.percentual+'%)</span></div>'+

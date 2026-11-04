@@ -93,5 +93,11 @@
  "marketplaces/montagem/tv.html",
  "marketplaces/paineis/__init__.py",
  "marketplaces/paineis/router.py",
- "marketplaces/paineis/tv.html"
+ "marketplaces/paineis/tv.html",
+ "marketplaces/financeiro/__init__.py",
+ "marketplaces/financeiro/pagina.html",
+ "marketplaces/financeiro/router.py",
+ "marketplaces/magalu/__init__.py",
+ "marketplaces/magalu/router.py",
+ "marketplaces/expedicao/snapshot.py"
 ]

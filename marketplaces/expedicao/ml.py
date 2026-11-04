@@ -26,6 +26,10 @@ PAGINAS = 40          # 50 pedidos por página: até 2000 no período (com 20 pe
 CONTAS = ["meli01", "meli02", "meli03"]
 _cache = {}
 CACHE_SEG = 90
+# Envios que nunca mais voltam a ser "abertos" (já saíram, foram entregues/cancelados ou não são Flex/Coleta/Agência):
+# não precisam ser consultados de novo a cada atualização (era o que deixava a busca em ~3 minutos).
+TERMINAIS = ("shipped", "delivered", "cancelled", "not_delivered")
+_FECHADOS = set()
 
 
 def _dt(iso):
@@ -111,7 +115,12 @@ def _conta(conta: str) -> list:
             break
 
     def um(o):
-        st, envio = ml.get(f"/shipments/{o['shipping']['id']}")
+        sid = o["shipping"]["id"]
+        if sid in _FECHADOS:
+            return None
+        st, envio = ml.get(f"/shipments/{sid}")
+        if st == 200 and (CANAIS.get(envio.get("logistic_type")) is None or envio.get("status") in TERMINAIS):
+            _FECHADOS.add(sid)
         if st != 200 or CANAIS.get(envio.get("logistic_type")) is None or envio.get("status") not in STATUS_ABERTOS:
             return None
         _, sla = ml.get(f"/shipments/{envio['id']}/sla")
@@ -128,15 +137,22 @@ def mapa(contas=None, forcar=False) -> dict:
     if not forcar and chave in _cache and agora - _cache[chave][0] < CACHE_SEG:
         return _cache[chave][1]
     linhas, erros = [], {}
-    for c in contas:
+
+    def uma(c):
         try:
-            linhas += _conta(c)
+            return c, _conta(c), None
         except Exception as e:
-            erros[c] = f"{type(e).__name__}: {str(e)[:100]}"
+            return c, [], f"{type(e).__name__}: {str(e)[:100]}"
+
+    with ThreadPoolExecutor(max_workers=len(contas)) as ex:      # as contas são independentes: lê as três ao mesmo tempo
+        for c, ls, erro in ex.map(uma, contas):
+            linhas += ls
+            if erro:
+                erros[c] = erro
     linhas.sort(key=lambda x: (x["meta"] or "9999", x["conta"]))
     res = {"gerado_em": datetime.now(BRT).isoformat(timespec="seconds"), "linhas": linhas, "erros": erros,
            "regras": {"flex_meta": f"{META_FLEX_HORA}h", "preparo_antes_min": PREPARO_ANTES_MIN,
                       "canais": {"meli01": "Coleta", "meli02": "Agência", "meli03": "Agência"}}}
     if not erros:
-        _cache[chave] = (agora, res)
+        _cache[chave] = (time.time(), res)     # hora do fim da busca (antes valia a do início e o cache já nascia vencido)
     return res

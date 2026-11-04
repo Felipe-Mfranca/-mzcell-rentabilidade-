@@ -75,7 +75,7 @@
 <main>
   <div id="cancelamentos"></div>
   <div class="kpis" id="kpis"></div>
-  <div class="abas"><button id="aba-hoje" class="ativa" type="button">Hoje</button><button id="aba-proximos" type="button">Próximos dias</button></div>
+  <div class="abas"><button id="aba-hoje" class="ativa" type="button">Hoje</button><button id="aba-proximos" type="button">Próximos dias</button><button id="aba-prontos" type="button">Prontos para o envio</button></div>
   <div id="erros"></div>
   <div id="lista"></div>
   <p class="nota">Protótipo, somente leitura. Mercado Livre: Flex (meta interna 12h; passagens 9h e 13h), Coleta na meli01 e Agência na meli02/03 (preparo termina 30 min antes do prazo do ML).
@@ -171,7 +171,7 @@
       if (ehHoje(l)) c.hoje++; else c.prox++;
       if (l._f.cls === 'vm') c.vm++;
       if (!l.liberado) c.aguardando++;
-      if (ehHoje(l) === (aba === 'hoje')) { cont[l._f.cls]++; (porCanal[l.canal + " · " + l.conta] = porCanal[l.canal + " · " + l.conta] || []).push(l); }
+      if (!checkoutEf(l) && ehHoje(l) === (aba === 'hoje')) { cont[l._f.cls]++; (porCanal[l.canal + " · " + l.conta] = porCanal[l.canal + " · " + l.conta] || []).push(l); }
     });
     var card = function (nome, c) {
       var canais = Object.keys(c.canais).map(function (k) { return esc(k) + ': ' + c.canais[k]; }).join(' · ');
@@ -238,8 +238,34 @@
     var listaPedidos = html || "<p class='meta'>" + (aba === "hoje" ? "Nenhum envio para hoje." : "Nenhum envio para os próximos dias.") + "</p>";
     var conteudo = vista === 'pedidos' ? listaPedidos
       : alertaAtraso + (vista === 'geral' ? montagemHtml(paraMontar) : montagemContasHtml(paraMontar));
-    el("lista").innerHTML = abasVista + conteudo;
+    var prontos = abertas.filter(function (l) { return emAberto(l) && checkoutEf(l); });
+    el("aba-prontos").textContent = "Prontos para o envio (" + prontos.length + ")";
+    el("lista").innerHTML = aba === "prontos" ? prontosHtml(prontos) : abasVista + conteudo;
     if (dados.gerado_em) el("sub").textContent = "dados de " + hm(dados.gerado_em) + " · contagem atualiza a cada 30 s";
+  }
+  // Prontos para o envio: checkout feito (Bling ou marca do galpão); só aguardam coleta ou entrega na agência.
+  function prontosHtml(ls) {
+    if (!ls.length) return "<p class='meta'>Nenhum pedido pronto aguardando coleta ou entrega na agência.</p>";
+    var g = {};
+    ls.forEach(function (l) { (g[l.canal + " · " + l.conta] = g[l.canal + " · " + l.conta] || []).push(l); });
+    var un = ls.reduce(function (a, l) { return a + (l.unidades || 0); }, 0);
+    var h = "<div class='kpi' style='margin-bottom:10px'><h3>Prontos para o envio</h3><div class='n'><span>Pedidos</span><b>" + ls.length + "</b></div>" +
+      "<div class='n'><span>Unidades</span><b>" + un + "</b></div></div>";
+    Object.keys(g).sort().forEach(function (k) {
+      var lista = g[k].sort(function (a, b) { return (a.prazo_ml || a.meta || "9") < (b.prazo_ml || b.meta || "9") ? -1 : 1; });
+      h += "<h2>" + esc(k) + " <small>· " + lista.length + " pedido(s) aguardando coleta ou agência</small></h2>";
+      lista.forEach(function (l) {
+        var venc = atrasoAnterior(l);
+        var its = l.itens.map(function (i) { return "<div class='it'><b>" + esc(i.qtd) + "×</b> " + esc((i.titulo || "").slice(0, 70)) + (i.sku ? " <span class='meta'>" + esc(i.sku) + "</span>" : "") + "</div>"; }).join("");
+        h += "<div class='linha " + (venc ? "vm" : "cz") + "'><div><div class='tempo'>" + (venc ? "prazo vencido: cobrar a coleta ou levar" : "aguardando coleta/agência") + "</div>" +
+          (l.prazo_ml ? "<div class='meta'>ML até " + hm(l.prazo_ml) + "</div>" : "") + "</div>" +
+          "<div><span class='tag ok'>" + (verificadoBling(l) ? "checkout feito no Bling " + esc(l.bling_numero) : "checkout marcado no galpão") + "</span>" +
+          "<div class='marcas'>" + (marcado(l, "checkout") ? "<button class='btn-m' onclick=\"marcarEnvio('" + l.envio + "','checkout',false)\" title=\"Volta o pedido para a montagem\">Desfazer checkout</button>" : "") +
+          "<button class='btn-m' onclick=\"marcarEnvio('" + l.envio + "','liberado',true)\" title=\"Libera o pedido: sai da tela\">Liberar pedido</button></div>" +
+          "<span class='tag'>" + esc(l.situacao || l.status) + "</span><span class='meta'>" + numVenda(l) + "</span>" + its + "</div></div>";
+      });
+    });
+    return h;
   }
   // Montagem para os embaladores: um produto por bloco, com a quebra de pacotes (1 pedido = 1 pacote)
   function plural(n, s, p) { return n + ' ' + (n === 1 ? s : p); }
@@ -441,9 +467,10 @@
     });
   }
   el("atualizar").addEventListener("click", function () { carregar(true); carregarCancelamentos(true); carregarBling(); });
-  function irAba(a) { aba = a; el("aba-hoje").className = a === "hoje" ? "ativa" : ""; el("aba-proximos").className = a === "proximos" ? "ativa" : ""; desenhar(); }
+  function irAba(a) { aba = a; el("aba-hoje").className = a === "hoje" ? "ativa" : ""; el("aba-proximos").className = a === "proximos" ? "ativa" : ""; el("aba-prontos").className = a === "prontos" ? "ativa" : ""; desenhar(); }
   el("aba-hoje").addEventListener("click", function () { irAba("hoje"); });
   el("aba-proximos").addEventListener("click", function () { irAba("proximos"); });
+  el("aba-prontos").addEventListener("click", function () { irAba("prontos"); });
   setInterval(desenhar, 30000);
   setInterval(function () { carregar(false); carregarCancelamentos(false); carregarBling(); }, 300000);
   carregar(false);
