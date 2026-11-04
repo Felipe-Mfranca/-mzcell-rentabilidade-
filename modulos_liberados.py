@@ -14,6 +14,7 @@ LIBERADOS = {
     "compras": False,
     "radar": False,
     "montagem": True,    # fila de montagem dos envios Full (Meli, Amazon, Shopee) + painel de TV
+    "checkout": False,    # bipagem do QR da etiqueta -> envio ML -> pedido Bling (somente leitura)
     "financeiro": False,
     "magalu": False,      # integração Magalu (em implantação)
     "paineis": False,     # painéis de TV por área e gestão geral da diretoria

@@ -143,6 +143,13 @@ if modulo_liberado("montagem"):
     except ImportError as e:
         print(f"[startup] Módulo Montagem indisponível: {e}")
 
+if modulo_liberado("checkout"):
+    try:
+        from marketplaces.checkout.router import router as checkout_router
+        app.include_router(checkout_router)
+    except ImportError as e:
+        print(f"[startup] Módulo Checkout indisponível: {e}")
+
 if modulo_liberado("financeiro"):
     try:
         from marketplaces.financeiro.router import router as financeiro_router

@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<title>Checkout de etiquetas</title>
+<style>
+  :root { --bg:#f3f4f6; --card:#fff; --txt:#111827; --mut:#6b7280; --bd:#e5e7eb;
+          --ok:#166534; --okb:#dcfce7; --am:#854d0e; --amb:#fef9c3; --vm:#991b1b; --vmb:#fee2e2; --hd:#1f2937; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1318; --card:#1a1f27; --txt:#e8eaee; --mut:#9aa3b2; --bd:#2f3642;
+          --ok:#4ade80; --okb:#12301d; --am:#fbbf24; --amb:#352a0b; --vm:#f87171; --vmb:#3a1414; --hd:#0b0e12; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:15px/1.45 "Outfit", system-ui, "Segoe UI", sans-serif; }
+  header { background:var(--hd); color:#fff; padding:14px 20px; }
+  header h1 { margin:0; font-size:18px; }
+  header .sub { color:#9ca3af; font-size:12px; }
+  main { max-width:900px; margin:0 auto; padding:16px; }
+  #leitor { width:100%; font:inherit; font-size:20px; padding:14px 16px; border:2px solid var(--bd); border-radius:10px;
+            background:var(--card); color:var(--txt); }
+  #leitor:focus { outline:none; border-color:var(--hd); }
+  .dica { color:var(--mut); font-size:12px; margin:6px 2px 14px; }
+  .res { border:1px solid var(--bd); border-left:10px solid var(--mut); border-radius:10px; background:var(--card); padding:16px 18px; margin-bottom:16px; }
+  .res.ok { border-left-color:var(--ok); background:var(--okb); }
+  .res.aviso { border-left-color:var(--am); background:var(--amb); }
+  .res.bloqueio { border-left-color:var(--vm); background:var(--vmb); }
+  .res .msg { font-size:22px; font-weight:800; margin:0 0 10px; }
+  .ok .msg { color:var(--ok); } .aviso .msg { color:var(--am); } .bloqueio .msg { color:var(--vm); }
+  .grade { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; }
+  .bloco { background:var(--card); border:1px solid var(--bd); border-radius:8px; padding:10px 12px; }
+  .bloco h3 { margin:0 0 6px; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+  .bloco div { padding:2px 0; word-break:break-all; }
+  .bloco b { font-weight:700; }
+  .grande { font-size:26px; font-weight:800; }
+  .it { padding:3px 0; border-top:1px solid var(--bd); }
+  h2 { font-size:13px; letter-spacing:.1em; text-transform:uppercase; margin:22px 0 8px; border-bottom:2px solid var(--hd); padding-bottom:4px; }
+  .hist { background:var(--card); border:1px solid var(--bd); border-left:6px solid var(--mut); border-radius:8px; padding:7px 12px; margin-bottom:6px; display:flex; gap:12px; justify-content:space-between; }
+  .hist.ok { border-left-color:var(--ok); } .hist.aviso { border-left-color:var(--am); } .hist.bloqueio { border-left-color:var(--vm); }
+  .hist small { color:var(--mut); }
+  .vazio { color:var(--mut); padding:20px 0; text-align:center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Checkout de etiquetas</h1>
+  <div class="sub">Bipe o QR da etiqueta. O app acha o envio no Mercado Livre e o pedido no Bling. Somente consulta: não altera nada.</div>
+</header>
+<main>
+  <input id="leitor" type="text" autocomplete="off" autofocus placeholder="Bipe a etiqueta aqui">
+  <div class="dica">Aceita o QR da etiqueta, o número do envio, o número do pedido ou o rastreio MEL…</div>
+  <div id="resultado"><div class="vazio">Aguardando a primeira etiqueta…</div></div>
+  <h2>Últimas leituras</h2>
+  <div id="historico"><div class="vazio">Nenhuma leitura ainda.</div></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const campo = $("leitor");
+let ocupado = false;
+const hist = [];
+
+function el(tag, cls, texto) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (texto !== undefined && texto !== null) e.textContent = texto;
+  return e;
+}
+function linha(rotulo, valor) {
+  const d = el("div");
+  d.appendChild(el("span", "", rotulo + ": "));
+  d.appendChild(el("b", "", valor === null || valor === undefined || valor === "" ? "—" : String(valor)));
+  return d;
+}
+function bloco(titulo, linhas, itens) {
+  const b = el("div", "bloco");
+  b.appendChild(el("h3", "", titulo));
+  linhas.forEach((l) => b.appendChild(l));
+  (itens || []).forEach((i) => b.appendChild(el("div", "it", `${i.quantidade ?? "?"}× ${i.sku ? i.sku + " — " : ""}${i.titulo || ""}`)));
+  return b;
+}
+
+function bip(nivel) {
+  try {
+    const c = new (window.AudioContext || window.webkitAudioContext)();
+    const o = c.createOscillator(), g = c.createGain();
+    o.frequency.value = nivel === "ok" ? 880 : nivel === "aviso" ? 520 : 220;
+    o.connect(g); g.connect(c.destination); g.gain.value = 0.15;
+    o.start(); o.stop(c.currentTime + (nivel === "bloqueio" ? 0.5 : 0.15));
+  } catch (e) {}
+}
+
+function mostrar(r) {
+  const box = $("resultado");
+  box.replaceChildren();
+  const cx = el("div", "res " + (r.nivel || ""));
+  cx.appendChild(el("p", "msg", r.mensagem || "Sem resposta"));
+  if (r.ml || r.bling) {
+    const g = el("div", "grade");
+    if (r.bling) {
+      const b = bloco("Bling " + (r.bling_conta || ""), [
+        linha("Situação", r.bling.situacao), linha("Número do pedido", r.bling.numeroLoja),
+        linha("Rastreio no Bling", r.bling.rastreio)], r.bling.itens);
+      const n = el("div", "grande", "Pedido nº " + r.bling.numero);
+      b.insertBefore(n, b.children[1]);
+      g.appendChild(b);
+    }
+    if (r.ml) {
+      let rastreio = r.ml.rastreio || "—";
+      if (r.rastreio_confere === true) rastreio += "  (igual ao Bling)";
+      if (r.rastreio_confere === false) rastreio += "  (DIFERENTE do Bling)";
+      g.appendChild(bloco("Mercado Livre " + (r.conta || ""), [
+        linha("Envio (etiqueta)", r.ml.envio), linha("Canal", r.ml.canal),
+        linha("Status", [r.ml.status, r.ml.substatus].filter(Boolean).join(" / ")),
+        linha("Pedido", r.ml.pedido), linha("Pacote", r.ml.pacote), linha("Rastreio no ML", rastreio)], r.ml.itens));
+    }
+    cx.appendChild(g);
+  }
+  box.appendChild(cx);
+}
+
+function guardar(r, lido) {
+  const quem = r.bling ? "Pedido " + r.bling.numero + " (" + r.bling_conta + ")" : (r.ml && r.ml.envio ? "Envio " + r.ml.envio : lido);
+  hist.unshift({ nivel: r.nivel, quem, msg: r.mensagem, hora: new Date().toLocaleTimeString("pt-BR") });
+  hist.length = Math.min(hist.length, 30);
+  const h = $("historico");
+  h.replaceChildren();
+  hist.forEach((x) => {
+    const d = el("div", "hist " + x.nivel);
+    const a = el("div"); a.appendChild(el("b", "", x.quem)); a.appendChild(el("div", "", x.msg));
+    d.appendChild(a); d.appendChild(el("small", "", x.hora));
+    h.appendChild(d);
+  });
+}
+
+async function ler(codigo) {
+  if (ocupado) return;
+  ocupado = true;
+  campo.disabled = true;
+  let r;
+  try {
+    const resp = await fetch("/checkout/buscar", { method: "POST", headers: { "Content-Type": "application/json" },
+                                                    body: JSON.stringify({ codigo }) });
+    r = await resp.json();
+    if (!resp.ok) r = { nivel: "bloqueio", mensagem: "Erro no servidor (" + resp.status + "). Tente de novo." };
+  } catch (e) {
+    r = { nivel: "bloqueio", mensagem: "Sem conexão com o servidor do app." };
+  }
+  mostrar(r); guardar(r, codigo.slice(0, 40)); bip(r.nivel);
+  ocupado = false;
+  campo.disabled = false;
+  campo.value = "";
+  campo.focus();
+}
+
+campo.addEventListener("keydown", (ev) => {
+  if (ev.key === "Enter") { ev.preventDefault(); const v = campo.value.trim(); if (v) ler(v); }
+});
+document.addEventListener("click", () => { if (!campo.disabled) campo.focus(); });
+</script>
+</body>
+</html>
