@@ -223,6 +223,26 @@ class TestGravacao(unittest.TestCase):
         self.assertEqual(r.status_code, 400)
 
 
+class TestSemEstoque(unittest.TestCase):
+    """Estoque é sensível: o módulo nunca lança nem estorna estoque. Só a situação do pedido pode mudar (gravacao.py)."""
+
+    def test_nenhum_arquivo_do_modulo_mexe_em_estoque(self):
+        pasta = os.path.dirname(busca.__file__)
+        for nome in os.listdir(pasta):
+            if nome.endswith(".py"):
+                with open(os.path.join(pasta, nome), encoding="utf-8") as f:
+                    codigo = f.read().lower()
+                for proibido in ("estornar-estoque", "lancar-estoque", "lançar-estoque", '"/estoques"', "/estoques/"):
+                    self.assertNotIn(proibido, codigo, f"{nome}: {proibido}")
+
+    def test_unica_escrita_e_o_patch_de_situacao(self):
+        with open(os.path.join(os.path.dirname(busca.__file__), "gravacao.py"), encoding="utf-8") as f:
+            codigo = f.read()
+        self.assertIn('"PATCH"', codigo)
+        for proibido in ('"POST"', '"PUT"', '"DELETE"', "httpx.post", "httpx.put", "httpx.delete"):
+            self.assertNotIn(proibido, codigo, proibido)
+
+
 def entrada(**kw):
     base = {"ts": "2026-11-05T09:00:00-03:00", "bling_conta": "bling02", "numeroLoja": "A", "envio": 1, "pedido": "A",
             "conta": "meli02", "canal": "Flex", "bling_numero": 10, "situacao_id": 6, "nivel": "ok",
