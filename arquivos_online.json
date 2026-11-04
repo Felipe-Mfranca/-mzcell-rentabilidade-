@@ -104,6 +104,7 @@
  "marketplaces/checkout/__init__.py",
  "marketplaces/checkout/leitura.py",
  "marketplaces/checkout/busca.py",
+ "marketplaces/checkout/registro.py",
  "marketplaces/checkout/router.py",
  "marketplaces/checkout/pagina.html"
 ]

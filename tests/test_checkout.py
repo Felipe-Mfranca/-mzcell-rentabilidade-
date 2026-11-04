@@ -1,10 +1,13 @@
 """Checkout por QR: leitura do código e cruzamento ML -> Bling (dados fictícios, sem rede)."""
+import os
+import shutil
+import tempfile
 import unittest
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from marketplaces.checkout import busca, leitura
+from marketplaces.checkout import busca, leitura, registro
 from marketplaces.checkout.router import router
 
 QR_GARBLED = "^id^Ç^48424630205^,^sender_id^Ç1874506744,^hash_code^Çnull,^security_digit^Çnull{"
@@ -109,12 +112,87 @@ class TestBusca(unittest.TestCase):
 
 
 class TestRota(unittest.TestCase):
+    def setUp(self):
+        self.pasta = tempfile.mkdtemp()
+        self.antes = registro.ARQUIVO
+        registro.ARQUIVO = os.path.join(self.pasta, "reg.jsonl")   # nunca escrever no registro real
+
+    def tearDown(self):
+        registro.ARQUIVO = self.antes
+        shutil.rmtree(self.pasta, ignore_errors=True)
+
     def test_pagina_e_rota(self):
         app = FastAPI()
         app.include_router(router)
         c = TestClient(app)
         self.assertIn("Checkout de etiquetas", c.get("/checkout").text)
-        self.assertFalse(c.post("/checkout/buscar", json={"codigo": "abc"}).json()["ok"])
+        r = c.post("/checkout/buscar", json={"codigo": "abc"}).json()
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["acao_prevista"], "nenhuma")
+        self.assertEqual(len(registro.ler()), 1)
+
+    def test_modulo_nao_tem_codigo_de_gravacao_no_bling(self):
+        pasta = os.path.dirname(busca.__file__)
+        for nome in os.listdir(pasta):
+            if nome.endswith(".py"):
+                with open(os.path.join(pasta, nome), encoding="utf-8") as f:
+                    codigo = f.read()
+                for proibido in ("bling.post", "bling.put", "bling.patch", "bling.delete", ".put(", ".patch(", ".delete("):
+                    self.assertNotIn(proibido, codigo, f"{nome}: {proibido}")
+
+
+def entrada(**kw):
+    base = {"ts": "2026-11-05T09:00:00-03:00", "bling_conta": "bling02", "numeroLoja": "A", "envio": 1, "pedido": "A",
+            "conta": "meli02", "canal": "Flex", "bling_numero": 10, "situacao_id": 6, "nivel": "ok",
+            "acao": "marcar_verificado", "mensagem": "ok"}
+    base.update(kw)
+    return base
+
+
+class TestSombra(unittest.TestCase):
+    def aval(self, entradas, agora):
+        return registro.avaliar(entradas, lambda c, n: agora.get(n) if isinstance(agora, dict) else agora)
+
+    def test_acao_prevista(self):
+        ok = {"nivel": "ok", "bling": {"situacao_id": 6}}
+        self.assertEqual(registro.acao_prevista(ok), "marcar_verificado")
+        self.assertEqual(registro.acao_prevista({"nivel": "ok", "bling": {"situacao_id": 9}}), "nenhuma")
+        self.assertEqual(registro.acao_prevista({"nivel": "aviso", "bling": {"situacao_id": 24}}), "nenhuma")
+        self.assertEqual(registro.acao_prevista({"nivel": "bloqueio", "bling": {"situacao_id": 12}}), "nenhuma")
+        self.assertEqual(registro.acao_prevista({"nivel": "aviso", "bling": None}), "nenhuma")
+
+    def test_previu_e_estoquista_fez(self):
+        r = self.aval([entrada()], 24)
+        self.assertEqual(r["contagem"], {"confere": 1})
+        self.assertEqual(r["assertividade_pct"], 100.0)
+
+    def test_previu_e_ainda_aberto_fica_pendente(self):
+        r = self.aval([entrada()], 6)
+        self.assertEqual(len(r["pendentes"]), 1)
+        self.assertIsNone(r["assertividade_pct"])
+
+    def test_bloqueado_mas_despachado_diverge(self):
+        r = self.aval([entrada(nivel="bloqueio", acao="nenhuma", mensagem="Cancelado")], 24)
+        self.assertEqual(r["contagem"], {"divergente": 1})
+        self.assertEqual(r["assertividade_pct"], 0.0)
+        self.assertEqual(len(r["precisam_olhar"]), 1)
+
+    def test_sem_pedido_no_bling_precisa_olhar(self):
+        r = self.aval([entrada(bling_numero=None, numeroLoja=None, nivel="aviso", acao="nenhuma")], None)
+        self.assertEqual(r["contagem"], {"sem_pedido": 1})
+
+    def test_so_a_primeira_leitura_conta(self):
+        r = self.aval([entrada(), entrada(ts="2026-11-05T09:05:00-03:00", nivel="aviso", acao="nenhuma")], 24)
+        self.assertEqual((r["leituras"], r["pedidos"], r["contagem"]), (2, 1, {"confere": 1}))
+
+    def test_mistura(self):
+        entradas = [entrada(numeroLoja="A"), entrada(numeroLoja="B"), entrada(numeroLoja="C", nivel="bloqueio", acao="nenhuma")]
+        r = self.aval(entradas, {"A": 24, "B": 24, "C": 24})
+        self.assertEqual(r["contagem"], {"confere": 2, "divergente": 1})
+        self.assertEqual(r["assertividade_pct"], 66.7)
+
+    def test_gravar_nao_derruba(self):
+        registro.gravar({"nivel": "ok"}, "x", arquivo=os.path.join(tempfile.gettempdir(), "nao_existe_dir", "a", "b.jsonl"))
 
 
 if __name__ == "__main__":

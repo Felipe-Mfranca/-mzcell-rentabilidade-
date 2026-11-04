@@ -143,3 +143,6 @@ modulos_locais.json
 cortes_plataformas.json
 expedicao_snapshot.json
 expedicao_snapshot.json.tmp
+
+# Checkout: registro das leituras (dados operacionais)
+checkout_registro.jsonl
