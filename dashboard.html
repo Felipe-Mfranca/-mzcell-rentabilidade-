@@ -1037,6 +1037,17 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
 
 <script>
 const API = location.protocol.startsWith('http') ? location.origin : 'http://127.0.0.1:8001';   // a porta pode não ser a 8001 (ver index.js)
+// Acesso de outro PC (servidor na rede): sessão vencida ou servidor reiniciado → volta para a tela de login
+(() => {
+  const _fetch = window.fetch;
+  window.fetch = async (...args) => {
+    const r = await _fetch(...args);
+    if (r.status === 401 && user) {
+      try { if ((await r.clone().json()).detail === 'faça login no MZ App') { alert('Sua sessão expirou. Entre de novo.'); location.reload(); } } catch (e) {}
+    }
+    return r;
+  };
+})();
 let user = null, db = {}, rawDB = {}, prevDB = {}, marginFilter = {}, contaAtiva = 'meli01';
 let _tacos30 = 0;
 let _modalMlb = null, _modalConta = null, _modalPer = null;

@@ -10,7 +10,7 @@ import threading
 from datetime import datetime
 from typing import Optional
 
-from fastapi import FastAPI, Form, HTTPException, Request, UploadFile, File
+from fastapi import FastAPI, Form, HTTPException, Request, Response, UploadFile, File
 import io
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -93,7 +93,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Servidor na rede interna: quem vem de outro PC só enxerga as telas operacionais (Expedição, Montagem, TV)
+# Servidor na rede interna: de outro PC, telas operacionais sem login; o app completo com login; credenciais só aqui
 try:
     from marketplaces import acesso_rede
     acesso_rede.instalar(app)
@@ -273,7 +273,7 @@ async def serve_dashboard():
 # ─── AUTH ─────────────────────────────────────────────────────────────────────
 
 @app.post("/auth/login")
-async def login(payload: dict):
+async def login(payload: dict, response: Response):
     login_val = payload.get("login", "").strip().lower()
     senha     = payload.get("senha", "")
     u = auth_service.verificar_login(login_val, senha)
@@ -287,6 +287,13 @@ async def login(payload: dict):
     if not u:
         raise HTTPException(status_code=401, detail="Login ou senha incorretos")
     log_atividade(f"Login: {u['nome']}")
+    # sessão para quem acessa o servidor de outro PC (trava de rede); app instalado sem a pasta marketplaces segue igual
+    try:
+        from marketplaces import acesso_rede
+        response.set_cookie(acesso_rede.COOKIE, acesso_rede.criar_sessao(u["login"]), max_age=acesso_rede.VALIDADE_SEG,
+                            httponly=True, samesite="strict")
+    except (ImportError, AttributeError):
+        pass
     return {
         "success":         True,
         "login":           u["login"],
