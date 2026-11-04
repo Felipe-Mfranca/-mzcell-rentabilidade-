@@ -29,6 +29,9 @@ class TestAcessoRede(unittest.TestCase):
         self.assertEqual(TestClient(app).get("/config").status_code, 200)             # local
         c = TestClient(app, client=("192.168.15.50", 5000))
         self.assertEqual(c.get("/config").status_code, 403)                            # de outro PC
+        r = c.get("/")                                                                 # a raiz mostra o menu, não o app
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("/expedicao/tv", r.text)
 
 
 if __name__ == "__main__":
