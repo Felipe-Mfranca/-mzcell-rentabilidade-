@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 
 import ml_api
 from marketplaces.bling import api as bling
-from marketplaces.expedicao.ml import BRT, CANAIS
+from marketplaces.expedicao.ml import BRT, CANAIS, situacao as situacao_ml
 from reposicao_full import ML
 
 PARES = {"meli01": "bling01", "meli02": "bling02", "meli03": "bling03"}
@@ -47,12 +47,13 @@ def acao_e_risco(fisico: str, bling_sit: int, parcial: bool, status=None, substa
     if fisico == "postado":
         nf = " Trate também a NF conforme a regra fiscal (devolução ou cancelamento)." if bling_sit == 9 else ""
         if status == "delivered":
-            return "postado", ("JÁ ENTREGUE AO COMPRADOR: cancelar no Bling NÃO traz o produto de volta. Veja no ML se há devolução ou reclamação "
-                               "aberta; só dar entrada no estoque se o produto retornar." + nf)
+            return "postado", ("CANCELADO PELO COMPRADOR, MAS O PACOTE FOI ENTREGUE: cancelar no Bling NÃO traz o produto de volta. Veja no ML se a "
+                               "devolução foi aberta; se não, tratar com o SAC. Só dar entrada no estoque se o produto retornar." + nf)
         if status == "not_delivered" or substatus in ("returned", "returning_to_sender"):
-            return "postado", ("PACOTE EM DEVOLUÇÃO ao vendedor: dar entrada no estoque só quando ele chegar ao galpão; depois cancelar no Bling." + nf)
-        return "postado", ("PACOTE JÁ POSTADO: cancelar no Bling NÃO desfaz o envio. Acionar a devolução ou a interceptação no ML/transportadora; "
-                           "só dar entrada no estoque quando o produto voltar." + nf)
+            return "postado", ("CANCELADO PELO COMPRADOR NO TRAJETO: o pacote está VOLTANDO ao vendedor. Dar entrada no estoque só quando ele chegar "
+                               "ao galpão; depois cancelar no Bling." + nf)
+        return "postado", ("CANCELADO PELO COMPRADOR NO TRAJETO: o pacote já saiu e cancelar no Bling NÃO o faz voltar. Acompanhe o retorno pelo ML; "
+                           "dar entrada no estoque só quando chegar ao galpão." + nf)
     if bling_sit == SITUACAO_VERIFICADO:
         return "verificado", ("pedido já VERIFICADO (separado e embalado): localizar o pacote e tirar da expedição, devolver o produto ao estoque "
                               "e só então cancelar no Bling")
@@ -135,6 +136,7 @@ def _conta(conta: str, dias: int) -> list:
                 "bling_situacao_id": sit, "bling_situacao": SITUACOES.get(sit, str(sit)),
                 "bling_url": BLING_VENDA_URL.format(id=p["id"]),
                 "ml_envio_status": envio.get("status"), "ml_envio_substatus": envio.get("substatus"),
+                "ml_envio_situacao": situacao_ml(envio.get("status"), envio.get("substatus")) if envio else "",
                 "fisico": fisico, "risco": risco, "acao": acao,
                 "parcial": parcial, "itens": itens}
 

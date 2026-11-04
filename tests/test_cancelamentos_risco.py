@@ -19,15 +19,16 @@ class TestRisco(unittest.TestCase):
     def test_postado_nao_diz_apenas_cancelar(self):
         risco, acao = c.acao_e_risco("postado", c.SITUACAO_VERIFICADO, False)
         self.assertEqual(risco, "postado")
-        self.assertIn("NÃO desfaz o envio", acao)
-        self.assertIn("quando o produto voltar", acao)
+        self.assertIn("CANCELADO PELO COMPRADOR NO TRAJETO", acao)
+        self.assertIn("NÃO o faz voltar", acao)
+        self.assertIn("só quando chegar ao galpão", acao)
 
     def test_entregue_e_devolucao_tem_texto_proprio(self):
         _, ent = c.acao_e_risco("postado", c.SITUACAO_VERIFICADO, False, "delivered", None)
-        self.assertIn("ENTREGUE AO COMPRADOR", ent)
+        self.assertIn("O PACOTE FOI ENTREGUE", ent)
         self.assertIn("NÃO traz o produto de volta", ent)
         _, dev = c.acao_e_risco("postado", c.SITUACAO_VERIFICADO, False, "not_delivered", "returned")
-        self.assertIn("EM DEVOLUÇÃO", dev)
+        self.assertIn("VOLTANDO ao vendedor", dev)
         self.assertIn("só quando ele chegar", dev)
 
     def test_postado_com_nf_lembra_da_nf(self):

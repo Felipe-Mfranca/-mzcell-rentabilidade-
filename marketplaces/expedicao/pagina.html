@@ -449,6 +449,7 @@
             var its = (c.itens || []).map(function (x) { return esc(x.sku || x.mlb) + " ×" + x.qtd; }).join(", ");
             h += "<div class='ci'><b>" + esc(c.conta) + "</b><span>pedido " + esc(String(c.pedido)) + (c.pacote ? " · pacote " + esc(String(c.pacote)) : "") + "</span>" +
               "<span class='tag vm'>Bling " + esc(String(c.bling_numero)) + " · " + esc(c.bling_situacao) + "</span>" +
+              (c.ml_envio_situacao ? "<span class='tag'>envio ML: " + esc(c.ml_envio_situacao) + "</span>" : "") +
               (c.risco === "postado" ? "<span class='tag vm'>JÁ POSTADO</span>" : (c.risco === "verificado" ? "<span class='tag am'>verificado</span>" : "")) +
               "<span>" + its + "</span>" +
               "<span><b>" + esc(c.acao) + "</b></span>" +
