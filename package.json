@@ -1,6 +1,6 @@
 {
   "name": "mzcell-rentabilidade",
-  "version": "1.4.5",
+  "version": "1.4.6",
   "description": "MZ App — Painel de Rentabilidade Mercado Livre",
   "main": "index.js",
   "author": "Felipe Mfranca",
