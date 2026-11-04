@@ -49,7 +49,8 @@ def enriquecer(linhas: list) -> tuple:
         try:
             por_conta[conta] = _pedidos(PARES[conta])
         except Exception as e:
-            erros[conta] = f"Bling: {type(e).__name__}: {str(e)[:100]}"
+            erros[conta] = ("Bling indisponível nesta instalação" if isinstance(e, FileNotFoundError) or "bling_config" in str(e)
+                            else f"Bling: {type(e).__name__}: {str(e)[:100]}")
     saida = []
     for l in linhas:
         nova = dict(l, bling_numero=None, bling_situacao=None, bling_checkout=False)

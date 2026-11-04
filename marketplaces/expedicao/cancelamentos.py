@@ -115,7 +115,8 @@ def pendentes(dias: int = DIAS, forcar: bool = False) -> dict:
         try:
             itens += _conta(c, dias)
         except Exception as e:
-            erros[c] = f"{type(e).__name__}: {str(e)[:100]}"
+            erros[c] = ("Bling indisponível nesta instalação" if isinstance(e, FileNotFoundError) or "bling_config" in str(e)
+                        else f"{type(e).__name__}: {str(e)[:100]}")
     itens.sort(key=lambda x: (x["conta"], x["cancelado_em"] or ""))
     res = {"gerado_em": datetime.now(BRT).isoformat(timespec="seconds"), "dias": dias, "pendentes": itens, "erros": erros}
     if not erros:

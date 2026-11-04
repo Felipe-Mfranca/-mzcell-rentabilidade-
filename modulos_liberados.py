@@ -13,7 +13,7 @@ LIBERADOS = {
     "balanco": False,
     "compras": False,
     "radar": False,
-    "montagem": False,    # fila de montagem dos envios Full (Meli, Amazon, Shopee) + painel de TV
+    "montagem": True,    # fila de montagem dos envios Full (Meli, Amazon, Shopee) + painel de TV
     "financeiro": False,
     "magalu": False,      # integração Magalu (em implantação)
     "paineis": False,     # painéis de TV por área e gestão geral da diretoria
