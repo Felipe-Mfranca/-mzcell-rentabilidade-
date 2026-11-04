@@ -109,7 +109,8 @@ def _modulo(mid, nome, linhas, marcas, agora, dia, etapas=None, sem_dados=False)
         for rotulo, hhmm, kind in etapas:
             quando = _hhmm_do_dia(dia, hhmm)
             if sem_dados:
-                pend = None
+                # sem pedidos carregados (Shopee): depois do corte zera, em vez de contar como atraso
+                pend = 0 if quando < agora else None
             elif kind == "ponto":
                 pend = sum(1 for l in linhas if not l.get("no_ponto"))
             else:

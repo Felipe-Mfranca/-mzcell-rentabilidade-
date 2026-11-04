@@ -195,6 +195,11 @@ async def detalhes_multiplos(conta: str, mlbs: list) -> dict:
                     if item.get("code") == 200:
                         body = item.get("body", {})
                         resultados[body.get("id")] = body
+            elif resp.status_code == 403:   # lote sendo desativado pelo ML (11/2026): um a um
+                for mlb in mlbs[i:i+20]:
+                    body = await _get_json(client, conta, f"/items/{mlb}")
+                    if body:
+                        resultados[body.get("id")] = body
     return {"success": True, "data": resultados}
 
 
@@ -645,8 +650,11 @@ async def skus_anuncios(conta: str, mlbs: list) -> dict:
     async with httpx.AsyncClient(timeout=30, verify=False) as client:
         for i in range(0, len(mlbs), 20):
             lote = mlbs[i:i + 20]
-            d = await _get_json(client, conta,
-                f"/items?ids={','.join(lote)}&attributes=id,seller_custom_field,attributes,variations")
+            campos = "attributes=id,seller_custom_field,attributes,variations"
+            d = await _get_json(client, conta, f"/items?ids={','.join(lote)}&{campos}")
+            if d is None:   # lote recusado (o ML está desativando /items?ids=): um a um, no mesmo formato
+                d = [{"code": 200, "body": b} for b in
+                     [await _get_json(client, conta, f"/items/{m}?{campos}") for m in lote] if b]
             for e in d or []:
                 if e.get("code") == 200:
                     b = e["body"]

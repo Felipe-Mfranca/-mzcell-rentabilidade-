@@ -81,7 +81,19 @@ class ML:
                 time.sleep(espera)
                 espera = min(espera * 2, 30)
                 continue
+            if r.status_code == 403 and path == "/items" and "ids" in params:
+                return 200, self._items_um_a_um(params)
             return r.status_code, (r.json() if r.headers.get("content-type", "").startswith("application/json") else None)
+
+    def _items_um_a_um(self, params: dict) -> list:
+        """O ML está desativando a consulta em lote /items?ids= (403 "Resource deprecated", 11/2026). Busca cada anúncio
+        em /items/{id} e devolve no mesmo formato do lote ([{code, body}]), para quem chama não precisar mudar."""
+        resto = {k: v for k, v in params.items() if k != "ids"}
+        lote = []
+        for mlb in [m for m in str(params["ids"]).split(",") if m]:
+            st, b = self.get(f"/items/{mlb}", **resto)
+            lote.append({"code": st, "body": b})
+        return lote
 
 
 def detalhar(ml: ML, ids: list) -> dict:

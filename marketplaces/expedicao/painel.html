@@ -83,7 +83,7 @@ function cartao(m){
  if(!m.sem_dados&&!m.pedidos){h+='<div class="semped">sem pedidos hoje</div>'}
  else if(p){
   h+='<div class="rot">'+esc(p.rotulo==='Corte'?'ENTREGAR ATÉ':p.rotulo.toUpperCase())+'</div><div class="hora">'+esc(p.hhmm)+'</div>';
-  h+=concluido?'<div class="pronto">✔ TUDO PRONTO</div>':'<div class="cd ok" data-iso="'+esc(p.iso)+'">--:--:--</div>';
+  h+=concluido?'<div class="pronto">✔ TUDO PRONTO</div>':(m.sem_dados&&p.pendentes===0?'<div class="pronto">✔ CORTE ENCERRADO · 0 pendentes</div>':'<div class="cd ok" data-iso="'+esc(p.iso)+'">--:--:--</div>');
  }
  if(m.sem_dados){h+='<div class="nota">A contagem de pedidos da Shopee entra quando a loja estiver conectada.</div>'}
  else if(m.pedidos){

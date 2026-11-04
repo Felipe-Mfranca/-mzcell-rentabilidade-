@@ -74,6 +74,11 @@ class ClienteML:
                 if not res.get("success"):
                     raise ContaSemAcesso(f"{self.conta}: token inválido e renovação falhou")
                 continue
+            if r.status_code == 403 and path == "/items" and "ids" in params:
+                # lote /items?ids= sendo desativado pelo ML: um a um, no mesmo formato (ver reposicao_full.ML)
+                resto = {k: v for k, v in params.items() if k != "ids"}
+                return [{"code": 200, "body": b} for b in
+                        (self.get(f"/items/{m}", **resto) for m in str(params["ids"]).split(",") if m) if b]
             if r.status_code in (401, 403):
                 raise ContaSemAcesso(f"{self.conta}: acesso negado ({r.status_code}) em {path}")
             if r.status_code == 429 or r.status_code >= 500:
