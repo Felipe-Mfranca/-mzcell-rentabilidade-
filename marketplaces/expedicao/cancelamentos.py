@@ -22,9 +22,41 @@ SITUACAO_CANCELADO = 12
 SITUACOES = {6: "Em aberto", 9: "Atendido (NF emitida)", 15: "Em andamento", 21: "Em digitação",
              24: "Verificado (checkout feito)", 753338: "Pagamento aprovado", 753339: "Em devolução"}
 BLING_VENDA_URL = "https://www.bling.com.br/vendas.php#edit/{id}"
+SITUACAO_VERIFICADO = 24
+# Pacote que já saiu do galpão: cancelar no Bling NÃO desfaz o envio.
+POSTADO_STATUS = ("shipped", "delivered", "not_delivered")
+POSTADO_SUBSTATUS = ("in_hub", "in_packing_list", "dropped_off")
 DIAS = 7
 _cache = {}
 CACHE_SEG = 120
+
+
+def situacao_fisica(status, substatus) -> str:
+    """'postado' (já saiu do galpão), 'envio_cancelado' (o ML cancelou o envio) ou 'no_galpao'."""
+    if status in POSTADO_STATUS or (status == "ready_to_ship" and substatus in POSTADO_SUBSTATUS):
+        return "postado"
+    if status == "cancelled":
+        return "envio_cancelado"
+    return "no_galpao"
+
+
+def acao_e_risco(fisico: str, bling_sit: int, parcial: bool, status=None, substatus=None) -> tuple:
+    """(risco, ação). O risco ordena a lista: postado (0) > verificado (1) > simples (2)."""
+    if parcial:
+        return "simples", "ajustar os itens do pedido no Bling (o pacote tem outro pedido ativo)"
+    if fisico == "postado":
+        nf = " Trate também a NF conforme a regra fiscal (devolução ou cancelamento)." if bling_sit == 9 else ""
+        if status == "delivered":
+            return "postado", ("JÁ ENTREGUE AO COMPRADOR: cancelar no Bling NÃO traz o produto de volta. Veja no ML se há devolução ou reclamação "
+                               "aberta; só dar entrada no estoque se o produto retornar." + nf)
+        if status == "not_delivered" or substatus in ("returned", "returning_to_sender"):
+            return "postado", ("PACOTE EM DEVOLUÇÃO ao vendedor: dar entrada no estoque só quando ele chegar ao galpão; depois cancelar no Bling." + nf)
+        return "postado", ("PACOTE JÁ POSTADO: cancelar no Bling NÃO desfaz o envio. Acionar a devolução ou a interceptação no ML/transportadora; "
+                           "só dar entrada no estoque quando o produto voltar." + nf)
+    if bling_sit == SITUACAO_VERIFICADO:
+        return "verificado", ("pedido já VERIFICADO (separado e embalado): localizar o pacote e tirar da expedição, devolver o produto ao estoque "
+                              "e só então cancelar no Bling")
+    return "simples", "cancelar a NF e o pedido no Bling" if bling_sit == 9 else "cancelar o pedido no Bling"
 
 
 def _pedidos_bling(conta_bling: str, dias: int) -> dict:
@@ -81,9 +113,12 @@ def _conta(conta: str, dias: int) -> list:
         if not p or p["situacao"]["id"] == SITUACAO_CANCELADO:
             return None
         sh = (o.get("shipping") or {}).get("id")
+        envio = {}
         if sh:
             st, envio = ml.get(f"/shipments/{sh}")
-            if st == 200 and CANAIS.get(envio.get("logistic_type")) is None:
+            if st != 200:
+                envio = {}
+            elif CANAIS.get(envio.get("logistic_type")) is None:
                 return None  # Full (ou outro envio que não passa pelo galpão)
         itens = []
         for it in o.get("order_items") or []:
@@ -92,13 +127,15 @@ def _conta(conta: str, dias: int) -> list:
                           "sku": i.get("seller_sku") or i.get("seller_custom_field"), "qtd": it.get("quantity")})
         parcial = tem_outro_ativo(o)
         sit = p["situacao"]["id"]
+        fisico = situacao_fisica(envio.get("status"), envio.get("substatus"))
+        risco, acao = acao_e_risco(fisico, sit, parcial, envio.get("status"), envio.get("substatus"))
         return {"conta": conta, "conta_bling": PARES[conta], "pedido": o["id"], "pacote": o.get("pack_id"),
                 "cancelado_em": o.get("date_closed") or o.get("last_updated"),
                 "bling_id": p["id"], "bling_numero": p.get("numero"),
                 "bling_situacao_id": sit, "bling_situacao": SITUACOES.get(sit, str(sit)),
                 "bling_url": BLING_VENDA_URL.format(id=p["id"]),
-                "acao": "ajustar os itens do pedido no Bling (o pacote tem outro pedido ativo)" if parcial
-                        else ("cancelar a NF e o pedido no Bling" if sit == 9 else "cancelar o pedido no Bling"),
+                "ml_envio_status": envio.get("status"), "ml_envio_substatus": envio.get("substatus"),
+                "fisico": fisico, "risco": risco, "acao": acao,
                 "parcial": parcial, "itens": itens}
 
     with ThreadPoolExecutor(max_workers=4) as ex:
@@ -117,8 +154,8 @@ def pendentes(dias: int = DIAS, forcar: bool = False) -> dict:
         except Exception as e:
             erros[c] = ("Bling indisponível nesta instalação" if isinstance(e, FileNotFoundError) or "bling_config" in str(e)
                         else f"{type(e).__name__}: {str(e)[:100]}")
-    itens.sort(key=lambda x: (x["conta"], x["cancelado_em"] or ""))
+    itens.sort(key=lambda x: ({"postado": 0, "verificado": 1}.get(x["risco"], 2), x["conta"], x["cancelado_em"] or ""))
     res = {"gerado_em": datetime.now(BRT).isoformat(timespec="seconds"), "dias": dias, "pendentes": itens, "erros": erros}
     if not erros:
-        _cache[chave] = (agora, res)
+        _cache[chave] = (time.time(), res)     # hora do fim da leitura
     return res

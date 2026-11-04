@@ -438,13 +438,19 @@
       .then(function (d) {
         var box = el("cancelamentos"), lista = d.pendentes || [], h = "";
         if (lista.length) {
+          var nPost = lista.filter(function (c) { return c.risco === "postado"; }).length, nVer = lista.filter(function (c) { return c.risco === "verificado"; }).length;
           h += "<div class='canc'><h3 id='canc-aviso' style='cursor:pointer;margin:0 0 " + (cancAberto ? "6px" : "0") + "' title='Clique para " + (cancAberto ? "recolher" : "ver a lista") + "'>⚠ Você tem " +
-            (lista.length === 1 ? "1 pedido que precisa" : lista.length + " pedidos que precisam") + " ser cancelado" + (lista.length === 1 ? "" : "s") + " no Bling <span class='meta'>· " + (cancAberto ? "recolher ▲" : "ver lista ▼") + "</span></h3>";
+            (lista.length === 1 ? "1 pedido cancelado no ML ainda ativo" : lista.length + " pedidos cancelados no ML ainda ativos") + " no Bling" +
+            (nPost ? " · <span style='color:#fecaca'>" + nPost + " JÁ POSTADO" + (nPost > 1 ? "S" : "") + " (cancelar no Bling não desfaz o envio)</span>" : "") +
+            (nVer ? " · " + nVer + " verificado" + (nVer > 1 ? "s" : "") + " (pacote já separado)" : "") +
+            " <span class='meta'>· " + (cancAberto ? "recolher ▲" : "ver lista ▼") + "</span></h3>";
           lista.forEach(function (c, i) {
             if (!cancAberto) return;
             var its = (c.itens || []).map(function (x) { return esc(x.sku || x.mlb) + " ×" + x.qtd; }).join(", ");
             h += "<div class='ci'><b>" + esc(c.conta) + "</b><span>pedido " + esc(String(c.pedido)) + (c.pacote ? " · pacote " + esc(String(c.pacote)) : "") + "</span>" +
-              "<span class='tag vm'>Bling " + esc(String(c.bling_numero)) + " · " + esc(c.bling_situacao) + "</span><span>" + its + "</span>" +
+              "<span class='tag vm'>Bling " + esc(String(c.bling_numero)) + " · " + esc(c.bling_situacao) + "</span>" +
+              (c.risco === "postado" ? "<span class='tag vm'>JÁ POSTADO</span>" : (c.risco === "verificado" ? "<span class='tag am'>verificado</span>" : "")) +
+              "<span>" + its + "</span>" +
               "<span><b>" + esc(c.acao) + "</b></span>" +
               "<button class='btn-m' type='button' data-i='" + i + "'>Abrir no Bling</button></div>";
           });
