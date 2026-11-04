@@ -96,6 +96,40 @@ def corpo_embalagem(grupo, sku, caixas, por_caixa, peso, dim) -> dict:
         "items": [{"labelOwner": "SELLER", "msku": k, "quantity": q, "prepOwner": "NONE"} for k, q in zip(skus, qtds)]}]}]}
 
 
+def parse_caixa(texto: str) -> dict:
+    """'3;53x33x33;19;KIT2MIC-FBA=30' → 3 caixas iguais; vários SKUs na mesma caixa: 'SKU=30,SKU2=50'."""
+    partes = [x.strip() for x in texto.split(";")]
+    if len(partes) != 4 or not partes[0].isdigit() or int(partes[0]) < 1:
+        raise ErroEnvio(f"Caixa inválida: '{texto}'. Use N;CxLxA;PESO_KG;SKU=un,SKU2=un.")
+    try:
+        peso = float(partes[2].replace(",", "."))
+    except ValueError:
+        raise ErroEnvio(f"Peso inválido em '{texto}'.")
+    if peso <= 0:
+        raise ErroEnvio("O peso da caixa precisa ser maior que zero.")
+    return {"n": int(partes[0]), "dim": parse_dim(partes[1]), "peso": peso, "itens": parse_itens(partes[3])}
+
+
+def totais_por_sku(specs: list) -> dict:
+    tot = {}
+    for sp in specs:
+        for k, q in sp["itens"]:
+            tot[k] = tot.get(k, 0) + sp["n"] * q
+    return tot
+
+
+def corpo_embalagem_multi(grupo, specs: list) -> dict:
+    """Várias caixas diferentes no mesmo grupo de embalagem (cada spec = N caixas iguais)."""
+    caixas = []
+    for sp in specs:
+        c, l, a = sp["dim"]
+        caixas.append({"contentInformationSource": "BOX_CONTENT_PROVIDED", "quantity": sp["n"],
+                       "dimensions": {"length": c, "width": l, "height": a, "unitOfMeasurement": "CM"},
+                       "weight": {"unit": "KG", "value": sp["peso"]},
+                       "items": [{"labelOwner": "SELLER", "msku": k, "quantity": q, "prepOwner": "NONE"} for k, q in sp["itens"]]})
+    return {"packageGroupings": [{"packingGroupId": grupo, "boxes": caixas}]}
+
+
 def nome_padrao(skus, totais) -> str:
     """Nome do plano; a Amazon aceita no máximo 40 caracteres."""
     nome = " + ".join(f"{k} {t}un" for k, t in zip(skus, totais)) + " - MZ"
@@ -208,21 +242,36 @@ def _itens(a) -> list:
     return [(a.sku, a.por_caixa)]
 
 
-def _parametros(a):
+def _specs(a) -> list:
+    """Caixas do envio: várias --caixa (tipos diferentes) ou o modo simples (--caixas/--por-caixa/--peso/--dim)."""
+    if getattr(a, "caixa", None):
+        return [parse_caixa(t) for t in a.caixa]
+    if not (a.caixas and a.peso and a.dim):
+        raise ErroEnvio("Informe --caixa N;CxLxA;PESO;SKU=un (repetível) ou --caixas/--peso/--dim.")
     itens = _itens(a)
-    totais = [validar(a.qtd if len(itens) == 1 else None, a.caixas, q, a.peso) for _, q in itens]
-    return itens, totais, parse_dim(a.dim)
+    for _, q in itens:
+        validar(a.qtd if len(itens) == 1 else None, a.caixas, q, a.peso)
+    return [{"n": a.caixas, "dim": parse_dim(a.dim), "peso": a.peso, "itens": itens}]
+
+
+def _parametros(a):
+    specs = _specs(a)
+    tot = totais_por_sku(specs)
+    return list(tot.keys()), list(tot.values()), specs
 
 
 def cmd_simular(a):
-    itens, totais, dim = _parametros(a)
+    skus, totais, specs = _parametros(a)
     origem = ler_origem(a.conta)
     print(f"SIMULAÇÃO (nada foi enviado) — {a.conta}")
-    for (sku, q), total in zip(itens, totais):
+    for sku, total in zip(skus, totais):
         inv = _sku_do_inventario(a.conta, sku)
-        print(f"  Produto: {sku} · ASIN {inv.get('asin')} · FNSKU {inv.get('fnsku')} · {total} un ({q} por caixa)")
+        print(f"  Produto: {sku} · ASIN {inv.get('asin')} · FNSKU {inv.get('fnsku')} · {total} un")
         print(f"    Etiqueta do produto: sua (FNSKU {inv.get('fnsku')}) · preparo: nenhum")
-    print(f"  {a.caixas} caixa(s){' MISTAS' if len(itens) > 1 else ''} · {a.peso} kg · {dim[0]:g}x{dim[1]:g}x{dim[2]:g} cm cada")
+    for sp in specs:
+        dim = sp["dim"]
+        print(f"  {sp['n']} caixa(s) · {sp['peso']} kg · {dim[0]:g}x{dim[1]:g}x{dim[2]:g} cm · " + " + ".join(f"{k} {q}" for k, q in sp["itens"]))
+    print(f"  Total: {sum(sp['n'] for sp in specs)} caixas · {sum(totais)} unidades")
     e = origem["endereco"]
     print(f"  Origem: {e.get('addressLine1')} {e.get('addressLine2', '')}, {e.get('city')} ({e.get('postalCode')})")
     print(f"  Primeiro dia útil possível para coleta: {proximo_dia_util(date.today()):%d/%m/%Y}")
@@ -230,8 +279,7 @@ def cmd_simular(a):
 
 
 def cmd_criar(a):
-    itens, totais, dim = _parametros(a)
-    skus = [k for k, _ in itens]
+    skus, totais, specs = _parametros(a)
     if not a.confirmar:
         print("Faltou --confirmar. Mostrando só a simulação:\n")
         return cmd_simular(a)
@@ -255,7 +303,7 @@ def cmd_criar(a):
                         f"assim). Nada foi confirmado; cancele com: cancelar {a.conta} --plano {plano} --confirmar")
     s, r = api.post(a.conta, f"{P}/packingOptions/{po['packingOptionId']}/confirmation", {}); _ok(s, r, "confirmPackingOption")
     _op(a.conta, r, "confirmPackingOption")
-    s, r = api.post(a.conta, P + "/packingInformation", corpo_embalagem(po["packingGroups"][0], skus, a.caixas, [q for _, q in itens], a.peso, dim))
+    s, r = api.post(a.conta, P + "/packingInformation", corpo_embalagem_multi(po["packingGroups"][0], specs))
     _ok(s, r, "setPackingInformation")
     for p in _op(a.conta, r, "setPackingInformation"):
         print(f"  aviso da Amazon: {p.get('message')}")
@@ -425,9 +473,10 @@ def main(argv=None):
         s = sub.add_parser(nome); s.set_defaults(fn=fn); s.add_argument("conta")
         if nome in ("simular", "criar"):
             s.add_argument("--sku"); s.add_argument("--qtd", type=int)
-            s.add_argument("--caixas", type=int, required=True); s.add_argument("--por-caixa", type=int, dest="por_caixa")
+            s.add_argument("--caixas", type=int); s.add_argument("--por-caixa", type=int, dest="por_caixa")
+            s.add_argument("--caixa", action="append", help="caixa(s): N;CxLxA;PESO_KG;SKU=un,SKU2=un (repita para tipos diferentes)")
             s.add_argument("--itens", help="caixa mista: SKU=un_por_caixa,SKU2=un_por_caixa (no lugar de --sku/--por-caixa)")
-            s.add_argument("--peso", type=float, required=True, help="kg por caixa"); s.add_argument("--dim", required=True, help="CxLxA em cm")
+            s.add_argument("--peso", type=float, help="kg por caixa"); s.add_argument("--dim", help="CxLxA em cm")
             s.add_argument("--nome"); s.add_argument("--pronto-em", dest="pronto_em", help="AAAA-MM-DD (padrão: próximo dia útil)")
         else:
             s.add_argument("--plano", required=True)
