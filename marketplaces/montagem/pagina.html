@@ -31,8 +31,10 @@ button.sec{background:#e5e7eb;color:#1f2933}button.perigo{background:#991b1b}
 <div class="card"><h2>Novo envio</h2>
 <div class="top">
 <label>Canal <select id="canal" onchange="trocaCanal()"><option value="meli">Mercado Livre (PDF)</option><option value="amazon">Amazon (manual)</option><option value="shopee">Shopee (PDF do FBS ou manual)</option></select></label>
+<button class="sec" type="button" onclick="buscarAmazon()">Pré-carregar Fulls da Amazon</button>
 <span id="boxpdf"><input type="file" id="pdf" accept="application/pdf"> <span class="mut">PDF do envio ao Full (Meli: "instruções de preparação"; Shopee: "Picking List").</span></span>
 </div>
+<div id="amz"></div>
 <div id="previa"></div></div>
 <div id="lista"></div>
 <div class="card"><h2>Produtividade (só gestão)</h2><div id="prod" class="mut">Carregando…</div></div>
@@ -45,6 +47,27 @@ $('eu').value=localStorage.getItem('mz_eu')||'';$('papel').value=localStorage.ge
 $('eu').onchange=()=>localStorage.setItem('mz_eu',$('eu').value.trim());$('papel').onchange=()=>localStorage.setItem('mz_papel',$('papel').value);
 async function api(url,opt){const r=await fetch(url,opt);let d={};try{d=await r.json()}catch(e){}if(!r.ok||d.success===false)throw new Error(d.error||('Erro '+r.status));return d}
 let previa=null;
+let amzLista=[];
+function fecharAmz(){$('amz').innerHTML=''}
+async function buscarAmazon(forcar){
+ $('amz').innerHTML='<div class="aviso">Consultando a Amazon (envios com NF emitida e coleta agendada)… pode levar um minuto.</div>';
+ try{const d=await api('/montagem/amazon/disponiveis'+(forcar?'?atualizar=true':''));amzLista=d.envios;mostrarAmazon(d)}
+ catch(e){$('amz').innerHTML='<div class="erro">'+esc(e.message)+'</div>'}}
+function mostrarAmazon(d){
+ const prontos=d.envios.filter(x=>x.pronto&&!x.ja_cadastrado),outros=d.envios.filter(x=>!x.pronto||x.ja_cadastrado);
+ let h=Object.keys(d.erros||{}).map(c=>'<div class="erro">'+esc(c)+': '+esc(d.erros[c])+'</div>').join('');
+ h+='<h3 style="margin:10px 0 4px">Prontos para montar ('+prontos.length+')</h3>';
+ h+=prontos.length?'<table><tr><th></th><th>Envio FBA</th><th>Conta</th><th>Coleta</th><th>Produtos</th></tr>'+prontos.map(x=>'<tr><td><input type="checkbox" class="amz-ck" value="'+esc(x.numero)+'" checked></td><td><b>'+esc(x.numero)+'</b><div class="mut">'+esc(x.nome)+'</div></td><td>'+esc(x.conta)+'</td><td>'+esc(x.inicio_coleta.replace('T',' às '))+'<div class="mut">'+esc(x.transportadora||'')+'</div></td><td>'+x.produtos.map(p=>esc(p.sku)+' × '+p.unidades).join('<br>')+'</td></tr>').join('')+'</table>'
+  +'<p><button type="button" onclick="importarAmazon()">Importar selecionados</button> <button class="sec" type="button" onclick="buscarAmazon(true)">Atualizar</button> <button class="sec" type="button" onclick="fecharAmz()">Fechar</button></p>'
+  :'<p class="mut">Nenhum envio novo com NF emitida e coleta agendada. <button class="sec" type="button" onclick="buscarAmazon(true)">Atualizar</button> <button class="sec" type="button" onclick="fecharAmz()">Fechar</button></p>';
+ if(outros.length)h+='<div class="mut" style="margin-top:6px">Fora da lista: '+outros.map(x=>esc(x.numero||x.envio)+' ('+(x.ja_cadastrado?'já está na fila':esc(x.motivo))+')').join(' · ')+'</div>';
+ $('amz').innerHTML=h}
+async function importarAmazon(){
+ const nums=[...document.querySelectorAll('.amz-ck:checked')].map(c=>c.value);if(!nums.length)return;
+ try{const r=await api('/montagem/amazon/importar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({numeros:nums,criado_por:$('eu').value})});
+  let m=r.criados.length?'<div class="aviso" style="background:#dcfce7;color:#166534">Importados: '+r.criados.map(esc).join(', ')+'. Agora atribua os produtos aos responsáveis.</div>':'';
+  m+=r.falhas.map(f=>'<div class="erro">'+esc(f.numero)+': '+esc(f.motivo)+'</div>').join('');
+  $('amz').innerHTML=m;carregar()}catch(e){$('amz').innerHTML='<div class="erro">'+esc(e.message)+'</div>'}}
 function trocaCanal(){previa=null;$('previa').innerHTML='';$('pdf').value='';
  if($('canal').value==='meli'){$('boxpdf').style.display=''}else{$('boxpdf').style.display=$('canal').value==='shopee'?'':'none';previa={frete:'',produtos:[{sku:'',titulo:'',unidades:''}],avisos:[],manual:true};mostrarPrevia()}}
 $('pdf').onchange=async()=>{const f=$('pdf').files[0];if(!f)return;const fd=new FormData();fd.append('file',f);

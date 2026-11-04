@@ -24,7 +24,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
 from marketplaces.montagem import armazenamento as arm
-from marketplaces.montagem import leitor
+from marketplaces.montagem import amazon_fba, leitor
 
 router = APIRouter(prefix="/montagem", tags=["montagem"])
 PASTA = os.path.dirname(os.path.abspath(__file__))
@@ -106,6 +106,45 @@ async def previa(file: UploadFile = File(...)):
         res["conta_sugerida"] = "shopee"
     res["ja_cadastrado"] = f"{res['canal']}-{res['frete']}" in {e["chave"] for e in arm.listar()}
     return {"success": True, **res}
+
+
+@router.get("/amazon/disponiveis")
+def amazon_disponiveis(atualizar: bool = False):
+    """Envios FBA da Amazon (somente leitura): prontos para montar (NF emitida + coleta agendada) e os que ainda faltam algo."""
+    try:
+        dados = amazon_fba.disponiveis(atualizar)
+    except Exception as e:
+        return JSONResponse({"success": False, "error": f"Não consegui consultar a Amazon: {str(e)[:200]}"}, status_code=502)
+    cadastrados = {e["chave"] for e in arm.listar()}
+    envios = [dict(x, ja_cadastrado=f"amazon-{x.get('numero')}" in cadastrados) for x in dados["envios"]]
+    return {"success": True, "envios": envios, "erros": dados["erros"], "gerado_em": dados["gerado_em"]}
+
+
+class ImportarAmazon(BaseModel):
+    numeros: list         # IDs FBA (shipmentConfirmationId) a importar
+    criado_por: str = ""
+
+
+@router.post("/amazon/importar")
+def amazon_importar(b: ImportarAmazon):
+    """Cria na fila os envios FBA escolhidos, sem responsáveis (o estoquista atribui e começa)."""
+    try:
+        dados = amazon_fba.disponiveis(False)
+    except Exception as e:
+        return JSONResponse({"success": False, "error": f"Não consegui consultar a Amazon: {str(e)[:200]}"}, status_code=502)
+    por_numero = {x.get("numero"): x for x in dados["envios"] if x.get("pronto")}
+    criados, falhas = [], []
+    for n in b.numeros:
+        x = por_numero.get(n)
+        if not x:
+            falhas.append({"numero": n, "motivo": "não está pronto (NF emitida e coleta agendada) ou não foi encontrado"})
+            continue
+        try:
+            arm.criar(n, x["conta"], x["coleta"], x["prazo"], x["produtos"], b.criado_por, "amazon")
+            criados.append(n)
+        except arm.ErroMontagem as e:
+            falhas.append({"numero": n, "motivo": str(e)})
+    return {"success": True, "criados": criados, "falhas": falhas}
 
 
 class NovoEnvio(BaseModel):
