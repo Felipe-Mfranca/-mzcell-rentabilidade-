@@ -40,20 +40,53 @@ def situacao_fisica(status, substatus) -> str:
     return "no_galpao"
 
 
-def acao_e_risco(fisico: str, bling_sit: int, parcial: bool, status=None, substatus=None) -> tuple:
+def motivo_cancelamento(cancel: dict) -> str:
+    """Quem/por que o ML cancelou o pedido (cancel_detail)."""
+    g, code = (cancel or {}).get("group"), (cancel or {}).get("code")
+    if g == "mediations":
+        return "reclamação do comprador (mediação do ML)"
+    if code == "shipment_not_delivered":
+        return "envio não entregue"
+    if g == "buyer":
+        return "cancelado pelo comprador"
+    return "cancelado pelo ML" + (f" ({code})" if code else "")
+
+
+def resumo_devolucao(ret: dict) -> dict:
+    """Estado da logística reversa a partir de /post-purchase/v2/claims/{id}/returns."""
+    envios = (ret or {}).get("shipments") or []
+    e = envios[0] if envios else {}
+    return {"status": (ret or {}).get("status"), "tipo": (ret or {}).get("subtype"), "dinheiro": (ret or {}).get("status_money"),
+            "envio_status": e.get("status"), "rastreio": e.get("tracking_number")}
+
+
+def acao_e_risco(fisico: str, bling_sit: int, parcial: bool, status=None, substatus=None, devolucao=None) -> tuple:
     """(risco, ação). O risco ordena a lista: postado (0) > verificado (1) > simples (2)."""
     if parcial:
         return "simples", "ajustar os itens do pedido no Bling (o pacote tem outro pedido ativo)"
     if fisico == "postado":
         nf = " Trate também a NF conforme a regra fiscal (devolução ou cancelamento)." if bling_sit == 9 else ""
+        if devolucao:
+            rastro = f" (rastreio {devolucao['rastreio']})" if devolucao.get("rastreio") else ""
+            est = devolucao.get("envio_status") or devolucao.get("status")
+            if est == "delivered":
+                return "postado", ("DEVOLUÇÃO JÁ CHEGOU pela logística reversa do ML" + rastro + ": conferir o recebimento físico no galpão, dar entrada "
+                                   "no estoque se o produto estiver bom e então cancelar no Bling." + nf)
+            if est in ("shipped", "out_for_delivery"):
+                return "postado", ("DEVOLUÇÃO A CAMINHO" + rastro + ": dar entrada no estoque só quando chegar ao galpão; depois cancelar no Bling." + nf)
+            if est in ("cancelled", "failed", "not_delivered"):
+                return "postado", ("DEVOLUÇÃO NÃO CONCLUÍDA (" + str(est) + ")" + rastro + ": o produto pode ter ficado com o comprador. Tratar com o SAC "
+                                   "(reclamação) antes de qualquer baixa." + nf)
+            return "postado", ("DEVOLUÇÃO CRIADA, o comprador ainda não postou" + rastro + ": acompanhar. Sem entrada no estoque por enquanto; "
+                               "cancelar no Bling NÃO faz o produto voltar." + nf)
         if status == "delivered":
-            return "postado", ("CANCELADO PELO COMPRADOR, MAS O PACOTE FOI ENTREGUE: cancelar no Bling NÃO traz o produto de volta. Veja no ML se a "
-                               "devolução foi aberta; se não, tratar com o SAC. Só dar entrada no estoque se o produto retornar." + nf)
+            return "postado", ("ENTREGUE E SEM DEVOLUÇÃO REGISTRADA no ML: verifique com o SAC se o comprador ficou com o produto antes de dar baixa. "
+                               "Cancelar no Bling NÃO traz o produto de volta." + nf)
         if status == "not_delivered" or substatus in ("returned", "returning_to_sender"):
-            return "postado", ("CANCELADO PELO COMPRADOR NO TRAJETO: o pacote está VOLTANDO ao vendedor. Dar entrada no estoque só quando ele chegar "
-                               "ao galpão; depois cancelar no Bling." + nf)
-        return "postado", ("CANCELADO PELO COMPRADOR NO TRAJETO: o pacote já saiu e cancelar no Bling NÃO o faz voltar. Acompanhe o retorno pelo ML; "
-                           "dar entrada no estoque só quando chegar ao galpão." + nf)
+            return "postado", ("ENVIO NÃO ENTREGUE, o pacote está VOLTANDO ao vendedor: dar entrada no estoque só quando ele chegar ao galpão; "
+                               "depois cancelar no Bling." + nf)
+        return "postado", ("PACOTE JÁ POSTADO (a caminho do comprador): cancelar no Bling NÃO o faz voltar. O ML cuida da logística reversa; "
+                           "acompanhe o retorno e dê entrada no estoque só quando chegar ao galpão." + nf)
     if bling_sit == SITUACAO_VERIFICADO:
         return "verificado", ("pedido já VERIFICADO (separado e embalado): localizar o pacote e tirar da expedição, devolver o produto ao estoque "
                               "e só então cancelar no Bling")
@@ -129,7 +162,18 @@ def _conta(conta: str, dias: int) -> list:
         parcial = tem_outro_ativo(o)
         sit = p["situacao"]["id"]
         fisico = situacao_fisica(envio.get("status"), envio.get("substatus"))
-        risco, acao = acao_e_risco(fisico, sit, parcial, envio.get("status"), envio.get("substatus"))
+        devolucao, claim_id = None, None
+        if fisico == "postado":
+            for m in (o.get("mediations") or []):
+                claim_id = m.get("id") if isinstance(m, dict) else m
+                try:
+                    stc, ret = ml.get(f"/post-purchase/v2/claims/{claim_id}/returns")
+                    if stc == 200 and isinstance(ret, dict):
+                        devolucao = resumo_devolucao(ret)
+                        break
+                except Exception:
+                    pass
+        risco, acao = acao_e_risco(fisico, sit, parcial, envio.get("status"), envio.get("substatus"), devolucao)
         return {"conta": conta, "conta_bling": PARES[conta], "pedido": o["id"], "pacote": o.get("pack_id"),
                 "cancelado_em": o.get("date_closed") or o.get("last_updated"),
                 "bling_id": p["id"], "bling_numero": p.get("numero"),
@@ -137,7 +181,8 @@ def _conta(conta: str, dias: int) -> list:
                 "bling_url": BLING_VENDA_URL.format(id=p["id"]),
                 "ml_envio_status": envio.get("status"), "ml_envio_substatus": envio.get("substatus"),
                 "ml_envio_situacao": situacao_ml(envio.get("status"), envio.get("substatus")) if envio else "",
-                "fisico": fisico, "risco": risco, "acao": acao,
+                "fisico": fisico, "risco": risco, "acao": acao, "motivo": motivo_cancelamento(o.get("cancel_detail")),
+                "claim_id": claim_id, "devolucao": devolucao,
                 "parcial": parcial, "itens": itens}
 
     with ThreadPoolExecutor(max_workers=4) as ex:

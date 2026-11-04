@@ -16,20 +16,43 @@ class TestRisco(unittest.TestCase):
         self.assertEqual(c.situacao_fisica("cancelled", None), "envio_cancelado")
         self.assertEqual(c.situacao_fisica(None, None), "no_galpao")
 
-    def test_postado_nao_diz_apenas_cancelar(self):
-        risco, acao = c.acao_e_risco("postado", c.SITUACAO_VERIFICADO, False)
+    def test_postado_sem_dados_de_devolucao_nao_diz_apenas_cancelar(self):
+        risco, acao = c.acao_e_risco("postado", c.SITUACAO_VERIFICADO, False, "shipped", "out_for_delivery")
         self.assertEqual(risco, "postado")
-        self.assertIn("CANCELADO PELO COMPRADOR NO TRAJETO", acao)
         self.assertIn("NÃO o faz voltar", acao)
         self.assertIn("só quando chegar ao galpão", acao)
 
-    def test_entregue_e_devolucao_tem_texto_proprio(self):
-        _, ent = c.acao_e_risco("postado", c.SITUACAO_VERIFICADO, False, "delivered", None)
-        self.assertIn("O PACOTE FOI ENTREGUE", ent)
-        self.assertIn("NÃO traz o produto de volta", ent)
-        _, dev = c.acao_e_risco("postado", c.SITUACAO_VERIFICADO, False, "not_delivered", "returned")
-        self.assertIn("VOLTANDO ao vendedor", dev)
-        self.assertIn("só quando ele chegar", dev)
+    def test_entregue_so_vira_caso_de_sac_se_nao_ha_devolucao(self):
+        _, sem = c.acao_e_risco("postado", c.SITUACAO_VERIFICADO, False, "delivered", None)
+        self.assertIn("SEM DEVOLUÇÃO REGISTRADA", sem)
+        self.assertIn("SAC", sem)
+
+    def test_logistica_reversa_mostra_o_estado_da_devolucao(self):
+        def mk(st):
+            return {"envio_status": st, "rastreio": "MEL1", "status": "shipped"}
+        _, chegou = c.acao_e_risco("postado", 24, False, "delivered", None, mk("delivered"))
+        self.assertIn("DEVOLUÇÃO JÁ CHEGOU", chegou)
+        self.assertIn("MEL1", chegou)
+        _, caminho = c.acao_e_risco("postado", 24, False, "delivered", None, mk("shipped"))
+        self.assertIn("DEVOLUÇÃO A CAMINHO", caminho)
+        _, criada = c.acao_e_risco("postado", 24, False, "delivered", None, mk("ready_to_ship"))
+        self.assertIn("ainda não postou", criada)
+        self.assertNotIn("SAC", criada)
+        _, falhou = c.acao_e_risco("postado", 24, False, "delivered", None, mk("cancelled"))
+        self.assertIn("SAC", falhou)
+
+    def test_envio_nao_entregue_volta_ao_vendedor(self):
+        _, a = c.acao_e_risco("postado", 24, False, "not_delivered", "returned")
+        self.assertIn("VOLTANDO ao vendedor", a)
+
+    def test_motivo_do_cancelamento(self):
+        self.assertIn("mediação", c.motivo_cancelamento({"group": "mediations", "code": "mediations"}))
+        self.assertEqual(c.motivo_cancelamento({"group": "shipment", "code": "shipment_not_delivered"}), "envio não entregue")
+
+    def test_resumo_da_devolucao(self):
+        r = c.resumo_devolucao({"status": "shipped", "subtype": "return_total", "status_money": "refunded",
+                                "shipments": [{"status": "delivered", "tracking_number": "X"}]})
+        self.assertEqual((r["envio_status"], r["rastreio"], r["tipo"]), ("delivered", "X", "return_total"))
 
     def test_postado_com_nf_lembra_da_nf(self):
         _, acao = c.acao_e_risco("postado", 9, False)
