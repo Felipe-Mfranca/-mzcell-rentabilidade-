@@ -90,6 +90,75 @@ def _full(envio: dict, agora: datetime) -> dict:
                           "embalador": p.get("embalador", ""), "etapas": {t: True for t in p["etapas"]}} for p in prods]}
 
 
+def _hhmm_do_dia(dia, hhmm: str):
+    hh, mm = str(hhmm).split(":")
+    return datetime(dia.year, dia.month, dia.day, int(hh), int(mm), tzinfo=BRT)
+
+
+def _marco(rotulo, quando, pedidos, pendentes):
+    return {"rotulo": rotulo, "hhmm": quando.strftime("%H:%M"), "iso": quando.isoformat(), "pedidos": pedidos, "pendentes": pendentes}
+
+
+def _modulo(mid, nome, linhas, marcas, agora, dia, etapas=None, sem_dados=False):
+    """Cartão do monitor: quantos saem, quantos já estão prontos, quantos faltam e o(s) horário(s) de entrega no local.
+    `etapas`: [(rótulo, 'HH:MM', conta_pendentes)] quando o horário vem da operação (DBA, Shopee) e não do prazo de cada pedido."""
+    n = len(linhas)
+    prontos = sum(1 for l in linhas if estado(l, marcas)[1])
+    marcos = []
+    if etapas:
+        for rotulo, hhmm, kind in etapas:
+            quando = _hhmm_do_dia(dia, hhmm)
+            if sem_dados:
+                pend = None
+            elif kind == "ponto":
+                pend = sum(1 for l in linhas if not l.get("no_ponto"))
+            else:
+                pend = sum(1 for l in linhas if not estado(l, marcas)[1])
+            marcos.append(_marco(rotulo, quando, None if sem_dados else n, pend))
+    else:
+        por = {}
+        for l in linhas:
+            m = _dt(l.get("meta"))
+            if not m:
+                continue
+            g = por.setdefault(m.replace(second=0, microsecond=0), [0, 0])
+            g[0] += 1
+            g[1] += 0 if estado(l, marcas)[1] else 1
+        for quando in sorted(por):
+            marcos.append(_marco("Corte", quando, por[quando][0], por[quando][1]))
+    marcos.sort(key=lambda x: x["iso"])
+    # o horário em destaque é o primeiro que ainda tem pendência; sem pendência, o último (tudo pronto)
+    principal = next((i for i, m in enumerate(marcos) if (m["pendentes"] is None and _dt(m["iso"]) >= agora) or (m["pendentes"] or 0) > 0), None)
+    if principal is None and marcos:
+        principal = len(marcos) - 1
+    atrasados = sum(1 for m in marcos if (m["pendentes"] or 0) > 0 and _dt(m["iso"]) < agora)
+    return {"id": mid, "nome": nome, "sem_dados": sem_dados, "pedidos": None if sem_dados else n,
+            "unidades": None if sem_dados else sum(l.get("unidades") or 0 for l in linhas),
+            "prontos": None if sem_dados else prontos, "pendentes": None if sem_dados else n - prontos,
+            "percentual": None if sem_dados else (round(100 * prontos / n, 1) if n else 100.0),
+            "no_ponto": sum(1 for l in linhas if l.get("no_ponto")) if mid == "dba" else None,
+            "atrasados": atrasados, "marcos": marcos, "principal": principal}
+
+
+def _modulos(do_dia: list, marcas: dict, agora: datetime, dia, plataformas: list) -> list:
+    """Cartões por módulo: Flex, Coleta, Places por conta (cada conta tem corte próprio), Amazon DBA e Shopee."""
+    plat = plataformas or []
+    mods = [_modulo("flex", "Flex", [l for l in do_dia if l.get("canal") == "Flex"], marcas, agora, dia),
+            _modulo("coleta", "Coleta", [l for l in do_dia if l.get("canal") == "Coleta"], marcas, agora, dia)]
+    places = [l for l in do_dia if l.get("canal") == "Agência"]
+    contas = ["meli02", "meli03"] + sorted({l["conta"] for l in places} - {"meli02", "meli03"})
+    for c in contas:
+        mods.append(_modulo(f"places_{c}", f"Places Meli {c[-1].lstrip('0') or c}", [l for l in places if l["conta"] == c], marcas, agora, dia))
+    dba = [l for l in do_dia if l.get("canal") == "DBA"]
+    etapas = [(c.get("etapa", ""), c["corte"], "ponto" if "ponto" in str(c.get("etapa", "")).lower() else "etiqueta")
+              for c in plat if c.get("canal") == "DBA"]
+    mods.append(_modulo("dba", "Amazon DBA", dba, marcas, agora, dia, etapas or None))
+    for mid, nome, canal in (("shopee_xpress", "Shopee Xpress", "Shopee Xpress"), ("shopee_direta", "Shopee Entrega Direta (Flex)", "Entrega Direta")):
+        et = [(c.get("etapa", "Corte do dia"), c["corte"], "corte") for c in plat if c.get("plataforma") == "Shopee" and c.get("canal") == canal]
+        mods.append(_modulo(mid, nome, [], marcas, agora, dia, et, sem_dados=True))
+    return mods
+
+
 def montar(linhas: list, marcas: dict, full: list, agora: datetime, dia, plataformas: list = None) -> dict:
     """`dia` é um date. Só entram pedidos cuja meta cai nesse dia; o que ficou de dias anteriores vai em `herdados`."""
     do_dia = [l for l in linhas if (m := _dt(l.get("meta"))) and m.date() == dia]
@@ -141,6 +210,7 @@ def montar(linhas: list, marcas: dict, full: list, agora: datetime, dia, platafo
     tot = sum(c["pedidos"] for c in cartoes)
     feitos = sum(c["checkout"] for c in cartoes)
     return {"dia": dia.isoformat(), "agora": agora.isoformat(timespec="seconds"), "cartoes": cartoes, "cortes": cortes, "cortes_plataformas": plat, "full": envios_full,
+            "modulos": _modulos(do_dia, marcas, agora, dia, plataformas),
             "alertas": alertas, "herdados": len(herdados),
             "geral": {"pedidos": tot, "checkout": feitos, "pendentes": tot - feitos, "percentual": round(100 * feitos / tot, 1) if tot else 100.0,
                       "atrasados": sum(c["atrasados"] for c in cartoes) + len(herdados),

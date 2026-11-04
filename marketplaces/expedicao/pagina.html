@@ -347,6 +347,23 @@
         }).join("") +
         "</table>";
     }).join("");
+    // Total consolidado por SKU (todas as contas e modalidades juntas), no fim da lista
+    var cons = {}, consUn = 0, pedidos = {};
+    base.forEach(function (l) {
+      pedidos[l.pedido] = 1;
+      (l.itens || []).forEach(function (i) {
+        var k = (i.sku || i.mlb || i.titulo || "sem SKU").trim();
+        var t = cons[k] = cons[k] || { sku: i.sku || "", mlb: i.mlb, titulo: i.titulo || "", un: 0, ped: {} };
+        t.un += i.qtd || 0; t.ped[l.pedido] = 1; consUn += i.qtd || 0;
+      });
+    });
+    var consLista = Object.keys(cons).map(function (k) { return cons[k]; }).sort(function (a, b) { return b.un - a.un || (a.sku < b.sku ? -1 : 1); });
+    var consHtml = consLista.length
+      ? "<h2 class='cons'>Total consolidado por SKU</h2><p>" + plural(consLista.length, "SKU", "SKUs") + " · " + plural(consUn, "unidade", "unidades") + " · " + plural(Object.keys(pedidos).length, "pedido", "pedidos") + "</p>" +
+        "<table class='tc'><tr><th>SKU</th><th>Produto</th><th>Total</th><th>Pedidos</th></tr>" +
+        consLista.map(function (t) { return "<tr><td class='sk'>" + esc(t.sku || t.mlb || "-") + "</td><td>" + esc((t.titulo || "").slice(0, 50)) + "</td><td class='q'>" + t.un + "</td><td class='q'>" + Object.keys(t.ped).length + "</td></tr>"; }).join("") +
+        "<tr class='tot'><td colspan='2'>TOTAL</td><td class='q'>" + consUn + "</td><td class='q'>" + Object.keys(pedidos).length + "</td></tr></table>"
+      : "";
     var w = window.open("", "_blank");
     if (!w) { el("sub").textContent = "o navegador bloqueou a janela de impressão"; return; }
     w.document.write("<!doctype html><html><head><meta charset='utf-8'><title>Montagem do dia</title><style>" +
@@ -355,7 +372,9 @@
       "p{margin:2px 0}table{width:100%;border-collapse:collapse;margin-top:3px;font-size:10px;table-layout:fixed}th,td{border-bottom:1px solid #999;padding:2px 4px;text-align:left;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}" +
       "th:nth-child(1){width:auto}th:nth-child(2){width:50mm}th:nth-child(n+3),td.q{width:44px}td.q{font-size:12px;font-weight:700;text-align:right}td.falta{color:#b91c1c;text-decoration:underline}" +
       "td.sk{white-space:normal;word-break:break-all;font-size:10px}" +
-      "</style></head><body><h1>Montagem do dia · " + esc(hojeStr().split("-").reverse().join("-")) + "</h1>" + (corpo || "<p>Nenhum pedido para montar.</p>") + "</body></html>");
+      "h2.cons{margin-top:18px;page-break-before:auto}table.tc{page-break-inside:auto}tr{page-break-inside:avoid}table.tc th:nth-child(1){width:55mm}table.tc th:nth-child(3),table.tc th:nth-child(4){width:50px}" +
+      "tr.tot td{border-top:2px solid #000;font-weight:700;font-size:12px}" +
+      "</style></head><body><h1>Montagem do dia · " + esc(hojeStr().split("-").reverse().join("-")) + "</h1>" + (corpo || "<p>Nenhum pedido para montar.</p>") + consHtml + "</body></html>");
     w.document.close(); w.focus(); w.print();
   }
   // Filtro da tela (vale para todas as abas): conta e modalidade
