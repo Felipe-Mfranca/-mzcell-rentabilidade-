@@ -34,11 +34,16 @@ class ErroGravacao(Exception):
     pass
 
 
-def interruptor_ligado(arquivo: str = None) -> bool:
+def interruptor_ligado(arquivo: str = None, agora=None) -> bool:
+    """Ligado só com {"gravacao": true, "ate": "<data-hora ISO com fuso>"} e dentro da validade. Sem "ate", fica desligado."""
     try:
         with open(arquivo or CONFIG, encoding="utf-8") as f:
-            return json.load(f).get("gravacao") is True
-    except (OSError, ValueError, AttributeError):
+            c = json.load(f)
+        if c.get("gravacao") is not True:
+            return False
+        ate = datetime.fromisoformat(c["ate"])
+        return (agora or datetime.now(BRT)) < ate
+    except (OSError, ValueError, AttributeError, KeyError, TypeError):
         return False
 
 
@@ -54,6 +59,33 @@ def id_situacao(conta: str, nome: str, get=bling.get) -> int:
         if _nome(s.get("nome")) == _nome(nome):
             return s["id"]
     raise ErroGravacao(f'A situação "{nome}" não existe no {conta}.')
+
+
+def achar_pedido(conta: str, numero, get=bling.get) -> int:
+    """Número do pedido no Bling (o que aparece na lista) -> id interno. Só leitura."""
+    st, r = get(conta, "/pedidos/vendas", numero=str(numero), limite=10)
+    if st != 200:
+        raise ErroGravacao(f"Não consegui consultar o pedido {numero} no {conta} (HTTP {st}).")
+    for p in (r or {}).get("data", []):
+        if str(p.get("numero")) == str(numero):
+            return p["id"]
+    raise ErroGravacao(f"Pedido {numero} não encontrado no {conta}.")
+
+
+def saldos(conta: str, ped: dict, get=bling.get) -> list:
+    """Saldo de estoque dos produtos do pedido, por depósito. SOMENTE LEITURA."""
+    out = []
+    for it in ped.get("itens") or []:
+        pid = (it.get("produto") or {}).get("id")
+        if not pid:
+            continue
+        st, r = get(conta, "/estoques/saldos", **{"idsProdutos[]": pid})
+        d = ((r or {}).get("data") or [{}])[0] if st == 200 else {}
+        out.append({"produto_id": pid, "codigo": it.get("codigo"), "quantidade_pedido": it.get("quantidade"),
+                    "fisico": d.get("saldoFisicoTotal"), "virtual": d.get("saldoVirtualTotal"),
+                    "depositos": [{"id": x.get("id"), "fisico": x.get("saldoFisico"), "virtual": x.get("saldoVirtual")}
+                                  for x in d.get("depositos") or []]})
+    return out
 
 
 def _enviar(conta: str, metodo: str, caminho: str):
@@ -100,19 +132,26 @@ def mudar_situacao(conta: str, pedido_id: int, destino_nome: str, simular: bool 
     destino = id_situacao(conta, destino_nome, get)
     if destino_nome.lower() == "verificado" and atual != SIT_EM_ABERTO:
         raise ErroGravacao(f"O pedido {ped['numero']} não está Em aberto (situação {atual}); não marco como Verificado.")
+    antes = saldos(conta, ped, get)
     plano = {"conta": conta, "pedido_id": pedido_id, "numero": ped["numero"], "de": atual, "para": destino,
-             "requisicao": f"PATCH /pedidos/vendas/{pedido_id}/situacoes/{destino}", "simulado": simular}
+             "requisicao": f"PATCH /pedidos/vendas/{pedido_id}/situacoes/{destino}", "simulado": simular,
+             "contato": (ped.get("contato") or {}).get("nome"), "total": ped.get("total"),
+             "itens": [{"codigo": i.get("codigo"), "descricao": i.get("descricao"), "quantidade": i.get("quantidade")}
+                       for i in ped.get("itens") or []],
+             "estoque_antes": antes}
     if simular:
         return dict(plano, enviado=False, aviso="Simulação: nada foi enviado ao Bling.")
     if not interruptor():
         raise ErroGravacao("Gravação desligada (checkout_config.json sem {\"gravacao\": true}).")
     codigo, resp = enviar(conta, "PATCH", f"/pedidos/vendas/{pedido_id}/situacoes/{destino}")
     ok = codigo in (200, 201, 204)
-    depois = None
+    depois, ped2 = None, ped
     if ok:
         st2, r2 = get(conta, f"/pedidos/vendas/{pedido_id}")
-        depois = r2["data"]["situacao"]["id"] if st2 == 200 else None
+        if st2 == 200:
+            depois, ped2 = r2["data"]["situacao"]["id"], r2["data"]
     res = dict(plano, enviado=True, http=codigo, situacao_depois=depois, confirmado=ok and depois == destino,
+               estoque_depois=saldos(conta, ped2, get) if ok else None,
                resposta=None if ok else str(resp)[:300])
     _registrar(dict(res, ts=datetime.now(BRT).isoformat(timespec="seconds")), arquivo_log)
     return res

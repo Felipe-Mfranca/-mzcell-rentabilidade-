@@ -38,6 +38,18 @@
   .hist.ok { border-left-color:var(--ok); } .hist.aviso { border-left-color:var(--am); } .hist.bloqueio { border-left-color:var(--vm); }
   .hist small { color:var(--mut); }
   .vazio { color:var(--mut); padding:20px 0; text-align:center; }
+  .teste { background:var(--card); border:2px dashed var(--am); border-radius:10px; padding:14px 16px; margin:18px 0; }
+  .teste h2 { margin-top:0; border-bottom:0; }
+  .teste .lin { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .teste input, .teste select { font:inherit; font-size:16px; padding:9px 12px; border:2px solid var(--bd); border-radius:8px; background:var(--card); color:var(--txt); }
+  .teste input { width:160px; }
+  button { font:inherit; font-weight:700; padding:9px 16px; border:0; border-radius:8px; cursor:pointer; background:var(--hd); color:#fff; }
+  button.perigo { background:var(--vm); }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .aviso-grav { font-size:13px; margin:8px 0; }
+  .tab { width:100%; border-collapse:collapse; margin:8px 0; font-size:14px; }
+  .tab td, .tab th { border-top:1px solid var(--bd); padding:4px 8px; text-align:left; }
+  .tab th { color:var(--mut); font-weight:600; }
 </style>
 </head>
 <body>
@@ -48,6 +60,17 @@
 <main>
   <input id="leitor" type="text" autocomplete="off" autofocus placeholder="Bipe a etiqueta aqui">
   <div class="dica">Aceita o QR da etiqueta, o número do envio, o número do pedido ou o rastreio MEL…</div>
+  <section class="teste">
+    <h2>Teste de checkout no Bling (pedido de teste)</h2>
+    <div class="dica" style="margin-top:0">Digite o número do pedido de teste como aparece no Bling. Primeiro mostro uma prévia, sem gravar nada. Só grava depois da sua confirmação, e só em pedido com "TESTE CHECKOUT MZ" na observação interna.</div>
+    <div class="lin">
+      <select id="t_conta"><option value="bling03">bling03 (Mizi)</option><option value="bling01">bling01 (Techseller)</option><option value="bling02">bling02 (Seller Info)</option></select>
+      <input id="t_numero" type="text" inputmode="numeric" autocomplete="off" placeholder="Nº do pedido">
+      <button id="t_prever">Ver prévia</button>
+    </div>
+    <div id="t_grav" class="aviso-grav"></div>
+    <div id="t_saida"></div>
+  </section>
   <div id="resultado"><div class="vazio">Aguardando a primeira etiqueta…</div></div>
   <h2>Últimas leituras</h2>
   <div id="historico"><div class="vazio">Nenhuma leitura ainda.</div></div>
@@ -154,7 +177,83 @@ async function ler(codigo) {
 campo.addEventListener("keydown", (ev) => {
   if (ev.key === "Enter") { ev.preventDefault(); const v = campo.value.trim(); if (v) ler(v); }
 });
-document.addEventListener("click", () => { if (!campo.disabled) campo.focus(); });
+document.addEventListener("click", (ev) => {
+  if (!campo.disabled && !ev.target.closest(".teste")) campo.focus();
+});
+
+// ---- Teste de checkout (pedido de teste) ----
+const SIT = { 6: "Em aberto", 9: "Atendido", 12: "Cancelado", 24: "Verificado" };
+const nome = (id) => SIT[id] || String(id);
+async function chamar(simular) {
+  const corpo = { bling_conta: $("t_conta").value, numero: $("t_numero").value.trim(), simular };
+  const resp = await fetch("/checkout/confirmar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo) });
+  return resp.json();
+}
+function tabelaEstoque(titulo, lista) {
+  const b = el("div");
+  b.appendChild(el("b", "", titulo));
+  const t = el("table", "tab");
+  const cab = el("tr"); ["Produto", "Qtd. do pedido", "Físico", "Virtual", "Por depósito (físico)"].forEach((h) => cab.appendChild(el("th", "", h)));
+  t.appendChild(cab);
+  (lista || []).forEach((x) => {
+    const tr = el("tr");
+    [x.codigo, x.quantidade_pedido, x.fisico, x.virtual, (x.depositos || []).map((d) => d.id + ": " + d.fisico).join(" | ")]
+      .forEach((v) => tr.appendChild(el("td", "", v === null || v === undefined ? "—" : String(v))));
+    t.appendChild(tr);
+  });
+  b.appendChild(t);
+  return b;
+}
+async function estadoGravacao() {
+  try {
+    const g = await (await fetch("/checkout/gravacao")).json();
+    const e = $("t_grav");
+    e.textContent = g.ligada ? "Gravação LIGADA (por tempo limitado). Só pedidos de teste." : "Gravação DESLIGADA: a prévia funciona, mas confirmar não grava.";
+    e.style.color = g.ligada ? "var(--ok)" : "var(--am)";
+    return g.ligada;
+  } catch (e) { return false; }
+}
+async function prever() {
+  const saida = $("t_saida"); saida.replaceChildren();
+  if (!$("t_numero").value.trim()) { saida.appendChild(el("div", "res bloqueio", "Digite o número do pedido.")); return; }
+  $("t_prever").disabled = true;
+  const ligada = await estadoGravacao();
+  let r;
+  try { r = await chamar(true); } catch (e) { r = { success: false, error: "Sem conexão com o servidor do app." }; }
+  $("t_prever").disabled = false;
+  if (!r.success) { saida.appendChild(el("div", "res bloqueio", r.error || "Erro.")); return; }
+  const cx = el("div", "res aviso");
+  cx.appendChild(el("p", "msg", `Pedido ${r.numero} (${r.conta}): ${nome(r.de)} → ${nome(r.para)}`));
+  cx.appendChild(linha("Contato", r.contato)); cx.appendChild(linha("Total", r.total));
+  (r.itens || []).forEach((i) => cx.appendChild(el("div", "it", `${i.quantidade}× ${i.codigo} — ${i.descricao || ""}`)));
+  cx.appendChild(tabelaEstoque("Estoque ANTES (será baixado pelo Verificado)", r.estoque_antes));
+  cx.appendChild(el("div", "dica", "Ao confirmar, o Bling dá baixa física do estoque. Não existe desfazer: um engano exige cancelar o pedido e estornar o estoque à mão."));
+  const b = el("button", "perigo", "Confirmar: marcar como Verificado");
+  b.disabled = !ligada;
+  b.addEventListener("click", () => confirmar(r, b));
+  cx.appendChild(b);
+  saida.appendChild(cx);
+}
+async function confirmar(previa, botao) {
+  if (!window.confirm(`Marcar o pedido ${previa.numero} (${previa.conta}) como VERIFICADO?
+Isso baixa o estoque no Bling e não tem desfazer.`)) return;
+  botao.disabled = true;
+  let r;
+  try { r = await chamar(false); } catch (e) { r = { success: false, error: "Sem conexão com o servidor do app." }; }
+  const saida = $("t_saida"); saida.replaceChildren();
+  if (!r.success) { saida.appendChild(el("div", "res bloqueio", r.error || "Erro.")); return; }
+  const ok = r.confirmado === true;
+  const cx = el("div", "res " + (ok ? "ok" : "bloqueio"));
+  cx.appendChild(el("p", "msg", ok ? `Pedido ${r.numero}: ${nome(r.situacao_depois)} — checkout feito` : `Pedido ${r.numero}: NÃO confirmou (HTTP ${r.http}). ${r.resposta || ""}`));
+  cx.appendChild(linha("Situação antes → depois", `${nome(r.de)} → ${nome(r.situacao_depois)}`));
+  cx.appendChild(tabelaEstoque("Estoque ANTES", r.estoque_antes));
+  cx.appendChild(tabelaEstoque("Estoque DEPOIS (lançado pelo Bling)", r.estoque_depois));
+  saida.appendChild(cx);
+  estadoGravacao();
+}
+$("t_prever").addEventListener("click", prever);
+$("t_numero").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); prever(); } });
+estadoGravacao();
 </script>
 </body>
 </html>

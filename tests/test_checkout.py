@@ -145,7 +145,9 @@ SITS = {"data": [{"id": 6, "nome": "Em aberto"}, {"id": 24, "nome": "Verificado"
 
 
 def pedido_bling(sit=6, obs="TESTE CHECKOUT MZ - cancelar depois"):
-    return {"data": {"numero": 2427, "situacao": {"id": sit}, "observacoesInternas": obs}}
+    return {"data": {"numero": 2427, "situacao": {"id": sit}, "observacoesInternas": obs, "total": 239.9,
+                     "contato": {"nome": "TESTE"},
+                     "itens": [{"codigo": "KIT", "descricao": "Kit", "quantidade": 1, "produto": {"id": 99}}]}}
 
 
 class GetFalso:
@@ -156,6 +158,12 @@ class GetFalso:
         self.chamadas.append(caminho)
         if caminho.startswith("/situacoes"):
             return 200, SITS
+        if caminho == "/estoques/saldos":
+            fis = 0 if self.leituras <= 1 else -1
+            return 200, {"data": [{"saldoFisicoTotal": fis, "saldoVirtualTotal": -1,
+                                   "depositos": [{"id": 1, "saldoFisico": fis, "saldoVirtual": -1}]}]}
+        if caminho == "/pedidos/vendas" and "numero" in _:
+            return 200, {"data": [{"id": 27304166639, "numero": int(_["numero"])}]}
         self.leituras += 1
         return 200, pedido_bling(self.antes if self.leituras == 1 else self.depois, self.obs)
 
@@ -177,6 +185,8 @@ class TestGravacao(unittest.TestCase):
         r = self.rodar()
         self.assertFalse(r["enviado"])
         self.assertEqual(self.enviados, [])
+        self.assertEqual(r["estoque_antes"][0]["codigo"], "KIT")
+        self.assertEqual(r["itens"][0]["quantidade"], 1)
         self.assertEqual(r["requisicao"], "PATCH /pedidos/vendas/27304166639/situacoes/24")
         self.assertFalse(os.path.exists(self.log))
 
@@ -185,6 +195,8 @@ class TestGravacao(unittest.TestCase):
         self.assertEqual(self.enviados, [("bling03", "PATCH", "/pedidos/vendas/27304166639/situacoes/24")])
         self.assertTrue(r["confirmado"])
         self.assertEqual((r["de"], r["para"], r["situacao_depois"]), (6, 24, 24))
+        self.assertIsNotNone(r["estoque_antes"])
+        self.assertIsNotNone(r["estoque_depois"])
         self.assertEqual(len(open(self.log, encoding="utf-8").readlines()), 1)
 
     def test_nao_confirma_se_a_situacao_nao_mudou(self):
@@ -206,14 +218,29 @@ class TestGravacao(unittest.TestCase):
             self.rodar(get=GetFalso(antes=24), simular=False)
         self.assertEqual(self.enviados, [])
 
-    def test_interruptor_le_o_arquivo(self):
+    def test_interruptor_exige_validade(self):
+        from datetime import datetime, timedelta
         d = tempfile.mkdtemp()
         p = os.path.join(d, "c.json")
-        self.assertFalse(gravacao.interruptor_ligado(p))
-        open(p, "w").write('{"gravacao": true}')
+        agora = datetime.now(gravacao.BRT)
+
+        def escrever(texto):
+            with open(p, "w", encoding="utf-8") as f:
+                f.write(texto)
+        self.assertFalse(gravacao.interruptor_ligado(p))                      # arquivo não existe
+        escrever('{"gravacao": true}')
+        self.assertFalse(gravacao.interruptor_ligado(p))                      # sem "ate": desligado
+        escrever('{"gravacao": true, "ate": "%s"}' % (agora + timedelta(minutes=30)).isoformat())
         self.assertTrue(gravacao.interruptor_ligado(p))
-        open(p, "w").write('{"gravacao": "sim"}')
+        escrever('{"gravacao": true, "ate": "%s"}' % (agora - timedelta(minutes=1)).isoformat())
+        self.assertFalse(gravacao.interruptor_ligado(p))                      # venceu
+        escrever('{"gravacao": "sim", "ate": "%s"}' % (agora + timedelta(minutes=30)).isoformat())
         self.assertFalse(gravacao.interruptor_ligado(p))
+
+    def test_achar_pedido_por_numero(self):
+        self.assertEqual(gravacao.achar_pedido("bling03", 2427, get=GetFalso()), 27304166639)
+        with self.assertRaises(gravacao.ErroGravacao):
+            gravacao.achar_pedido("bling03", 1, get=lambda *a, **k: (200, {"data": []}))
 
     def test_rota_confirmar_e_simulacao_por_padrao(self):
         app = FastAPI()
@@ -232,7 +259,8 @@ class TestSemEstoque(unittest.TestCase):
             if nome.endswith(".py"):
                 with open(os.path.join(pasta, nome), encoding="utf-8") as f:
                     codigo = f.read().lower()
-                for proibido in ("estornar-estoque", "lancar-estoque", "lançar-estoque", '"/estoques"', "/estoques/"):
+                codigo = codigo.replace("/estoques/saldos", "")   # leitura de saldo é permitida
+                for proibido in ("estornar-estoque", "lancar-estoque", "lançar-estoque", "/estoques"):
                     self.assertNotIn(proibido, codigo, f"{nome}: {proibido}")
 
     def test_unica_escrita_e_o_patch_de_situacao(self):

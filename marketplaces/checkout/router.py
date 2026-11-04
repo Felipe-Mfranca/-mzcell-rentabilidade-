@@ -26,7 +26,8 @@ class CodigoIn(BaseModel):
 
 class ConfirmarIn(BaseModel):
     bling_conta: str
-    pedido_id: int
+    pedido_id: int = None    # id interno do Bling, ou...
+    numero: str = None       # ...o número do pedido como aparece no Bling
     simular: bool = True     # padrão: só mostra o que enviaria
 
 
@@ -62,12 +63,26 @@ def sombra():
     return registro.avaliar(registro.ler(), situacao_atual)
 
 
+@router.get("/gravacao")
+def estado_gravacao():
+    """A tela usa isto para avisar se a gravação está ligada (interruptor com validade)."""
+    return {"ligada": gravacao.interruptor_ligado(), "so_pedido_teste": gravacao.SO_PEDIDO_TESTE}
+
+
 @router.post("/confirmar")
 def confirmar(corpo: ConfirmarIn):
     """Checkout no Bling. Único endpoint que pode escrever; simula por padrão e tem travas (gravacao.py)."""
     if corpo.bling_conta not in ("bling01", "bling02", "bling03"):
         return JSONResponse({"success": False, "error": "Conta Bling inválida."}, status_code=400)
     try:
-        return {"success": True, **gravacao.mudar_situacao(corpo.bling_conta, corpo.pedido_id, "Verificado", corpo.simular)}
+        if corpo.pedido_id:
+            pid = corpo.pedido_id
+        elif corpo.numero:
+            pid = gravacao.achar_pedido(corpo.bling_conta, corpo.numero)
+        else:
+            raise gravacao.ErroGravacao("Informe o número do pedido.")
+        r = gravacao.mudar_situacao(corpo.bling_conta, pid, "Verificado", corpo.simular)
+        r["gravacao_ligada"] = gravacao.interruptor_ligado()
+        return {"success": True, **r}
     except gravacao.ErroGravacao as e:
         return JSONResponse({"success": False, "error": str(e)}, status_code=409)
