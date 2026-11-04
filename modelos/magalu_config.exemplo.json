@@ -1,0 +1,8 @@
+{
+  "_comentario": "Modelo da credencial do Magalu (Techseller). Copie para magalu_config.json na raiz (fora do git). Nunca commitar.",
+  "client_id": "",
+  "client_secret": "",
+  "access_token": "",
+  "refresh_token": "",
+  "seller_id": ""
+}

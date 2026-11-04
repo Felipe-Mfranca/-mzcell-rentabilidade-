@@ -1,0 +1,6 @@
+{
+  "_comentario": "Abre módulos só nesta máquina (copie para modulos_locais.json na raiz). Nomes: balanco, compras, radar, montagem, financeiro, magalu, paineis.",
+  "financeiro": true,
+  "magalu": true,
+  "paineis": true
+}

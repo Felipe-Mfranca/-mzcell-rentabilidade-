@@ -1,0 +1,7 @@
+{
+  "_comentario": "Copie para %APPDATA%\\MZ App\\mz_local.json (por máquina) e tire as chaves que não usar. Sem o arquivo, o app se comporta como sempre.",
+  "host": "0.0.0.0",
+  "abrir": "/expedicao/tv",
+  "tela_cheia": true,
+  "servidor_remoto": "http://192.168.15.200:8001"
+}

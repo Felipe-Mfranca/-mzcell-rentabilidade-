@@ -13,6 +13,21 @@ const RESOURCES = app.isPackaged
   ? path.join(process.resourcesPath)
   : path.join(__dirname, '..');
 
+// Configuração local opcional (mz_local.json, em %APPDATA%\MZ App ou na pasta resources). Sem o arquivo, nada muda.
+//   host: "0.0.0.0"                      servidor aceita conexões da rede (PC servidor; liberar a porta no Firewall)
+//   abrir: "/expedicao/tv"               página aberta ao iniciar (TV)
+//   tela_cheia: true                     janela em tela cheia, sem menu (TV)
+//   servidor_remoto: "http://192.168.15.200:8001"   não sobe servidor próprio: abre o do servidor (TV ou PC leve)
+const LOCAL = (() => {
+  for (const pasta of [app.getPath('userData'), RESOURCES]) {
+    try { const d = JSON.parse(fs.readFileSync(path.join(pasta, 'mz_local.json'), 'utf8')); if (d && typeof d === 'object') return d; } catch (e) {}
+  }
+  return {};
+})();
+const BIND = ['127.0.0.1', '0.0.0.0'].includes(LOCAL.host) ? LOCAL.host : '127.0.0.1';
+const ABRIR = (typeof LOCAL.abrir === 'string' && /^\/[A-Za-z0-9_\-\/?=&.]*$/.test(LOCAL.abrir)) ? LOCAL.abrir : '/';
+const REMOTO = (typeof LOCAL.servidor_remoto === 'string' && /^https?:\/\/[A-Za-z0-9.\-]+(:\d+)?$/.test(LOCAL.servidor_remoto)) ? LOCAL.servidor_remoto : '';
+
 const GITHUB_RAW = 'https://raw.githubusercontent.com/Felipe-Mfranca/-mzcell-rentabilidade-/main';
 const ARQUIVOS_ONLINE = [
   'dashboard.html','main.py','ml_api.py','sync_produto.py',
@@ -65,7 +80,16 @@ const ARQUIVOS_ONLINE = [
 // Arquivo novo não precisa mais de instalador: a lista também vem do GitHub (arquivos_online.json) e é somada a esta.
 // Só caminhos relativos de .py/.html do projeto; nunca config, token ou dados (esses ficam só na máquina).
 const LISTA_ONLINE = 'arquivos_online.json';
-const caminhoPermitido = a => typeof a === 'string' && /^[A-Za-z0-9_\-]+(\/[A-Za-z0-9_\-]+)*\.(py|html)$/.test(a);
+// O auto-update entrega código (.py/.html em qualquer pasta) e recursos estáticos (js, css, json, imagens, scripts, docs)
+// só nas pastas static/, modelos/, scripts/ e docs/. Dados e credenciais da raiz (config, produtos, usuarios, *_config...) nunca.
+const PASTAS_RECURSOS = ['static', 'modelos', 'scripts', 'docs'];
+const caminhoPermitido = a => {
+  if (typeof a !== 'string' || a.includes('..')) return false;
+  if (/^[A-Za-z0-9_\-]+(\/[A-Za-z0-9_\-]+)*\.(py|html)$/.test(a)) return true;
+  return PASTAS_RECURSOS.includes(a.split('/')[0]) && a.includes('/') &&
+    /^[A-Za-z0-9_\-]+(\/[A-Za-z0-9_\-]+)*\/[A-Za-z0-9_\-.]+\.[A-Za-z0-9]{1,5}$/.test(a) &&
+    /\.(js|css|json|svg|png|jpg|jpeg|ico|woff2?|ps1|md|txt|csv)$/i.test(a);
+};
 
 let mainWindow = null;
 let backendProc = null;
@@ -229,7 +253,7 @@ function iniciarBackend() {
     dialog.showErrorBox('Erro', 'Python não encontrado.\nTente reinstalar o aplicativo.');
     app.quit(); return;
   }
-  backendProc = spawn(pythonExe, ['-m', 'uvicorn', 'main:app', '--host', HOST, '--port', PORT], {
+  backendProc = spawn(pythonExe, ['-m', 'uvicorn', 'main:app', '--host', BIND, '--port', PORT], {
     cwd: RESOURCES,
     env: { ...process.env, PYTHONPATH: RESOURCES }
   });
@@ -238,6 +262,24 @@ function iniciarBackend() {
   backendProc.stderr.on('data', d => { logStream.write(d); console.error('[backend]', d.toString()); });
   backendProc.stdout.on('data', d => { logStream.write(d); });
   logStream.write(`[app] versão ${app.getVersion()} · porta ${PORT}${PORT !== PORT_PADRAO ? ` (a ${PORT_PADRAO} não liberou)` : ''}\n`);
+}
+
+function aplicarJanela() {
+  if (LOCAL.tela_cheia === true && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setFullScreen(true);
+    mainWindow.setMenuBarVisibility(false);
+  }
+}
+
+// TV / PC leve: não sobe servidor próprio, abre o servidor da rede e tenta de novo se ele estiver fora do ar.
+function abrirRemoto() {
+  http.get(REMOTO + '/', () => {
+    mainWindow.loadURL(REMOTO + ABRIR);
+    aplicarJanela();
+  }).on('error', () => {
+    setProgress(50, 'Aguardando o servidor ' + REMOTO + '...');
+    setTimeout(abrirRemoto, 5000);
+  });
 }
 
 function aguardarBackend(tentativas = 0) {
@@ -255,12 +297,14 @@ function aguardarBackend(tentativas = 0) {
     app.quit(); return;
   }
   http.get(`http://${HOST}:${PORT}/`, () => {
-    mainWindow.loadURL(`http://${HOST}:${PORT}/`);
+    mainWindow.loadURL(`http://${HOST}:${PORT}${ABRIR}`);
+    aplicarJanela();
   }).on('error', () => setTimeout(() => aguardarBackend(tentativas + 1), 1000));
 }
 
 app.whenReady().then(async () => {
   criarJanela();
+  if (REMOTO) { abrirRemoto(); return; }
   await verificarEAtualizar();
   setProgress(100, 'Iniciando servidor...');
   if (houve_atualizacao) {

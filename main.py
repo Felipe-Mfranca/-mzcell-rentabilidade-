@@ -79,6 +79,11 @@ DASHBOARD_PATH  = os.path.join(BASE_DIR, "dashboard.html")
 app = FastAPI(title="MZ App API", version="1.0.0")
 from fastapi.middleware.gzip import GZipMiddleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)   # HTML e JSON comprimidos: a tela carrega mais rápido
+# Recursos das telas (js, css, imagens) em /static: bibliotecas dos painéis de TV ficam locais, sem depender da internet
+_STATIC = os.path.join(BASE_DIR, "static")
+if os.path.isdir(_STATIC):
+    from fastapi.staticfiles import StaticFiles
+    app.mount("/static", StaticFiles(directory=_STATIC), name="static")
 # Só origens locais: com "*", qualquer site aberto no navegador conseguiria ler/chamar
 # o backend em 127.0.0.1 (inclusive /amazon/* e as rotas de custos).
 app.add_middleware(
