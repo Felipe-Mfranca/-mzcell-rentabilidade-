@@ -9,7 +9,7 @@ GET /expedicao/galpao   JSON com os envios do galpão e os prazos (ML; Amazon e 
 import os
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from pydantic import BaseModel
 
@@ -31,6 +31,18 @@ class MarcaIn(BaseModel):
 def pagina():
     with open(PAGINA, encoding="utf-8") as f:
         return f.read()
+
+
+@router.get("/full")
+def full_gestao():
+    """Gestão das montagens do Full (Meli, Amazon, Shopee): parte do módulo Expedição."""
+    return RedirectResponse("/montagem")
+
+
+@router.get("/tv")
+def monitor_tv():
+    """Monitor da TV: painel do dia da Expedição com dados reais, em tela cheia."""
+    return RedirectResponse("/expedicao/painel?tv=1&real=1")
 
 
 @router.get("/galpao")

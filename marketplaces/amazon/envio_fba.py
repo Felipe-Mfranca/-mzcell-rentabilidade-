@@ -400,8 +400,13 @@ def cmd_nf(a):
     print("Pedido de emissão enviado. Aguardando a Amazon (até 10 min)...")
     fim = time.time() + 600
     while time.time() < fim:
-        time.sleep(15)
-        atual = _nf_status(a.conta, est)
+        time.sleep(20)
+        try:
+            atual = _nf_status(a.conta, est)
+        except Exception as e:   # 429 (limite de consultas) ou falha momentânea: espera e tenta de novo
+            print(f"  {datetime.now():%H:%M:%S} · consulta adiada ({str(e)[:60]})")
+            time.sleep(30)
+            continue
         print(f"  {datetime.now():%H:%M:%S} · {atual.get('status')}")
         if atual.get("status") in ("SUCCESS", "ERROR"):
             break

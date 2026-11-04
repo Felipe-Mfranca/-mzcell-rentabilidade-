@@ -39,7 +39,7 @@
 .canal.meli{background:#b45309}.canal.amazon{background:#1d4ed8}.canal.shopee{background:#c2410c}
 .vazio{color:#64748b;font-size:24px;padding:12px 0}
 </style></head><body>
-<div class="topo"><h1 id="titulo">Expedição</h1><span id="simtag"></span><span class="relogio" id="relogio">--:--</span></div>
+<div class="topo"><a id="voltar" href="/expedicao" style="color:#94a3b8;font-size:16px;text-decoration:none;margin-right:14px">← Expedição</a><h1 id="titulo">Expedição</h1><span id="simtag"></span><span class="relogio" id="relogio">--:--</span></div>
 <div class="ctl" id="ctl">
  <label>Modo <select id="modo"><option value="sim">Simulação (amanhã)</option><option value="real">Real (hoje)</option></select></label>
  <label>Dia <input type="date" id="dia"></label>
@@ -55,7 +55,7 @@
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $=id=>document.getElementById(id);
 const P=new URLSearchParams(location.search);const TV=P.get('tv')==='1';
-if(TV)$('ctl').style.display='none';
+if(TV){$('ctl').style.display='none';$('voltar').style.display='none'}
 const amanha=new Date();amanha.setDate(amanha.getDate()+1);   // data local do navegador, não UTC
 const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 $('dia').value=P.get('dia')||iso(amanha);$('modo').value=P.get('real')==='1'?'real':'sim';

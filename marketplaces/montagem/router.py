@@ -20,7 +20,7 @@ import json
 import os
 
 from fastapi import APIRouter, File, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
 from marketplaces.montagem import armazenamento as arm
@@ -45,8 +45,15 @@ def gestao():
     return _pagina("pagina.html")
 
 
-@router.get("/tv", response_class=HTMLResponse)
+@router.get("/tv")
 def tv():
+    """A TV é o painel completo da Expedição (Flex, Coleta, Places, DBA, Shopee, cortes e Full)."""
+    return RedirectResponse("/expedicao/painel?tv=1&real=1")
+
+
+@router.get("/tv-full", response_class=HTMLResponse)
+def tv_full():
+    """Versão antiga, só com as montagens do Full."""
     return _pagina("tv.html")
 
 
@@ -94,7 +101,10 @@ async def previa(file: UploadFile = File(...)):
         p["contas"] = sorted(c for c in mapa.get(p["sku"].lower(), set()) if c)
         contas.update(p["contas"])
     res["conta_sugerida"] = sorted(contas)[0] if len(contas) == 1 else ""
-    res["ja_cadastrado"] = f"meli-{res['frete']}" in {e["chave"] for e in arm.listar()}
+    res.setdefault("canal", "meli")
+    if res["canal"] == "shopee":
+        res["conta_sugerida"] = "shopee"
+    res["ja_cadastrado"] = f"{res['canal']}-{res['frete']}" in {e["chave"] for e in arm.listar()}
     return {"success": True, **res}
 
 

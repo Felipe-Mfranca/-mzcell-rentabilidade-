@@ -23,15 +23,15 @@ button.sec{background:#e5e7eb;color:#1f2933}button.perigo{background:#991b1b}
 .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:700;color:#fff;background:#6b7280}
 .badge.meli{background:#b45309}.badge.amazon{background:#1d4ed8}.badge.shopee{background:#c2410c}
 </style></head><body>
-<header><h1>Montagem de envios Full — Gestão</h1>
+<header><h1><a href="/expedicao" style="color:#fff;text-decoration:none">Expedição</a> › Full — Gestão</h1><a href="/expedicao/tv" target="_blank" style="color:#fff;font-size:13px">Monitor TV</a>
 <label>Eu sou <input id="eu" placeholder="seu nome" style="width:150px"></label>
 <label>Papel <select id="papel"><option value="estoquista">Estoquista</option><option value="lider">Líder</option></select></label>
 <a href="/montagem/tv" target="_blank" style="color:#fff">Abrir painel da TV ↗</a></header>
 <main>
 <div class="card"><h2>Novo envio</h2>
 <div class="top">
-<label>Canal <select id="canal" onchange="trocaCanal()"><option value="meli">Mercado Livre (PDF)</option><option value="amazon">Amazon (manual)</option><option value="shopee">Shopee (manual)</option></select></label>
-<span id="boxpdf"><input type="file" id="pdf" accept="application/pdf"> <span class="mut">PDF "instruções de preparação" do envio ao Full.</span></span>
+<label>Canal <select id="canal" onchange="trocaCanal()"><option value="meli">Mercado Livre (PDF)</option><option value="amazon">Amazon (manual)</option><option value="shopee">Shopee (PDF do FBS ou manual)</option></select></label>
+<span id="boxpdf"><input type="file" id="pdf" accept="application/pdf"> <span class="mut">PDF do envio ao Full (Meli: "instruções de preparação"; Shopee: "Picking List").</span></span>
 </div>
 <div id="previa"></div></div>
 <div id="lista"></div>
@@ -46,7 +46,7 @@ $('eu').onchange=()=>localStorage.setItem('mz_eu',$('eu').value.trim());$('papel
 async function api(url,opt){const r=await fetch(url,opt);let d={};try{d=await r.json()}catch(e){}if(!r.ok||d.success===false)throw new Error(d.error||('Erro '+r.status));return d}
 let previa=null;
 function trocaCanal(){previa=null;$('previa').innerHTML='';$('pdf').value='';
- if($('canal').value==='meli'){$('boxpdf').style.display=''}else{$('boxpdf').style.display='none';previa={frete:'',produtos:[{sku:'',titulo:'',unidades:''}],avisos:[],manual:true};mostrarPrevia()}}
+ if($('canal').value==='meli'){$('boxpdf').style.display=''}else{$('boxpdf').style.display=$('canal').value==='shopee'?'':'none';previa={frete:'',produtos:[{sku:'',titulo:'',unidades:''}],avisos:[],manual:true};mostrarPrevia()}}
 $('pdf').onchange=async()=>{const f=$('pdf').files[0];if(!f)return;const fd=new FormData();fd.append('file',f);
  try{previa=await api('/montagem/pdf',{method:'POST',body:fd});mostrarPrevia()}catch(e){$('previa').innerHTML='<div class="erro">'+esc(e.message)+'</div>'}};
 function linhaProd(x,i){const m=previa.manual;
@@ -57,10 +57,10 @@ function linhaProd(x,i){const m=previa.manual;
 function mostrarPrevia(){const p=previa;
  let h=(p.avisos||[]).map(a=>'<div class="aviso">'+esc(a)+'</div>').join('');
  if(p.ja_cadastrado)h+='<div class="erro">O frete #'+esc(p.frete)+' já está cadastrado.</div>';
- const m=p.manual,contas=m?($('canal').value==='amazon'?['amazon01','amazon02']:['shopee']):['meli01','meli02','meli03'];
- h+='<div class="top"><label>'+(m?'Nº do envio':'Frete')+' <input id="n_frete" value="'+esc(p.frete)+'" style="width:150px"></label>'+
+ const m=p.manual,cv=$('canal').value,contas=cv==='amazon'?['amazon01','amazon02']:(cv==='shopee'?['shopee']:['meli01','meli02','meli03']);
+ h+='<div class="top"><label>'+(m||cv==='shopee'?'Nº do envio':'Frete')+' <input id="n_frete" value="'+esc(p.frete)+'" style="width:150px"></label>'+
  '<label>Conta <select id="n_conta"><option value="">—</option>'+contas.map(c=>'<option '+(c===p.conta_sugerida?'selected':'')+'>'+c+'</option>').join('')+'</select></label>'+
- '<label>Coleta <input type="date" id="n_coleta"></label><label>Pronto até <input type="datetime-local" id="n_prazo"></label></div>';
+ '<label>Coleta <input type="date" id="n_coleta" value="'+esc(p.coleta||'')+'"></label><label>Pronto até <input type="datetime-local" id="n_prazo"></label></div>';
  h+='<table><tr><th>SKU</th><th>Produto</th><th>Unid.</th><th>Estoquista</th><th>Embalador</th></tr>'+p.produtos.map(linhaProd).join('')+'</table>';
  if(m)h+='<p><button class="sec" onclick="addLinha()">+ produto</button></p>';
  h+='<p><button onclick="criar()">Criar envio</button> <button class="sec" onclick="trocaCanal()">Cancelar</button></p><div id="n_msg"></div>';
