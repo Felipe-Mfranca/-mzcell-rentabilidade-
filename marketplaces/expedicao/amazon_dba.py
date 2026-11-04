@@ -50,6 +50,19 @@ def corte_do_pedido(compra: datetime):
     return mk(CORTE_ETIQUETA), mk(CORTE_PONTO)
 
 
+def datas_do_pedido(o: dict, compra: datetime):
+    """(meta_etiqueta, ponto_de_coleta, prazo_da_plataforma) em BRT.
+    O dia vale o prazo de envio que a própria Amazon informa (LatestShipDate); se já passou, o pedido aparece como atrasado.
+    Sem essa data, cai na regra da operação: comprado antes das 11:00 vale o dia, depois o seguinte."""
+    limite = _dt(o.get("LatestShipDate"))
+    if not limite:
+        meta, ponto = corte_do_pedido(compra)
+        return meta, ponto, ponto
+    d = limite.date()
+    mk = lambda hm: datetime(d.year, d.month, d.day, hm[0], hm[1], tzinfo=BRT)  # noqa: E731
+    return mk(CORTE_ETIQUETA), mk(CORTE_PONTO), limite
+
+
 def linha(conta: str, o: dict):
     """Linha do painel para um pedido MFN; None se não for DBA aberto/ativo."""
     compra = _dt(o.get("PurchaseDate"))
@@ -58,13 +71,14 @@ def linha(conta: str, o: dict):
     es = o.get("EasyShipShipmentStatus")
     if es is None and "Easy" not in str(o.get("ShipServiceLevel", "")) and "EZ" not in str(o.get("ShipServiceLevel", "")):
         return None   # MFN que não é DBA/Easy Ship: não entra no monitor
-    meta, ponto = corte_do_pedido(compra)
+    meta, ponto, prazo_plataforma = datas_do_pedido(o, compra)
     feito = es not in PENDENTES
     un = (o.get("NumberOfItemsUnshipped") or 0) + (o.get("NumberOfItemsShipped") or 0)
     return {"conta": conta, "canal": "DBA", "logistica": "easy_ship", "pedido": o.get("AmazonOrderId"), "pacote": None,
             "envio": o.get("AmazonOrderId"), "unidades": un or 1, "status": o.get("OrderStatus"), "substatus": es,
             "situacao": SITUACAO.get(es, es or "Etiqueta não gerada"), "liberado": True,
-            "prazo_ml": ponto.isoformat(), "meta": meta.isoformat(), "itens": [],
+            "prazo_ml": prazo_plataforma.isoformat(), "ponto_ate": ponto.isoformat(), "meta": meta.isoformat(), "itens": [],
+            "prazo_origem": "amazon" if o.get("LatestShipDate") else "regra 11h",
             "checkout_auto": feito, "no_ponto": es in NO_PONTO}
 
 

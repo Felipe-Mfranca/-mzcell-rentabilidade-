@@ -56,7 +56,8 @@ def _cartao(canal: str, linhas: list, marcas: dict, agora: datetime) -> dict:
         contas[l["conta"]] = contas.get(l["conta"], 0) + 1
         pml = _dt(l.get("prazo_ml"))
         h = horas.setdefault(meta.strftime("%H:%M") if meta else "?",
-                             {"total": 0, "feitos": 0, "prazo_ml": pml.strftime("%H:%M") if pml else None})
+                             {"total": 0, "feitos": 0, "prazo_ml": pml.strftime("%H:%M") if pml else None,
+                              "prazo_dia": pml.strftime("%d/%m") if pml else None})
         h["total"] += 1
         h["feitos"] += 1 if c else 0
         if not c and meta:
@@ -122,7 +123,7 @@ def montar(linhas: list, marcas: dict, full: list, agora: datetime, dia, platafo
                 continue
             hh, mm = h["hora"].split(":")
             corte = datetime(dia.year, dia.month, dia.day, int(hh), int(mm), tzinfo=BRT)
-            cortes.append({"canal": c["canal"], "corte": h["hora"], "prazo_ml": h["prazo_ml"], "pedidos": h["total"],
+            cortes.append({"canal": c["canal"], "corte": h["hora"], "prazo_ml": h["prazo_ml"], "prazo_dia": h.get("prazo_dia"), "pedidos": h["total"],
                            "pendentes": h["total"] - h["feitos"],
                            "minutos": round((corte - agora).total_seconds() / 60)})
     cortes.sort(key=lambda x: (x["corte"], x["canal"]))

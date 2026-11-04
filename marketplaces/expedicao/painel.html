@@ -92,7 +92,7 @@ async function carregar(){
   '<div><b>'+g.full_envios+'</b> <span>envios Full ('+g.full_unidades_restantes+' de '+g.full_unidades+' un. a montar)</span></div>';
  $('cortes').innerHTML='<div style="width:100%;color:#94a3b8;font-size:15px;letter-spacing:1px">HORÁRIOS DE CORTE</div>'+d.cortes.map(c=>{
   const feito=c.pendentes===0,cls=feito?'feito':(c.minutos<0?'atraso':(c.minutos<=60?'alerta':''));
-  return '<div class="corte '+c.canal+' '+cls+'"><b>'+c.corte+'</b> '+c.canal+'<div class="s">'+(c.prazo_ml?'prazo da plataforma '+c.prazo_ml+' · ':'')+c.pedidos+' pedidos</div>'+
+  return '<div class="corte '+c.canal+' '+cls+'"><b>'+c.corte+'</b> '+c.canal+'<div class="s">'+(c.prazo_ml?'prazo da plataforma '+(c.prazo_dia&&c.prazo_dia!==d.dia.slice(8,10)+'/'+d.dia.slice(5,7)?c.prazo_dia+' ':'')+c.prazo_ml+' · ':'')+c.pedidos+' pedidos</div>'+
   '<div class="s" style="font-size:17px;color:#e2e8f0">'+(feito?'✔ checkouts feitos':c.pendentes+' checkout(s) pendente(s) · '+(c.minutos<0?'passou há '+fmtMin(-c.minutos):'em '+fmtMin(c.minutos)))+'</div></div>'}).join('')+
  (d.cortes_plataformas&&d.cortes_plataformas.length?'<div style="width:100%;color:#94a3b8;font-size:15px;letter-spacing:1px;margin-top:6px">AMAZON DBA E SHOPEE</div>'+d.cortes_plataformas.map(c=>{
   const passou=c.minutos<0,cls=passou?'feito':(c.minutos<=60?'alerta':'');
