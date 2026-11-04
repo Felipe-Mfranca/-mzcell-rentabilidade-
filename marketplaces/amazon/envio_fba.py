@@ -359,10 +359,64 @@ def cmd_status(a):
                   f"coleta {((d.get('dates') or {}).get('readyToShipWindow') or {}).get('start')}")
 
 
+NF_BASE = "/tax/invoices/2024-06-19/governmentInvoiceRequests"
+NF_TIPO, NF_TRANSACAO = "REMITTANCE", "INBOUND_SHIPMENT"   # valores do exemplo oficial da Amazon (Invoices API, Brasil)
+
+
+def _nf_status(conta, est):
+    """Status da NF do envio. 404 = ainda não existe NF; 403 = o app não tem acesso a essa API."""
+    s, r = api.get(conta, NF_BASE, marketplaceId=api.MARKETPLACE_BR, transactionType=NF_TRANSACAO, shipmentId=est["envio"],
+                   invoiceType=NF_TIPO, inboundPlanId=est["plano"])
+    if s == 404:
+        return {"status": "NAO_CRIADA"}
+    if s == 403:
+        raise ErroEnvio("A Amazon negou acesso à API de NF (403): falta a permissão no app. Gere a NF pelo Seller Central.")
+    if s != 200:
+        raise api.falha(s, r)
+    return r
+
+
+def cmd_nf(a):
+    """NF-e de remessa do envio (Invoices API do Brasil). Sem --confirmar só mostra o status; com --confirmar PEDE A EMISSÃO
+    da NF à Amazon (é o mesmo que o botão 'Confirmar e gerar nota fiscal' do Seller Central: não use os dois)."""
+    est = _estado(a.plano)
+    if not est:
+        raise ErroEnvio(f"Plano {a.plano} não foi criado por este comando (rode 'criar' antes).")
+    atual = _nf_status(a.conta, est)
+    print(f"Envio {est.get('confirmacao')} · NF: {atual.get('status')}"
+          + (f" · documento {atual['invoiceExternalDocumentId']}" if atual.get("invoiceExternalDocumentId") else ""))
+    for e in atual.get("invoiceErrors") or []:
+        print(f"  erro da NF {e.get('errorCode')}: {e.get('description')}")
+    if atual.get("status") in ("PROCESSING", "SUCCESS"):
+        return
+    if not a.confirmar:
+        print("SIMULAÇÃO: nenhuma NF foi pedida. Repita com --confirmar para pedir a emissão à Amazon "
+              "(se você já clicou em 'Confirmar e gerar nota fiscal' no Seller Central, não repita aqui).")
+        return
+    s, r = api.post(a.conta, NF_BASE, {"inboundPlanId": est["plano"], "shipmentId": est["envio"], "invoiceType": NF_TIPO,
+                                       "transactionType": NF_TRANSACAO, "marketplaceId": api.MARKETPLACE_BR})
+    if s not in (200, 202, 204):
+        raise api.falha(s, r)
+    print("Pedido de emissão enviado. Aguardando a Amazon (até 10 min)...")
+    fim = time.time() + 600
+    while time.time() < fim:
+        time.sleep(15)
+        atual = _nf_status(a.conta, est)
+        print(f"  {datetime.now():%H:%M:%S} · {atual.get('status')}")
+        if atual.get("status") in ("SUCCESS", "ERROR"):
+            break
+    if atual.get("status") == "SUCCESS":
+        print(f"NF emitida. Documento fiscal: {atual.get('invoiceExternalDocumentId')}. Próximo: reservar o agendamento e imprimir as etiquetas.")
+    else:
+        for e in atual.get("invoiceErrors") or []:
+            print(f"  erro da NF {e.get('errorCode')}: {e.get('description')}")
+        raise ErroEnvio(f"A NF não foi emitida (status {atual.get('status')}).")
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description="Envio FBA (simula por padrão; escreve só com --confirmar)")
     sub = p.add_subparsers(dest="cmd", required=True)
-    for nome, fn in (("simular", cmd_simular), ("criar", cmd_criar), ("agendar", cmd_agendar), ("cancelar", cmd_cancelar), ("status", cmd_status)):
+    for nome, fn in (("simular", cmd_simular), ("criar", cmd_criar), ("agendar", cmd_agendar), ("cancelar", cmd_cancelar), ("status", cmd_status), ("nf", cmd_nf)):
         s = sub.add_parser(nome); s.set_defaults(fn=fn); s.add_argument("conta")
         if nome in ("simular", "criar"):
             s.add_argument("--sku"); s.add_argument("--qtd", type=int)
@@ -374,7 +428,7 @@ def main(argv=None):
             s.add_argument("--plano", required=True)
         if nome == "agendar":
             s.add_argument("--data"); s.add_argument("--mais-cedo", action="store_true", dest="mais_cedo")
-        if nome in ("criar", "agendar", "cancelar"):
+        if nome in ("criar", "agendar", "cancelar", "nf"):
             s.add_argument("--confirmar", action="store_true")
     a = p.parse_args(argv)
     a.__dict__.setdefault("confirmar", False)
