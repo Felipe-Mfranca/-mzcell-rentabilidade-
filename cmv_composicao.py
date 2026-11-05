@@ -224,6 +224,34 @@ def carga_planilha(conteudo: bytes, arquivo: str = "", autor: str = "", confirma
     return dict(r, skus=len(r["gravados"]), abas=lido["abas"], conflitos=lido["conflitos"], ignorados=lido["ignorados"])
 
 
+def validar_blings() -> dict:
+    """Confere se os Blings têm os mesmos kits e clones, com a mesma composição e quantidade. Só lê o catálogo."""
+    from marketplaces.balanco import catalogo
+    cat = catalogo.ler()
+    blings = cat.get("blings") or {}
+    kits = {}
+    for b, dados in blings.items():
+        for kit, x in (dados.get("kits") or {}).items():
+            kits.setdefault(_chave(kit), {})[b] = sorted((_chave(c), float(q or 1)) for c, q in x.get("comp") or [])
+    simples = {b: {_chave(s) for s in (d.get("skus") or {})} for b, d in blings.items()}
+    divergentes, parciais, sem_componente, kit_e_simples = [], [], [], []
+    for sku in sorted(kits):
+        por_bling = kits[sku]
+        if len({tuple(c) for c in por_bling.values()}) > 1:
+            divergentes.append({"sku": sku, "composicoes": {b: [{"sku": c, "qtd": q} for c, q in v] for b, v in sorted(por_bling.items())}})
+        if len(por_bling) < len(blings):
+            parciais.append({"sku": sku, "em": sorted(por_bling), "falta_em": sorted(set(blings) - set(por_bling))})
+        vazios = sorted(b for b, c in por_bling.items() if not c)
+        if vazios:
+            sem_componente.append({"sku": sku, "blings": vazios})
+        comum = sorted(b for b, s in simples.items() if sku in s)
+        if comum:
+            kit_e_simples.append({"sku": sku, "kit_em": sorted(por_bling), "simples_em": comum})
+    return {"gerado_em": cat.get("gerado_em"), "lidos": sorted(blings), "erros": cat.get("erros") or {},
+            "kits": len(kits), "iguais_em_todos": len(kits) - len(divergentes) - sum(1 for p in parciais if p["sku"] not in {d["sku"] for d in divergentes}),
+            "divergentes": divergentes, "parciais": parciais, "sem_componente": sem_componente, "kit_e_simples": kit_e_simples}
+
+
 def lista() -> dict:
     """Todos os SKUs para a página CMV: base, catálogo dos Blings e anúncios. status: ok, a_preencher (kit sem valor na base,
     mas a soma já fecha) ou sem_cmv. O valor vale o que os anúncios usam, ou seja, o da base."""

@@ -13,6 +13,8 @@ import threading
 import time
 from datetime import datetime
 
+import httpx
+
 from marketplaces.bling import api, estoque
 
 CAMINHO = os.path.join(api.BASE_DIR, "balanco_catalogo.json")
@@ -21,10 +23,21 @@ _estado = {"lendo": False, "feito": 0, "total": 0, "erro": None, "inicio": None}
 _trava = threading.Lock()
 
 
+def _get(b: str, path: str, **params):
+    """Um tempo esgotado não pode derrubar a leitura do Bling inteiro: tenta de novo antes de desistir."""
+    for tentativa in range(3):
+        try:
+            return api.get(b, path, **params)
+        except httpx.TimeoutException:
+            if tentativa == 2:
+                raise
+            time.sleep(5 * (tentativa + 1))
+
+
 def _listar(b: str) -> dict:
     prods = {}
     for pg in range(1, 200):
-        st, r = api.get(b, "/produtos", pagina=pg, limite=100, criterio=1)
+        st, r = _get(b, "/produtos", pagina=pg, limite=100, criterio=1)
         if st != 200:
             raise RuntimeError(f"{b}: produtos HTTP {st}")
         dados = r.get("data", [])
@@ -38,7 +51,7 @@ def _listar(b: str) -> dict:
 
 
 def _categorias(b: str) -> dict:
-    st, r = api.get(b, "/categorias/produtos", limite=100)
+    st, r = _get(b, "/categorias/produtos", limite=100)
     if st != 200:
         raise RuntimeError(f"{b}: categorias HTTP {st}")
     d = {c["id"]: c for c in r.get("data", [])}
@@ -60,12 +73,12 @@ def _bling(b: str) -> dict:
     sku_do_id = {i: p["sku"] for i, p in prods.items()}
     saida = {"skus": {}, "kits": {}}
     for i in fisicos:
-        st, r = api.get(b, f"/produtos/{i}")
+        st, r = _get(b, f"/produtos/{i}")
         d = (r or {}).get("data", {}) if st == 200 and isinstance(r, dict) else {}
         saida["skus"][prods[i]["sku"]] = {"nome": prods[i]["nome"], "categoria": cats.get((d.get("categoria") or {}).get("id"), "")}
         _estado["feito"] += 1
     for i in kits:
-        st, r = api.get(b, f"/produtos/{i}")
+        st, r = _get(b, f"/produtos/{i}")
         d = (r or {}).get("data", {}) if st == 200 and isinstance(r, dict) else {}
         est = d.get("estrutura") or {}
         comp = [(sku_do_id.get(c["produto"]["id"]) or str(c["produto"]["id"]), c.get("quantidade") or 1) for c in est.get("componentes") or []]

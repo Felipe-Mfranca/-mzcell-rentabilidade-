@@ -891,6 +891,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
           <span id="cmv-pag-status" class="sac-mut"></span>
         </div>
         <div id="cmv-pag-aviso"></div>
+        <details class="periodo-card" style="display:block"><summary style="cursor:pointer"><b>Validação entre os Blings</b> <span id="cmv-val-res" class="sac-mut"></span></summary><div id="cmv-val" style="margin-top:8px;font-size:12px"></div></details>
         <div id="cmv-pag-aj" style="display:none;margin-bottom:16px;border:1px solid var(--border2);border-radius:8px;padding:10px;font-size:12px"></div>
         <div id="cmv-pag-lista"></div>
       </div>
@@ -3106,11 +3107,26 @@ async function cmvPagCarregar() {
     document.getElementById('cmv-pag-aviso').innerHTML = erros.length ? `<div class="periodo-card" style="color:var(--gold)">Catálogo do Bling incompleto (${erros.map(sacEsc).join(', ')}): algum kit pode aparecer como produto simples. <button class="btn-sm" onclick="cmvPagReler()">Ler o catálogo de novo</button></div>` : '';
     st.textContent = d.catalogo_em ? `catálogo de ${d.catalogo_em.slice(0, 16).replace('T', ' ')}` : '';
     cmvPagDesenhar();
+    cmvValidar();
   } catch (e) { st.textContent = 'Erro: ' + e.message; }
 }
 async function cmvPagReler() {
   document.getElementById('cmv-pag-aviso').innerHTML = '<div class="periodo-card">Lendo o catálogo nos Blings; atualize a página em alguns minutos.</div>';
-  try { await fetch(`${API}/balanco/atualizar`, {method: 'POST'}); } catch (e) {}
+  try { await fetch(`${API}/cmv/catalogo/atualizar?autor=${encodeURIComponent(user?.login || '')}`, {method: 'POST'}); } catch (e) {}
+}
+async function cmvValidar() {
+  const res = document.getElementById('cmv-val-res'), box = document.getElementById('cmv-val');
+  try {
+    const r = await fetch(`${API}/cmv/validacao?autor=${encodeURIComponent(user?.login || '')}`); const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || r.status);
+    const comp = c => c.map(x => x.qtd + '× ' + sacEsc(x.sku)).join(' + ') || 'sem componente';
+    res.textContent = `${d.lidos.join(', ')} · ${d.iguais_em_todos} de ${d.kits} iguais em todos · ${d.divergentes.length} com composição diferente · ${d.parciais.length} faltando em algum`;
+    box.innerHTML = (Object.keys(d.erros).length ? `<div style="color:var(--gold)">Não lido: ${Object.keys(d.erros).map(sacEsc).join(', ')}. A validação está incompleta.</div>` : '') +
+      d.divergentes.map(x => `<div style="margin:6px 0"><b>${sacEsc(x.sku)}</b>${Object.entries(x.composicoes).map(([b, c]) => `<div class="sac-mut">${sacEsc(b)}: ${comp(c)}</div>`).join('')}</div>`).join('') +
+      (d.parciais.length ? `<div style="margin-top:8px"><b>Faltando em algum Bling</b></div>` + d.parciais.map(x => `<div class="sac-mut">${sacEsc(x.sku)}: falta em ${x.falta_em.map(sacEsc).join(', ')}</div>`).join('') : '') +
+      (d.sem_componente.length ? `<div style="margin-top:8px"><b>Kit sem componente</b></div>` + d.sem_componente.map(x => `<div class="sac-mut">${sacEsc(x.sku)} (${x.blings.map(sacEsc).join(', ')})</div>`).join('') : '') +
+      (d.kit_e_simples.length ? `<div style="margin-top:8px"><b>Kit em um Bling e produto simples em outro</b></div>` + d.kit_e_simples.map(x => `<div class="sac-mut">${sacEsc(x.sku)}: kit em ${x.kit_em.map(sacEsc).join(', ')} · simples em ${x.simples_em.map(sacEsc).join(', ')}</div>`).join('') : '');
+  } catch (e) { res.textContent = 'erro: ' + e.message; }
 }
 function cmvPagDesenhar() {
   const busca = document.getElementById('cmv-busca').value.trim().toUpperCase(), filtro = document.getElementById('cmv-filtro').value;

@@ -145,6 +145,34 @@ class TestComposicao(unittest.TestCase):
         self.assertEqual((d["KIT-FACA6"]["status"], d["KIT-FACA6"]["soma"]), ("a_preencher", 30.0))
         self.assertEqual((d["KIT-FACA-9"]["status"], d["KIT-FACA-9"]["soma"], d["KIT-FACA-9"]["cmv"]), ("ok", None, 99.0))
 
+    def test_validar_blings_aponta_diferencas(self):
+        cat = {"gerado_em": "x", "erros": {}, "blings": {
+            "bling01": {"skus": {"SO-AQUI": {}}, "kits": {"IGUAL": {"comp": [["A", 1], ["B", 2]]}, "DIF": {"comp": [["A", 1]]}, "PARCIAL": {"comp": [["A", 1]]}, "VAZIO": {"comp": []}}},
+            "bling02": {"skus": {"VAZIO": {}}, "kits": {"igual": {"comp": [["b", 2], ["a", 1]]}, "DIF": {"comp": [["A", 2]]}, "VAZIO": {"comp": []}}}}}
+        with mock.patch("marketplaces.balanco.catalogo.ler", lambda: cat):
+            r = cc.validar_blings()
+        self.assertEqual([x["sku"] for x in r["divergentes"]], ["DIF"])
+        self.assertEqual(r["parciais"], [{"sku": "PARCIAL", "em": ["bling01"], "falta_em": ["bling02"]}])
+        self.assertEqual(r["sem_componente"], [{"sku": "VAZIO", "blings": ["bling01", "bling02"]}])
+        self.assertEqual(r["kit_e_simples"], [{"sku": "VAZIO", "kit_em": ["bling01", "bling02"], "simples_em": ["bling02"]}])
+        self.assertEqual((r["kits"], r["iguais_em_todos"]), (4, 2))
+
+    def test_catalogo_tenta_de_novo_quando_o_tempo_esgota(self):
+        import httpx
+        from marketplaces.balanco import catalogo
+        chamadas = []
+        def api_get(b, path, **k):
+            chamadas.append(path)
+            if len(chamadas) < 3:
+                raise httpx.ReadTimeout("lento")
+            return 200, {"data": []}
+        with mock.patch.object(catalogo.api, "get", api_get), mock.patch.object(catalogo.time, "sleep", lambda s: None):
+            self.assertEqual(catalogo._get("bling03", "/x"), (200, {"data": []}))
+            chamadas.clear()
+            with mock.patch.object(catalogo.api, "get", side_effect=httpx.ReadTimeout("lento")):
+                with self.assertRaises(httpx.ReadTimeout):
+                    catalogo._get("bling03", "/x")
+
     def test_outro_pc_nao_altera_cmv_em_nome_de_outra_pessoa(self):
         from fastapi.testclient import TestClient
         import main

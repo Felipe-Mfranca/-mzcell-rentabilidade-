@@ -752,6 +752,28 @@ def cmv_lista(request: Request, autor: str = ""):
     return _modulo("cmv_composicao").lista()
 
 
+@app.get("/cmv/validacao")
+def cmv_validacao(request: Request, autor: str = ""):
+    """Kits e clones comparados entre os Blings: composição, quantidade e onde faltam."""
+    _cmv_autor(request, autor)
+    return _modulo("cmv_composicao").validar_blings()
+
+
+@app.post("/cmv/catalogo/atualizar")
+def cmv_catalogo_atualizar(request: Request, autor: str = ""):
+    """Lê de novo o catálogo nos Blings, em segundo plano (só leitura). GET devolve o andamento."""
+    _cmv_autor(request, autor)
+    from marketplaces.balanco import catalogo
+    return catalogo.atualizar(forcar=True)
+
+
+@app.get("/cmv/catalogo/estado")
+def cmv_catalogo_estado(request: Request, autor: str = ""):
+    _cmv_autor(request, autor)
+    from marketplaces.balanco import catalogo
+    return catalogo.atualizar()
+
+
 @app.get("/cmv/composicao/{sku}")
 def cmv_composicao(sku: str):
     """Componentes do SKU nos Blings (kit/clone) com o CMV de cada um."""
