@@ -21,6 +21,20 @@ from datetime import datetime
 import cmv_base
 
 
+# Natal: o CMV é lançado direto no produto; a composição desses kits será derrubada no Bling (decisão de 05/11/2026).
+# Enquanto ela existir, valem como produto simples: aceitam valor próprio e nunca são recalculados pela soma.
+DIRETO_NO_PRODUTO = {
+    "ARV-NAT-300G-VERDE", "ARV-NAT-600G-VERDE", "ARV-NAT-800G-VERDE", "ARV1000G-DEC-DR", "ARV1200G-DEC-VM", "ARV600G-DEC-DR",
+    "ARV600G-DEC-VERM", "ARVDEC-NEV1.5M", "ARVDEC-SHP-150CMVERDE", "ARVDEC-VRD1.5M", "ARVNAT-SHP-150", "ARVNAT-SHP-180",
+    "ARVNAT-SHP-210", "KIT-BOLA-DR-24UN", "KIT-BOLA-VM-12UN", "KIT-BOLA-VM-24UN", "KIT130ENF-SORTIDO", "KIT130ENF-SORTIDO-NOVO",
+    "KIT24BOLAS-DOURADO", "KIT24BOLAS-VERMELHO", "KIT25-DOURADO", "KIT25-VERMELHO", "KIT3ESTR-SORTIDO", "KIT3ESTR-SORTIDOMELI",
+    "KIT3PISCAS-BRD", "KIT49-DOURADO", "KIT54ENFE-SORTIDO", "KIT54ENFE-SORTIDOMELI", "KIT56ENF-SORTIDO", "KIT64ENFE-SORITDO",
+    "KIT64ENFE-SORITDOMELI", "KIT66PENBOL-SORTIDO", "KIT69ENF-SORTIDO", "KIT8PELUCIA-NOEL", "KITCASCAT-GUIRLANDA", "PISCA127V-NOVO",
+}
+# Fora da validação entre os Blings, a pedido do usuário (05/11/2026).
+IGNORAR_NA_VALIDACAO = {"FONBTHM-LY124-BRANCO", "FONBTHM-LY124ROSA"}
+
+
 def _chave(sku) -> str:
     return str(sku or "").strip().upper()
 
@@ -36,7 +50,8 @@ def _catalogo() -> dict:
     kits = {}
     for b, dados in (cat.get("blings") or {}).items():
         for kit, x in (dados.get("kits") or {}).items():
-            kits.setdefault(_chave(kit), {})[b] = [(_chave(c), float(q or 1)) for c, q in x.get("comp") or []]
+            if _chave(kit) not in DIRETO_NO_PRODUTO:
+                kits.setdefault(_chave(kit), {})[b] = [(_chave(c), float(q or 1)) for c, q in x.get("comp") or []]
     return {"kits": kits, "gerado_em": cat.get("gerado_em"), "erros": cat.get("erros") or {}}
 
 
@@ -232,7 +247,8 @@ def validar_blings() -> dict:
     kits = {}
     for b, dados in blings.items():
         for kit, x in (dados.get("kits") or {}).items():
-            kits.setdefault(_chave(kit), {})[b] = sorted((_chave(c), float(q or 1)) for c, q in x.get("comp") or [])
+            if _chave(kit) not in DIRETO_NO_PRODUTO | IGNORAR_NA_VALIDACAO:
+                kits.setdefault(_chave(kit), {})[b] = sorted((_chave(c), float(q or 1)) for c, q in x.get("comp") or [])
     simples = {b: {_chave(s) for s in (d.get("skus") or {})} for b, d in blings.items()}
     divergentes, parciais, sem_componente, kit_e_simples = [], [], [], []
     for sku in sorted(kits):

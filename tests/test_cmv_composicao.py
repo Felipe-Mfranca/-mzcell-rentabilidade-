@@ -15,6 +15,9 @@ KITS = {
 }
 
 
+CATALOGO_REAL = cc._catalogo
+
+
 class TestComposicao(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
@@ -156,6 +159,25 @@ class TestComposicao(unittest.TestCase):
         self.assertEqual(r["sem_componente"], [{"sku": "VAZIO", "blings": ["bling01", "bling02"]}])
         self.assertEqual(r["kit_e_simples"], [{"sku": "VAZIO", "kit_em": ["bling01", "bling02"], "simples_em": ["bling02"]}])
         self.assertEqual((r["kits"], r["iguais_em_todos"]), (4, 2))
+
+    def test_natal_lanca_direto_no_produto(self):
+        cat = {"gerado_em": "x", "blings": {"bling01": {"kits": {"ARV1000G-DEC-DR": {"comp": [["A", 1]]}, "OUTRO": {"comp": [["A", 1]]}}},
+                                            "bling02": {"kits": {"ARV1000G-DEC-DR": {"comp": [["B", 1]]}, "OUTRO": {"comp": [["A", 1]]}}}}}
+        with mock.patch("marketplaces.balanco.catalogo.ler", lambda: cat), mock.patch("marketplaces.balanco.catalogo.atualizar", lambda: {}), \
+                mock.patch.object(cc, "_catalogo", CATALOGO_REAL):
+            self.assertEqual(cc.composicao("arv1000g-dec-dr")["tipo"], "simples")
+            self.assertEqual(cc.salvar_cmv("arv1000g-dec-dr", 280.0, "zicri")["para"], 280.0)   # aceita valor no próprio SKU
+            cc.salvar_cmv("A", 1.0, "zicri")
+            self.assertEqual(cmv_base.carregar()["itens"]["ARV1000G-DEC-DR"]["cmv"], 280.0)     # não vira soma dos componentes
+            self.assertEqual(cc.composicao("OUTRO")["tipo"], "clone")                           # os demais seguem a regra
+            r = cc.validar_blings()
+        self.assertEqual((r["kits"], r["divergentes"]), (1, []))
+
+    def test_validacao_ignora_os_fones_pedidos(self):
+        cat = {"blings": {"bling01": {"kits": {"FONBTHM-LY124-BRANCO": {"comp": []}, "FONBTHM-LY124ROSA": {"comp": []}}}, "bling02": {"kits": {}}}}
+        with mock.patch("marketplaces.balanco.catalogo.ler", lambda: cat):
+            r = cc.validar_blings()
+        self.assertEqual((r["kits"], r["parciais"], r["sem_componente"]), (0, [], []))
 
     def test_catalogo_tenta_de_novo_quando_o_tempo_esgota(self):
         import httpx
