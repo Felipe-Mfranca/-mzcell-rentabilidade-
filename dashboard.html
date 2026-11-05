@@ -822,6 +822,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       <button class="nav-item" data-mod="sac" onclick="switchTab('sac',this)"><span class="icon">✉</span> SAC</button>
       <button class="nav-item" id="nav-cmv" style="display:none" onclick="switchTab('cmv',this)"><span class="icon">$</span> CMV</button>
       <div class="nav-section">Sistema</div>
+      <button class="nav-item" id="nav-usuarios" style="display:none" onclick="switchTab('usuarios',this)"><span class="icon">☰</span> Usuários</button>
       <button class="nav-item" onclick="switchTab('config',this)"><span class="icon">⚙</span> Configurações</button>
     </div>
     <div class="sidebar-bottom">
@@ -894,6 +895,15 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
         <details class="periodo-card" style="display:block"><summary style="cursor:pointer"><b>Validação entre os Blings</b> <span id="cmv-val-res" class="sac-mut"></span></summary><div id="cmv-val" style="margin-top:8px;font-size:12px"></div></details>
         <div id="cmv-pag-aj" style="display:none;margin-bottom:16px;border:1px solid var(--border2);border-radius:8px;padding:10px;font-size:12px"></div>
         <div id="cmv-pag-lista"></div>
+      </div>
+      <div class="tab" id="tab-usuarios">
+        <div class="periodo-card" style="flex-wrap:wrap">
+          <span class="periodo-label">Usuários e acessos</span>
+          <button class="btn-sm" onclick="usrAbrir(-1)">Novo usuário</button>
+          <span id="usr-status" class="sac-mut"></span>
+        </div>
+        <div id="usr-form" style="display:none;margin-bottom:16px;border:1px solid var(--border2);border-radius:8px;padding:12px;font-size:12px"></div>
+        <div id="usr-lista"></div>
       </div>
       <div class="tab" id="tab-config">
         <div class="config-card" id="cfg-cmv-card" style="max-width:760px;margin-bottom:24px">
@@ -1374,10 +1384,11 @@ function switchTab(tab, btn) {
   document.getElementById(`tab-${tab}`).classList.add('active');
   btn.classList.add('active');
   contaAtiva = tab;
-  const titles = {meli01:'Meli01 — Rentabilidade',meli02:'Meli02 — Rentabilidade',meli03:'Meli03 — Rentabilidade',config:'Configurações',expedicao:'Expedição — Galpão',amazon01:'Amazon 01 — Rentabilidade',amazon02:'Amazon 02 — Rentabilidade',shopee:'Shopee',magalu:'Magalu — Em construção',sac:'SAC — Pendências e contestações',cmv:'CMV por SKU'};
+  const titles = {meli01:'Meli01 — Rentabilidade',meli02:'Meli02 — Rentabilidade',meli03:'Meli03 — Rentabilidade',config:'Configurações',expedicao:'Expedição — Galpão',amazon01:'Amazon 01 — Rentabilidade',amazon02:'Amazon 02 — Rentabilidade',shopee:'Shopee',magalu:'Magalu — Em construção',sac:'SAC — Pendências e contestações',cmv:'CMV por SKU',usuarios:'Usuários e acessos'};
   document.getElementById('topbar-title').textContent = titles[tab] || tab;
   if(tab==='config'){ loadConfig(); cmvCarregarStatus(); }
   if(tab==='cmv') cmvPagCarregar();
+  if(tab==='usuarios') usrCarregar();
   if(tab==='amazon01'||tab==='amazon02') amzAbrirAba(tab);
   if(tab==='shopee') shopeeAbrirAba();
   if(tab==='expedicao'){ const f=document.getElementById('frame-expedicao'); if(!f.getAttribute('src')) f.setAttribute('src',`${API}/expedicao`); }
@@ -2184,6 +2195,8 @@ function aplicarModulos() {
   const completo = temModulo('meli') && temModulo('amazon') && temModulo('shopee') && temModulo('expedicao') && temModulo('sac');
   const navCmv = document.getElementById('nav-cmv');
   if (navCmv) navCmv.style.display = CMV_EDITAR_PERMITIDOS.includes((user?.login || '').toLowerCase()) ? '' : 'none';
+  const navUsr = document.getElementById('nav-usuarios');
+  if (navUsr) navUsr.style.display = USUARIOS_ADMIN.includes((user?.login || '').toLowerCase()) ? '' : 'none';
   document.querySelectorAll('.nav-item[data-mod], .nav-section[data-mod]').forEach(el => { el.style.display = temModulo(el.dataset.mod) ? '' : 'none'; });
   // seção "Módulos" e "Sistema": aparecem se algum item filho estiver visível
   document.querySelectorAll('.sidebar-nav .nav-section').forEach(sec => {
@@ -3097,6 +3110,59 @@ function radarAbrir(conta, mlb) {
 const CMV_EDITAR_PERMITIDOS = ['zicri', 'eduardo', 'michel'];   // igual a CMV_IMPORTAR_PERMITIDOS no main.py
 // Página CMV e modal do produto usam as mesmas rotas e o mesmo editor (cmvAbrir/cmvSalvar); _cmvAlvo diz onde ele abre.
 let _cmvAlvo = 'cmv-aj', _cmvLista = [];
+// ── USUÁRIOS: só lista e grava pelo servidor; a senha nunca vem para a tela ──
+const USUARIOS_ADMIN = ['zicri', 'michel'];   // igual a ADMIN_USUARIOS em auth_service.py
+const USR_MODULOS = {expedicao: 'Expedição', sac: 'SAC', meli: 'Mercado Livre', amazon: 'Amazon', shopee: 'Shopee', magalu: 'Magalu'};
+let _usr = {usuarios: [], perfis: []};
+async function usrCarregar() {
+  const st = document.getElementById('usr-status');
+  st.textContent = 'Carregando…';
+  try {
+    const r = await fetch(`${API}/usuarios`); const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || r.status);
+    _usr = d;
+    st.textContent = `${d.usuarios.length} usuário(s)`;
+    usrDesenhar();
+  } catch (e) { st.textContent = 'Erro: ' + e.message; }
+}
+function usrAcesso(u) { return u.modulos.includes('todos') ? 'Tudo' : u.modulos.map(m => USR_MODULOS[m] || m).join(', '); }
+function usrDesenhar() {
+  const linhas = _usr.usuarios.map((u, i) => `<tr onclick="usrAbrir(${i})"><td style="text-align:left"><b>${sacEsc(u.nome)}</b><div class="sac-mut">${sacEsc(u.login)}${u.primeiro_acesso ? ' · ainda não fez o primeiro acesso' : ''}</div></td><td>${sacEsc(u.area || '—')}</td><td>${sacEsc(u.cargo || '—')}</td><td>${sacEsc(u.telefone || '—')}</td><td>${sacEsc(usrAcesso(u))}</td><td>${u.ativo ? 'Ativo' : '<span style="color:var(--gold)">Bloqueado</span>'}</td></tr>`).join('');
+  document.getElementById('usr-lista').innerHTML = `<table class="tbl"><thead><tr><th>Nome</th><th>Área</th><th>Cargo</th><th>Telefone</th><th>Acesso</th><th>Situação</th></tr></thead><tbody>${linhas}</tbody></table>`;
+}
+function usrAbrir(i) {
+  const novo = i < 0, u = novo ? {login: '', nome: '', telefone: '', area: '', cargo: '', role: 'operador', modulos: ['expedicao'], ativo: true, email: ''} : _usr.usuarios[i];
+  const campo = (id, rot, v, tipo = 'text') => `<label style="display:inline-block;margin:0 10px 8px 0">${rot}<br><input id="usr-${id}" type="${tipo}" class="modal-date" value="${sacEsc(v)}"/></label>`;
+  const marca = (m, rot) => `<label style="margin-right:12px"><input type="checkbox" class="usr-mod" value="${m}" ${u.modulos.includes(m) ? 'checked' : ''}/> ${rot}</label>`;
+  const box = document.getElementById('usr-form');
+  box.style.display = '';
+  box.innerHTML = `<b>${novo ? 'Novo usuário' : 'Editar ' + sacEsc(u.login)}</b>${u.email ? ` <span class="sac-mut">${sacEsc(u.email)}</span>` : ''}<div style="margin-top:8px">` +
+    (novo ? campo('login', 'Login', '') + campo('senha', 'Senha provisória', '', 'password') : '') +
+    campo('nome', 'Nome', u.nome) + campo('telefone', 'Telefone', u.telefone) + campo('area', 'Área', u.area) + campo('cargo', 'Cargo', u.cargo) +
+    `<label style="display:inline-block;margin:0 10px 8px 0">Perfil<br><select id="usr-role" class="modal-date">${_usr.perfis.map(p => `<option value="${sacEsc(p)}" ${p === u.role ? 'selected' : ''}>${sacEsc(p)}</option>`).join('')}</select></label></div>` +
+    `<div style="margin-bottom:8px"><b>Acesso:</b> ${marca('todos', 'Tudo')}${Object.entries(USR_MODULOS).map(([m, rot]) => marca(m, rot)).join('')}</div>` +
+    (novo ? '' : `<div style="margin-bottom:8px"><label><input type="checkbox" id="usr-ativo" ${u.ativo ? 'checked' : ''}/> Ativo (desmarque para bloquear o login)</label></div>`) +
+    `<button class="btn-sm" onclick="usrSalvar(${novo ? "''" : `'${sacEsc(u.login)}'`})">Salvar</button> <button class="btn-sm" onclick="document.getElementById('usr-form').style.display='none'">Cancelar</button> <span id="usr-form-msg" class="sac-mut"></span>`;
+  box.scrollIntoView({block: 'nearest'});
+}
+async function usrSalvar(login) {
+  const val = id => document.getElementById('usr-' + id).value;
+  const msg = document.getElementById('usr-form-msg');
+  const corpo = {nome: val('nome'), telefone: val('telefone'), area: val('area'), cargo: val('cargo'), role: val('role'),
+    modulos: [...document.querySelectorAll('.usr-mod:checked')].map(x => x.value)};
+  if (login) corpo.ativo = document.getElementById('usr-ativo').checked;
+  else { corpo.login = val('login'); corpo.senha = val('senha'); }
+  msg.textContent = 'Salvando…';
+  try {
+    const r = await fetch(login ? `${API}/usuarios/${encodeURIComponent(login)}` : `${API}/usuarios`, {method: login ? 'PUT' : 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(corpo)});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || r.status);
+    document.getElementById('usr-form').style.display = 'none';
+    toast(d.acesso_mudou ? 'Acesso alterado: a pessoa precisa entrar de novo' : 'Usuário salvo');
+    usrCarregar();
+  } catch (e) { msg.textContent = 'Erro: ' + e.message; }
+}
+
 async function cmvPagCarregar() {
   const st = document.getElementById('cmv-pag-status'); st.textContent = 'Carregando…';
   try {

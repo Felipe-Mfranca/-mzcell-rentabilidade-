@@ -391,6 +391,65 @@ async def alterar_senha_usuario(payload: dict):
     return {"success": True, "msg": "Senha alterada com sucesso!"}
 
 
+# ─── USUÁRIOS ───────────────────────────────────────────────
+
+def _admin_usuarios(request: Request) -> str:
+    """Vale o dono da sessão, nunca um nome enviado pela tela, também no próprio servidor."""
+    try:
+        from marketplaces import acesso_rede
+        login_val = acesso_rede.login_da_sessao(request.cookies.get(acesso_rede.COOKIE))
+    except ImportError:
+        login_val = ""
+    if not login_val:
+        raise HTTPException(status_code=401, detail="faça login no MZ App")
+    if login_val not in auth_service.ADMIN_USUARIOS:
+        raise HTTPException(status_code=403, detail="Usuários liberado só para Zicri e Michel")
+    return login_val
+
+
+def _trazer_usuarios():
+    # traz a planilha antes: uma senha trocada em outro PC não pode ser desfeita por esta gravação
+    try:
+        shared_store.sincronizar({"usuarios": _aplicar_usuarios})
+    except Exception:
+        pass
+
+
+@app.get("/usuarios")
+def usuarios_listar(request: Request):
+    _admin_usuarios(request)
+    return {"usuarios": auth_service.listar_usuarios(), "modulos": auth_service.MODULOS, "perfis": auth_service.PERFIS}
+
+
+@app.post("/usuarios")
+def usuarios_criar(payload: dict, request: Request):
+    admin = _admin_usuarios(request)
+    _trazer_usuarios()
+    try:
+        u = auth_service.criar_usuario(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    log_atividade(f"Usuário criado: {u['login']} por {admin}")
+    return {"success": True}
+
+
+@app.put("/usuarios/{login_alvo}")
+def usuarios_editar(login_alvo: str, payload: dict, request: Request):
+    admin = _admin_usuarios(request)
+    _trazer_usuarios()
+    try:
+        u, acesso_mudou = auth_service.editar_usuario(login_alvo, payload)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if acesso_mudou:
+        from marketplaces import acesso_rede
+        acesso_rede.encerrar_sessoes(u["login"])
+    log_atividade(f"Usuário alterado: {u['login']} por {admin}")
+    return {"success": True, "acesso_mudou": acesso_mudou}
+
+
 # ─── CONFIG / CONTAS ─────────────────────────────────────────────────────────
 
 @app.get("/config/contas")

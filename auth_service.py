@@ -34,7 +34,7 @@ def h(s): return hashlib.sha256(s.encode()).hexdigest()
 
 def verificar_login(login, senha):
     for u in load_usuarios():
-        if u["login"]==login.lower() and u["senha"]==h(senha):
+        if u["login"]==login.lower() and u["senha"]==h(senha) and u.get("ativo", True):
             return u
     return None
 
@@ -72,7 +72,8 @@ def verificar_codigo(email, codigo):
     if e["codigo"]!=codigo: return False
     del _codigos[email]; return True
 
-CAMPOS_COMPARTILHADOS = ("login", "nome", "role", "senha", "email", "email_verificado", "primeiro_acesso", "contas", "modulos", "senha_atualizada_em")
+CAMPOS_COMPARTILHADOS = ("login", "nome", "role", "senha", "email", "email_verificado", "primeiro_acesso", "contas", "modulos", "senha_atualizada_em",
+                         "ativo", "telefone", "area", "cargo")
 SEMENTE_TS = "2000-01-01T00:00:00.000Z"      # usuário nunca alterado: qualquer troca de senha real vale mais
 
 
@@ -150,6 +151,83 @@ def atualizar_email_senha(login, email, nova_senha):
     save_usuarios(usuarios)
     if alvo:
         publicar_usuario(alvo)
+
+ADMIN_USUARIOS = {"zicri", "michel"}   # quem cria e edita usuários; igual a USUARIOS_ADMIN em dashboard.html
+MODULOS = ("expedicao", "sac", "meli", "amazon", "shopee", "magalu")
+PERFIS = ("master", "adminplus", "operador", "viewer")
+
+
+def listar_usuarios():
+    """Para a tela de Usuários: nunca devolve a senha, nem o hash."""
+    return [{"login": u["login"], "nome": u.get("nome", ""), "role": u.get("role", ""), "email": u.get("email", ""),
+             "telefone": u.get("telefone", ""), "area": u.get("area", ""), "cargo": u.get("cargo", ""),
+             "modulos": u.get("modulos") or ["todos"], "ativo": u.get("ativo", True),
+             "primeiro_acesso": u.get("primeiro_acesso", False)} for u in load_usuarios()]
+
+
+def _modulos_validos(modulos):
+    if not isinstance(modulos, list) or not modulos:      # lista vazia a tela lê como "todos": aqui é recusada
+        raise ValueError("Escolha ao menos um módulo")
+    if "todos" in modulos:
+        return ["todos"]
+    invalidos = [m for m in modulos if m not in MODULOS]
+    if invalidos:
+        raise ValueError("Módulo desconhecido: " + ", ".join(map(str, invalidos)))
+    return [m for m in MODULOS if m in modulos]
+
+
+def _aplicar_cadastro(u, dados):
+    for k in ("nome", "telefone", "area", "cargo"):
+        if k in dados:
+            u[k] = str(dados[k] or "").strip()
+    if not u.get("nome"):
+        raise ValueError("Informe o nome")
+    if "role" in dados:
+        if dados["role"] not in PERFIS:
+            raise ValueError("Perfil desconhecido")
+        u["role"] = dados["role"]
+    if "modulos" in dados:
+        u["modulos"] = _modulos_validos(dados["modulos"])
+    if "ativo" in dados:
+        u["ativo"] = bool(dados["ativo"])
+
+
+def criar_usuario(dados):
+    """Novo usuário com senha provisória: no primeiro acesso ele informa o e-mail e define a própria senha."""
+    login = str(dados.get("login") or "").strip().lower()
+    if not login or not all(c.isascii() and (c.isalnum() or c in "._-") for c in login):
+        raise ValueError("Login só com letras, números, ponto, hífen e sublinhado")
+    senha = str(dados.get("senha") or "")
+    if len(senha) < 6:
+        raise ValueError("A senha provisória precisa ter pelo menos 6 caracteres")
+    usuarios = load_usuarios()
+    if any(u["login"] == login for u in usuarios):
+        raise ValueError("Já existe um usuário com este login")
+    u = {"login": login, "senha": h(senha), "role": "operador", "email": "", "email_verificado": False, "primeiro_acesso": True,
+         "contas": ["meli01", "meli02", "meli03"], "ativo": True}
+    _aplicar_cadastro(u, {"modulos": None, **{k: v for k, v in dados.items() if k in ("nome", "telefone", "area", "cargo", "role", "modulos")}})
+    u["senha_atualizada_em"] = _agora()
+    usuarios.append(u)
+    save_usuarios(usuarios)
+    publicar_usuario(u)
+    return u
+
+
+def editar_usuario(login, dados):
+    """Altera cadastro e acesso. Devolve (usuário, acesso_mudou). A senha não muda por aqui: é o "esqueci a senha"."""
+    usuarios = load_usuarios()
+    u = next((x for x in usuarios if x["login"] == str(login).lower()), None)
+    if u is None:
+        raise KeyError(login)
+    antes = (u.get("modulos"), u.get("ativo", True))
+    _aplicar_cadastro(u, {k: v for k, v in dados.items() if k in ("nome", "telefone", "area", "cargo", "role", "modulos", "ativo")})
+    if u["login"] in ADMIN_USUARIOS and (u.get("modulos") != ["todos"] or not u.get("ativo", True)):
+        raise ValueError("Quem administra os usuários precisa seguir ativo e com acesso a tudo")
+    u["senha_atualizada_em"] = _agora()     # é o carimbo do registro na planilha: sem ele os outros PCs não recebem a mudança
+    save_usuarios(usuarios)
+    publicar_usuario(u)
+    return u, antes != (u.get("modulos"), u.get("ativo", True))
+
 
 def tem_permissao(role, acao):
     p = {"master":["tudo"],"adminplus":["ver","sync","custos","anotacoes","simulador"],"viewer":["ver"],"operador":["ver","anotacoes"]}

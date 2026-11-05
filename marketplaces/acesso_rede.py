@@ -58,6 +58,13 @@ def login_da_sessao(token) -> str:
     return s[0] if s and s[1] > time.time() else ""
 
 
+def encerrar_sessoes(login: str) -> None:
+    """Acesso alterado ou bloqueado: as sessões abertas caem e a pessoa entra de novo com o acesso novo."""
+    with _trava:
+        for t in [t for t, (dono, _) in _sessoes.items() if dono == login]:
+            del _sessoes[t]
+
+
 def _casa(path: str, prefixos) -> bool:
     return any(path == p or path.startswith(p.rstrip("/") + "/") for p in prefixos)
 
