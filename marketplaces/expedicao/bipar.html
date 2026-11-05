@@ -64,7 +64,7 @@ async function buscar(c) {
   hist.insertAdjacentHTML('afterbegin', `<tr><td>${hora}</td><td>${esc(d.codigo)}</td><td>${d.encontrado ? 'Bling ' + d.bling_n : '—'}</td><td><b>${d.encontrado ? esc(d.numero) : 'não encontrado'}</b></td><td>${esc(d.situacao || '')}</td></tr>`);
 }
 cod.addEventListener('keydown', e => { if (e.key === 'Enter') { const c = cod.value.trim(); cod.value = ''; if (c) buscar(c); } });
-document.addEventListener('click', () => cod.focus());
+document.addEventListener('click', e => { if (!e.target.closest('select')) cod.focus(); });   // não rouba o foco do seletor de conta
 aquecer();
 </script>
 </body>
