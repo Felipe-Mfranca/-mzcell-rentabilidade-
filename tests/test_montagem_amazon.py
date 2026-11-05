@@ -76,6 +76,14 @@ class TestAmazonFBA(unittest.TestCase):
         self.assertEqual(env["chave"], "amazon-FBAAAA")
         self.assertTrue(all(p["estoquista"] == "" and p["embalador"] == "" for p in env["produtos"]))
 
+    def test_entram_sozinhos_na_fila_e_excluido_nao_volta(self):
+        r = af.buscar(contas=("amazon01",), agora=AGORA)
+        self.assertEqual(af.importar_prontos(r), ["FBAAAA"])                # só o pronto (NF + coleta)
+        self.assertEqual(arm.listar()[0]["status"], "fila")
+        self.assertEqual(af.importar_prontos(r), [])                        # já está na fila
+        arm.remover("amazon-FBAAAA")
+        self.assertEqual(af.importar_prontos(r), [])                        # o líder excluiu: não volta
+
     def test_cache_evita_reler_a_amazon(self):
         chamadas = []
 

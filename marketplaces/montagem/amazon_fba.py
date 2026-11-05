@@ -138,6 +138,22 @@ def buscar(contas=CONTAS, dias=JANELA_DIAS, agora=None) -> dict:
     return {"envios": envios, "erros": erros, "gerado_em": agora.isoformat(timespec="seconds")}
 
 
+def importar_prontos(dados: dict = None) -> list:
+    """Coloca na fila (fim) os envios prontos que ainda não estão lá nem foram excluídos pelo líder. Devolve os números criados."""
+    from marketplaces.montagem import armazenamento as arm
+    dados = dados or disponiveis()
+    ja = {e["chave"] for e in arm.listar()} | arm.dispensados()
+    criados = []
+    for x in dados["envios"]:
+        if x.get("pronto") and f"amazon-{x['numero']}" not in ja:
+            try:
+                arm.criar(x["numero"], x["conta"], x["coleta"], x["prazo"], x["produtos"], "automático (Amazon)", "amazon")
+                criados.append(x["numero"])
+            except arm.ErroMontagem:
+                pass
+    return criados
+
+
 def disponiveis(atualizar: bool = False, leitor=None) -> dict:
     """Resultado com cache de 10 min (a Amazon limita as consultas)."""
     agora = time.time()

@@ -115,10 +115,10 @@ async function carregar(){
  $('mods').innerHTML=(d.modulos||[]).map(cartao).join('');
  const g=d.geral;$('fulltit').textContent='Montagem do Full no dia'+(g.full_envios?' · '+g.full_envios+' envio(s), '+g.full_unidades_restantes+' de '+g.full_unidades+' un. a montar':'');
  $('full').innerHTML=d.full.length?d.full.map(f=>{const cls=f.atrasado?'atraso':(f.minutos_ate_prazo!=null&&f.minutos_ate_prazo<=120&&!f.concluido?'alerta':'ok');
-  return '<div class="env"><div><div class="tt"><span class="canal '+esc(f.canal)+'">'+esc(NOMES[f.canal]||f.canal)+'</span>#'+esc(f.numero)+'</div><div class="sub">'+esc(f.conta||'')+' · '+f.unidades_total+' un. · pronto até '+esc((f.prazo||'').slice(11,16))+'</div>'+
+  return '<div class="env"><div><div class="tt"><span class="canal '+esc(f.canal)+'">'+esc(NOMES[f.canal]||f.canal)+'</span>#'+esc(f.numero)+'</div><div class="sub">'+esc(f.conta||'')+' · '+f.unidades_total+' un. · pronto até '+esc((f.prazo||'').slice(11,16)||'pendente')+'</div>'+
   '<div class="barra f"><div style="width:'+f.percentual+'%"></div></div><div class="sub">'+f.unidades_prontas+' de '+f.unidades_total+' prontas ('+f.percentual+'%)</div></div>'+
   '<div class="sub" style="font-size:18px;color:#cbd5e1">'+f.produtos.map(x=>esc(x.sku)+'<br>Estoque: <b>'+esc(x.estoquista||'—')+'</b> · Embalagem: <b>'+esc(x.embalador||'—')+'</b><div style="margin-top:6px">'+['T','E','OK'].map(t=>'<span class="chip '+(x.etapas[t]?'on':'')+'">'+t+'</span>').join('')+'</div>').join('<hr>')+'</div>'+
-  '<div class="meta '+cls+'" style="text-align:right">'+(f.concluido?'✔ pronto':(f.atrasado?'atrasado '+fmtMin(-f.minutos_ate_prazo):'faltam '+fmtMin(f.minutos_ate_prazo)))+'</div></div>'}).join(''):'<div class="vazio" style="padding-left:0">Nenhum envio Full neste dia</div>';
+  '<div class="meta '+cls+'" style="text-align:right">'+(f.status==='fila'?'na fila<br><span style="font-size:18px">aguardando início</span>':f.concluido?'✔ pronto':(f.atrasado?'atrasado '+fmtMin(-f.minutos_ate_prazo):'faltam '+fmtMin(f.minutos_ate_prazo)))+'</div></div>'}).join(''):'<div class="vazio" style="padding-left:0">Nenhum envio Full neste dia</div>';
  tick();
 }
 $('modo').onchange=()=>{$('dia').dataset.auto='1';if(!DIA_FIXO)$('dia').value=$('modo').value==='real'?hojeIso():iso(amanha);carregar()};

@@ -13,11 +13,17 @@ POST   /montagem/envios/{frete}/produtos/{i}/marcar     {tag: T|E|OK, por, papel
 DELETE /montagem/envios/{frete}/produtos/{i}/marcar/{tag}
 POST   /montagem/envios/{frete}/produtos/{i}/responsaveis   {estoquista, embalador}
 POST   /montagem/envios/{frete}/prazo      {prazo, coleta}
+POST   /montagem/envios/{frete}/iniciar    {por, papel: lider} — tira da fila
+POST   /montagem/envios/{frete}/ordem      {posicao} — 1 = próximo da fila
 DELETE /montagem/envios/{frete}
+
+Todo envio novo entra na fila. Os Fulls da Amazon prontos (NF + coleta) entram sozinhos a cada 20 min.
 """
 
 import json
 import os
+import threading
+import time
 
 from fastapi import APIRouter, File, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -29,6 +35,26 @@ from marketplaces.montagem import amazon_fba, leitor
 router = APIRouter(prefix="/montagem", tags=["montagem"])
 PASTA = os.path.dirname(os.path.abspath(__file__))
 PRODUTOS = os.path.join(arm.BASE_DIR, "produtos.json")
+
+
+AUTO_AMAZON_SEG = 20 * 60
+
+
+def _loop_amazon():
+    time.sleep(60)                     # deixa o servidor subir antes de consultar a Amazon
+    while True:
+        try:
+            criados = amazon_fba.importar_prontos()
+            if criados:
+                print(f"[montagem] Fulls da Amazon na fila: {', '.join(criados)}")
+        except Exception as e:
+            print(f"[montagem] Pré-carga automática da Amazon falhou: {str(e)[:150]}")
+        time.sleep(AUTO_AMAZON_SEG)
+
+
+@router.on_event("startup")
+def _ligar_auto_amazon():
+    threading.Thread(target=_loop_amazon, daemon=True, name="montagem-amazon").start()
 
 
 def _pagina(nome):
@@ -115,7 +141,7 @@ def amazon_disponiveis(atualizar: bool = False):
         dados = amazon_fba.disponiveis(atualizar)
     except Exception as e:
         return JSONResponse({"success": False, "error": f"Não consegui consultar a Amazon: {str(e)[:200]}"}, status_code=502)
-    cadastrados = {e["chave"] for e in arm.listar()}
+    cadastrados = {e["chave"] for e in arm.listar()} | arm.dispensados()
     envios = [dict(x, ja_cadastrado=f"amazon-{x.get('numero')}" in cadastrados) for x in dados["envios"]]
     return {"success": True, "envios": envios, "erros": dados["erros"], "gerado_em": dados["gerado_em"]}
 
@@ -152,7 +178,7 @@ class NovoEnvio(BaseModel):
     canal: str = "meli"   # meli | amazon | shopee
     conta: str = ""
     coleta: str = ""
-    prazo: str
+    prazo: str = ""       # pode ficar pendente enquanto está na fila
     produtos: list
     criado_por: str = ""
 
@@ -201,7 +227,7 @@ def responsaveis(frete: str, i: int, b: Responsaveis):
 
 
 class Prazo(BaseModel):
-    prazo: str
+    prazo: str = ""
     coleta: str = None
 
 
@@ -209,6 +235,31 @@ class Prazo(BaseModel):
 def prazo(frete: str, b: Prazo):
     try:
         return {"success": True, "envio": arm.alterar_prazo(frete, b.prazo, b.coleta)}
+    except arm.ErroMontagem as e:
+        return _erro(e)
+
+
+class Inicio(BaseModel):
+    por: str
+    papel: str
+
+
+@router.post("/envios/{frete}/iniciar")
+def iniciar(frete: str, b: Inicio):
+    try:
+        return {"success": True, "envio": arm.iniciar(frete, b.por, b.papel)}
+    except arm.ErroMontagem as e:
+        return _erro(e)
+
+
+class Ordem(BaseModel):
+    posicao: int
+
+
+@router.post("/envios/{frete}/ordem")
+def ordem(frete: str, b: Ordem):
+    try:
+        return {"success": True, "envio": arm.mover(frete, b.posicao)}
     except arm.ErroMontagem as e:
         return _erro(e)
 

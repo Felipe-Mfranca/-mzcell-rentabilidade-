@@ -86,6 +86,7 @@ def _full(envio: dict, agora: datetime) -> dict:
             "percentual": round(100 * prontas / total, 1) if total else 0.0, "concluido": concl,
             "minutos_ate_prazo": round((prazo - agora).total_seconds() / 60) if prazo else None,
             "atrasado": bool(prazo and prazo < agora and not concl),
+            "status": envio.get("status") or "montagem",      # "fila" = programado, o líder ainda não iniciou
             "produtos": [{"sku": p["sku"], "unidades": p["unidades"], "estoquista": p.get("estoquista", ""),
                           "embalador": p.get("embalador", ""), "etapas": {t: True for t in p["etapas"]}} for p in prods]}
 

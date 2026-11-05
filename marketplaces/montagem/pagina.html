@@ -31,7 +31,7 @@ button.sec{background:#e5e7eb;color:#1f2933}button.perigo{background:#991b1b}
 <div class="card"><h2>Novo envio</h2>
 <div class="top">
 <label>Canal <select id="canal" onchange="trocaCanal()"><option value="meli">Mercado Livre (PDF)</option><option value="amazon">Amazon (manual)</option><option value="shopee">Shopee (PDF do FBS ou manual)</option></select></label>
-<button class="sec" type="button" onclick="buscarAmazon()">Pré-carregar Fulls da Amazon</button>
+<button class="sec" type="button" onclick="buscarAmazon()">Ver Fulls da Amazon</button> <span class="mut">(os prontos entram sozinhos na fila a cada 20 min)</span>
 <span id="boxpdf"><input type="file" id="pdf" accept="application/pdf"> <span class="mut">PDF do envio ao Full (Meli: "instruções de preparação"; Shopee: "Picking List").</span></span>
 </div>
 <div id="amz"></div>
@@ -65,7 +65,7 @@ function mostrarAmazon(d){
 async function importarAmazon(){
  const nums=[...document.querySelectorAll('.amz-ck:checked')].map(c=>c.value);if(!nums.length)return;
  try{const r=await api('/montagem/amazon/importar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({numeros:nums,criado_por:$('eu').value})});
-  let m=r.criados.length?'<div class="aviso" style="background:#dcfce7;color:#166534">Importados: '+r.criados.map(esc).join(', ')+'. Agora atribua os produtos aos responsáveis.</div>':'';
+  let m=r.criados.length?'<div class="aviso" style="background:#dcfce7;color:#166534">Na fila: '+r.criados.map(esc).join(', ')+'. Programe a ordem e os responsáveis; o líder inicia.</div>':'';
   m+=r.falhas.map(f=>'<div class="erro">'+esc(f.numero)+': '+esc(f.motivo)+'</div>').join('');
   $('amz').innerHTML=m;carregar()}catch(e){$('amz').innerHTML='<div class="erro">'+esc(e.message)+'</div>'}}
 function trocaCanal(){previa=null;$('previa').innerHTML='';$('pdf').value='';
@@ -83,10 +83,10 @@ function mostrarPrevia(){const p=previa;
  const m=p.manual,cv=$('canal').value,contas=cv==='amazon'?['amazon01','amazon02']:(cv==='shopee'?['shopee']:['meli01','meli02','meli03']);
  h+='<div class="top"><label>'+(m||cv==='shopee'?'Nº do envio':'Frete')+' <input id="n_frete" value="'+esc(p.frete)+'" style="width:150px"></label>'+
  '<label>Conta <select id="n_conta"><option value="">—</option>'+contas.map(c=>'<option '+(c===p.conta_sugerida?'selected':'')+'>'+c+'</option>').join('')+'</select></label>'+
- '<label>Coleta <input type="date" id="n_coleta" value="'+esc(p.coleta||'')+'"></label><label>Pronto até <input type="datetime-local" id="n_prazo"></label></div>';
+ '<label>Coleta <input type="date" id="n_coleta" value="'+esc(p.coleta||'')+'"></label><label>Pronto até <input type="datetime-local" id="n_prazo"> <span class="mut">(pode ficar pendente)</span></label></div>';
  h+='<table><tr><th>SKU</th><th>Produto</th><th>Unid.</th><th>Estoquista</th><th>Embalador</th></tr>'+p.produtos.map(linhaProd).join('')+'</table>';
  if(m)h+='<p><button class="sec" onclick="addLinha()">+ produto</button></p>';
- h+='<p><button onclick="criar()">Criar envio</button> <button class="sec" onclick="trocaCanal()">Cancelar</button></p><div id="n_msg"></div>';
+ h+='<p><button onclick="criar()">Colocar na fila</button> <button class="sec" onclick="trocaCanal()">Cancelar</button></p><div id="n_msg"></div>';
  $('previa').innerHTML=h}
 function lerLinhas(){return previa.produtos.map((x,i)=>({...x,sku:previa.manual?$('n_sku'+i).value:x.sku,titulo:previa.manual?$('n_tit'+i).value:x.titulo,unidades:+$('n_un'+i).value,estoquista:$('n_es'+i).value,embalador:$('n_em'+i).value}))}
 function addLinha(){previa.produtos=lerLinhas();const f=$('n_frete').value,c=$('n_conta').value,co=$('n_coleta').value,pz=$('n_prazo').value;
@@ -94,19 +94,24 @@ function addLinha(){previa.produtos=lerLinhas();const f=$('n_frete').value,c=$('
 async function criar(){const body={frete:$('n_frete').value,canal:$('canal').value,conta:$('n_conta').value,coleta:$('n_coleta').value,prazo:$('n_prazo').value,criado_por:$('eu').value,produtos:lerLinhas()};
  try{await api('/montagem/envios',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});trocaCanal();carregar()}
  catch(e){$('n_msg').innerHTML='<div class="erro">'+esc(e.message)+'</div>'}}
-function resta(prazo){const ms=new Date(prazo)-new Date();const m=Math.round(Math.abs(ms)/60000);const t=Math.floor(m/60)+'h'+String(m%60).padStart(2,'0');return ms<0?'<span class="atraso">atrasado '+t+'</span>':'faltam '+t}
-async function carregar(){const d=await api('/montagem/dados');
- $('lista').innerHTML=d.envios.map(e=>{const r=e.resumo,k=esc(e.chave);
-  return '<div class="card"><div class="top"><h2 style="margin:0"><span class="badge '+esc(e.canal)+'">'+esc(NOMES[e.canal]||e.canal)+'</span> Envio #'+esc(e.numero)+' · '+esc(e.conta||'?')+(e.concluido_em?' · <span style="color:#166534">concluído</span>':'')+'</h2>'+
-  '<span>Coleta: '+esc(e.coleta||'—')+'</span><span>Pronto até: <input type="datetime-local" value="'+esc(e.prazo)+'" onchange="prazo(\''+k+'\',this.value)"> '+(e.concluido_em?'':resta(e.prazo))+'</span>'+
+function resta(prazo){if(!prazo)return '<span class="atraso">pronto até pendente</span>';const ms=new Date(prazo)-new Date();const m=Math.round(Math.abs(ms)/60000);const t=Math.floor(m/60)+'h'+String(m%60).padStart(2,'0');return ms<0?'<span class="atraso">atrasado '+t+'</span>':'faltam '+t}
+function cartao(e,pos,nfila){const r=e.resumo,k=esc(e.chave),fila=e.status==='fila';
+  return '<div class="card"'+(fila?' style="border-left:5px solid #854d0e"':'')+'><div class="top"><h2 style="margin:0">'+(fila?'<span class="badge" style="background:#854d0e">'+pos+'º da fila</span> ':'')+'<span class="badge '+esc(e.canal)+'">'+esc(NOMES[e.canal]||e.canal)+'</span> Envio #'+esc(e.numero)+' · '+esc(e.conta||'?')+(e.concluido_em?' · <span style="color:#166534">concluído</span>':'')+'</h2>'+
+  '<span>Coleta: <input type="date" value="'+esc(e.coleta||'')+'" onchange="coleta(\''+k+'\',this.value,\''+esc(e.prazo||'')+'\')"></span><span>Pronto até: <input type="datetime-local" value="'+esc(e.prazo)+'" onchange="prazo(\''+k+'\',this.value)"> '+(fila?(e.prazo?'':'<span class="mut">pendente</span>'):(e.concluido_em?'':resta(e.prazo)))+'</span>'+
+  (fila?'<button class="sec" '+(pos<2?'disabled':'')+' onclick="mover(\''+k+'\','+(pos-1)+')" title="subir na fila">↑</button><button class="sec" '+(pos>=nfila?'disabled':'')+' onclick="mover(\''+k+'\','+(pos+1)+')" title="descer na fila">↓</button><button onclick="iniciar(\''+k+'\')">Iniciar</button>':
+   '<span class="mut">'+(e.iniciado_por?'iniciado por '+esc(e.iniciado_por)+' em '+esc((e.iniciado_em||'').slice(8,10)+'/'+(e.iniciado_em||'').slice(5,7)+' '+(e.iniciado_em||'').slice(11,16)):'')+'</span>')+
   '<button class="perigo" onclick="remover(\''+k+'\')">Excluir</button></div>'+
   '<div class="barra"><div style="width:'+r.percentual+'%"></div></div><div class="mut">'+r.unidades_prontas+' de '+r.unidades_total+' un. prontas ('+r.percentual+'%)</div>'+
   '<table><tr><th>Produto</th><th>Unid.</th><th>Estoquista</th><th>Embalador</th><th>Etapas (T · E · OK)</th></tr>'+e.produtos.map((p,i)=>
   '<tr><td>'+esc(p.sku)+'<div class="mut">'+esc(p.titulo)+'</div></td><td>'+p.unidades+'</td>'+
   '<td><input value="'+esc(p.estoquista)+'" style="width:120px" onchange="resp(\''+k+'\','+i+',\'estoquista\',this.value)"></td>'+
   '<td><input value="'+esc(p.embalador)+'" style="width:120px" onchange="resp(\''+k+'\','+i+',\'embalador\',this.value)"></td>'+
-  '<td>'+['T','E','OK'].map(t=>{const m=p.etapas[t];return '<span class="chip '+(m?'on':'')+'" title="'+(m?esc(m.por)+' ('+esc(m.papel)+') '+esc(m.em):'marcar')+'" onclick="marca(\''+k+'\','+i+',\''+t+'\','+(m?1:0)+')">'+t+'</span>'}).join('')+
-  '<div class="mut">'+['T','E','OK'].filter(t=>p.etapas[t]).map(t=>t+': '+esc(p.etapas[t].por)+' '+esc(p.etapas[t].em.slice(11,16))).join(' · ')+'</div></td></tr>').join('')+'</table></div>'}).join('')||'<div class="card mut">Nenhum envio cadastrado.</div>';
+  '<td>'+(fila?'<span class="mut">aguardando início</span>':['T','E','OK'].map(t=>{const m=p.etapas[t];return '<span class="chip '+(m?'on':'')+'" title="'+(m?esc(m.por)+' ('+esc(m.papel)+') '+esc(m.em):'marcar')+'" onclick="marca(\''+k+'\','+i+',\''+t+'\','+(m?1:0)+')">'+t+'</span>'}).join(''))+
+  '<div class="mut">'+['T','E','OK'].filter(t=>p.etapas[t]).map(t=>t+': '+esc(p.etapas[t].por)+' '+esc(p.etapas[t].em.slice(11,16))).join(' · ')+'</div></td></tr>').join('')+'</table></div>'}
+async function carregar(){const d=await api('/montagem/dados');
+ const fila=d.envios.filter(e=>e.status==='fila'),mont=d.envios.filter(e=>e.status!=='fila');
+ $('lista').innerHTML='<h2 style="margin:18px 0 8px">Fila — aguardando início ('+fila.length+')</h2>'+(fila.map((e,i)=>cartao(e,i+1,fila.length)).join('')||'<div class="card mut">Fila vazia.</div>')+
+  '<h2 style="margin:18px 0 8px">Em montagem</h2>'+(mont.map(e=>cartao(e)).join('')||'<div class="card mut">Nenhum Full em montagem.</div>');
  const pr=await api('/montagem/produtividade');
  $('prod').innerHTML=pr.pessoas.length?'<table><tr><th>Pessoa</th><th>Marcas</th><th>Unidades</th><th>Tempo médio entre etapas</th></tr>'+pr.pessoas.map(x=>'<tr><td>'+esc(x.pessoa)+'</td><td>'+x.marcas+' ('+Object.entries(x.por_etapa).map(([k,v])=>k+':'+v).join(' ')+')</td><td>'+x.unidades+'</td><td>'+(x.tempo_medio_entre_etapas_min??'—')+' min</td></tr>').join('')+'</table>':'Sem marcas ainda.'}
 async function marca(k,i,t,on){try{
@@ -116,6 +121,12 @@ async function marca(k,i,t,on){try{
  carregar()}catch(e){alert(e.message)}}
 async function resp(k,i,campo,v){try{await api('/montagem/envios/'+k+'/produtos/'+i+'/responsaveis',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[campo]:v})})}catch(e){alert(e.message)}}
 async function prazo(k,v){try{await api('/montagem/envios/'+k+'/prazo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prazo:v})});carregar()}catch(e){alert(e.message)}}
+async function coleta(k,v,pz){try{await api('/montagem/envios/'+k+'/prazo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prazo:pz,coleta:v})});carregar()}catch(e){alert(e.message)}}
+async function mover(k,pos){try{await api('/montagem/envios/'+k+'/ordem',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({posicao:pos})});carregar()}catch(e){alert(e.message)}}
+async function iniciar(k){const por=$('eu').value.trim();if(!por){alert('Preencha "Eu sou" no alto da página.');return}
+ if($('papel').value!=='lider'){alert('Só o líder inicia um Full da fila.');return}
+ if(!confirm('Iniciar a montagem deste Full?'))return;
+ try{await api('/montagem/envios/'+k+'/iniciar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({por,papel:'lider'})});carregar()}catch(e){alert(e.message)}}
 async function remover(k){if(!confirm('Excluir este envio e todas as marcas dele?'))return;try{await api('/montagem/envios/'+k,{method:'DELETE'});carregar()}catch(e){alert(e.message)}}
 carregar();setInterval(()=>{if(!document.activeElement||document.activeElement.tagName!=='INPUT')carregar()},20000);
 </script></body></html>

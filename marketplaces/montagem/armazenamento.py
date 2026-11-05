@@ -7,6 +7,10 @@ OK = pronto (etiquetado e caixa master lacrada). OK só vale depois de T e E.
 Quem marca: o ESTOQUISTA do produto ou o LÍDER (o embalador não marca). Cada marca guarda quem, o papel e quando:
 isso alimenta a produtividade, que aparece só na gestão. A TV mostra apenas andamento e responsáveis.
 Não escreve em nenhuma API: é só controle interno.
+
+Fila: todo envio novo nasce com status "fila" (aguardando início), numa ordem que o líder ou o estoquista ajustam,
+com a coleta programada e o "pronto até" podendo ficar pendente. Só o LÍDER inicia (status "montagem"); antes
+disso ninguém marca etapas. Envios antigos, sem status, contam como já em montagem.
 """
 
 import json
@@ -45,24 +49,34 @@ def _gravar(dados: dict):
     os.replace(tmp, CAMINHO)
 
 
+def status(envio: dict) -> str:
+    return envio.get("status") or "montagem"
+
+
+def _fila(dados) -> list:
+    return sorted((e for e in dados["envios"].values() if status(e) == "fila"), key=lambda e: (e.get("ordem") or 0, e["chave"]))
+
+
 def listar(incluir_concluidos: bool = True) -> list:
-    envios = list(_ler()["envios"].values())
+    """Fila primeiro (na ordem programada), depois as montagens por prazo."""
+    dados = _ler()
+    fila = _fila(dados)
+    resto = [e for e in dados["envios"].values() if status(e) != "fila"]
     if not incluir_concluidos:
-        envios = [e for e in envios if not e.get("concluido_em")]
-    return sorted(envios, key=lambda e: (e.get("prazo") or "", e["chave"]))
+        resto = [e for e in resto if not e.get("concluido_em")]
+    return fila + sorted(resto, key=lambda e: (e.get("prazo") or "", e["chave"]))
 
 
 def criar(numero: str, conta: str, coleta: str, prazo: str, produtos: list, criado_por: str = "", canal: str = "meli") -> dict:
     """`numero` é o identificador do envio no canal (Frete # no Meli, ID FBA na Amazon, número do inbound na Shopee).
-    A chave interna é canal-numero, para números iguais de canais diferentes não colidirem."""
+    A chave interna é canal-numero, para números iguais de canais diferentes não colidirem.
+    Entra no fim da fila; o "pronto até" (`prazo`) pode ficar pendente até o líder iniciar."""
     numero = str(numero).strip().lstrip("#")
     canal = (canal or "meli").lower()
     if canal not in CANAIS:
         raise ErroMontagem("Canal inválido. Use meli, amazon ou shopee.")
     if not numero:
         raise ErroMontagem("Informe o número do envio.")
-    if not prazo:
-        raise ErroMontagem("Informe o prazo para ficar pronto.")
     if not produtos:
         raise ErroMontagem("O envio não tem produtos.")
     itens = []
@@ -79,8 +93,10 @@ def criar(numero: str, conta: str, coleta: str, prazo: str, produtos: list, cria
         dados = _ler()
         if chave in dados["envios"]:
             raise ErroMontagem(f"O envio {numero} ({canal}) já foi cadastrado.", 409)
+        ordem = max([e.get("ordem") or 0 for e in _fila(dados)], default=0) + 1
         envio = {"chave": chave, "canal": canal, "numero": numero, "frete": chave, "conta": conta, "coleta": coleta,
-                 "prazo": prazo, "criado_em": agora(), "criado_por": criado_por, "produtos": itens, "concluido_em": None}
+                 "prazo": prazo or "", "criado_em": agora(), "criado_por": criado_por, "produtos": itens, "concluido_em": None,
+                 "status": "fila", "ordem": ordem}
         dados["envios"][chave] = envio
         _gravar(dados)
     return envio
@@ -115,6 +131,8 @@ def marcar(frete: str, idx: int, tag: str, por: str, papel: str = "estoquista") 
     with _trava:
         dados = _ler()
         envio, prod = _achar(dados, frete, idx)
+        if status(envio) == "fila":
+            raise ErroMontagem("Este Full ainda está na fila. O líder precisa clicar em Iniciar antes das marcas.", 409)
         if papel == "estoquista" and str(por).strip().lower() != (prod.get("estoquista") or "").strip().lower():
             raise ErroMontagem("Este produto é de outro estoquista. Peça ao líder ou ao responsável para marcar.", 403)
         if tag == "OK" and not ("T" in prod["etapas"] and "E" in prod["etapas"]):
@@ -157,19 +175,64 @@ def alterar_prazo(frete: str, prazo: str, coleta: str = None) -> dict:
         envio = dados["envios"].get(str(frete))
         if not envio:
             raise ErroMontagem("Envio não encontrado.", 404)
-        envio["prazo"] = prazo
+        if not prazo and status(envio) != "fila":
+            raise ErroMontagem('Full em montagem precisa do "pronto até".')
+        envio["prazo"] = prazo or ""
         if coleta is not None:
             envio["coleta"] = coleta
         _gravar(dados)
         return envio
 
 
-def remover(frete: str):
+def iniciar(frete: str, por: str, papel: str) -> dict:
+    """Só o líder tira o envio da fila; o "pronto até" precisa estar definido."""
+    if (papel or "").lower() != "lider":
+        raise ErroMontagem("Só o líder inicia um Full da fila.", 403)
+    if not str(por).strip():
+        raise ErroMontagem("Informe quem está iniciando.")
     with _trava:
         dados = _ler()
-        if dados["envios"].pop(str(frete), None) is None:
+        envio = dados["envios"].get(str(frete))
+        if not envio:
             raise ErroMontagem("Envio não encontrado.", 404)
+        if status(envio) != "fila":
+            raise ErroMontagem("Este Full já foi iniciado.", 409)
+        if not envio.get("prazo"):
+            raise ErroMontagem('Defina o "pronto até" (data e hora) antes de iniciar.')
+        envio.update(status="montagem", ordem=None, iniciado_em=agora(), iniciado_por=str(por).strip())
         _gravar(dados)
+        return envio
+
+
+def mover(frete: str, posicao: int) -> dict:
+    """Leva o envio para a posição (1 = o próximo a começar) e renumera a fila."""
+    with _trava:
+        dados = _ler()
+        envio = dados["envios"].get(str(frete))
+        if not envio or status(envio) != "fila":
+            raise ErroMontagem("Envio não está na fila.", 404)
+        fila = [e for e in _fila(dados) if e is not envio]
+        fila.insert(max(0, min(int(posicao) - 1, len(fila))), envio)
+        for i, e in enumerate(fila, 1):
+            e["ordem"] = i
+        _gravar(dados)
+        return envio
+
+
+def remover(frete: str):
+    """Envio da Amazon excluído fica marcado como dispensado, para a pré-carga automática não trazê-lo de volta."""
+    with _trava:
+        dados = _ler()
+        envio = dados["envios"].pop(str(frete), None)
+        if envio is None:
+            raise ErroMontagem("Envio não encontrado.", 404)
+        if envio.get("canal") == "amazon":
+            dados.setdefault("dispensados", []).append(envio["chave"])
+        _gravar(dados)
+
+
+def dispensados() -> set:
+    return set(_ler().get("dispensados") or [])
 
 
 def resumo(envio: dict) -> dict:
@@ -184,7 +247,8 @@ def resumo(envio: dict) -> dict:
 
 def para_tv(envio: dict) -> dict:
     """Versão do envio para a TV: andamento e responsáveis, sem quem marcou nem horários (produtividade fica na gestão)."""
-    e = {k: envio[k] for k in ("chave", "canal", "numero", "conta", "coleta", "prazo", "concluido_em")}
+    e = {k: envio.get(k) for k in ("chave", "canal", "numero", "conta", "coleta", "prazo", "concluido_em", "ordem")}
+    e["status"] = status(envio)
     e["produtos"] = [{"sku": p["sku"], "titulo": p["titulo"], "unidades": p["unidades"],
                       "estoquista": p.get("estoquista", ""), "embalador": p.get("embalador", ""),
                       "etapas": {t: True for t in p["etapas"]}} for p in envio["produtos"]]

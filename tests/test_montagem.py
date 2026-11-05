@@ -72,8 +72,45 @@ class TestArmazenamento(unittest.TestCase):
         arm.CAMINHO = self._orig
         self._dir.cleanup()
 
-    def _criar(self, canal="meli", numero="1"):
-        return arm.criar(numero, "meli01", "2026-11-04", "2026-11-04T09:00", self.prods, "Lider", canal)
+    def _criar(self, canal="meli", numero="1", iniciar=True):
+        e = arm.criar(numero, "meli01", "2026-11-04", "2026-11-04T09:00", self.prods, "Lider", canal)
+        return arm.iniciar(e["chave"], "Chefe", "lider") if iniciar else e
+
+    def test_fila_ordem_e_inicio(self):
+        a = self._criar(numero="A", iniciar=False)
+        b = self._criar(numero="B", iniciar=False)
+        c = arm.criar("C", "meli01", "2026-11-06", "", self.prods)          # pronto até pendente: pode entrar na fila
+        self.assertEqual([e["status"] for e in (a, b, c)], ["fila"] * 3)
+        self.assertEqual([e["numero"] for e in arm.listar()], ["A", "B", "C"])
+        arm.mover(c["chave"], 1)                                             # C passa a ser o próximo
+        self.assertEqual([(e["numero"], e["ordem"]) for e in arm.listar()], [("C", 1), ("A", 2), ("B", 3)])
+        with self.assertRaises(arm.ErroMontagem) as x:
+            arm.marcar(a["chave"], 0, "T", "Ana", "estoquista")              # na fila ninguém marca
+        self.assertEqual(x.exception.status, 409)
+        with self.assertRaises(arm.ErroMontagem) as x:
+            arm.iniciar(a["chave"], "Ana", "estoquista")                     # só o líder inicia
+        self.assertEqual(x.exception.status, 403)
+        with self.assertRaises(arm.ErroMontagem):
+            arm.iniciar(c["chave"], "Chefe", "lider")                        # sem "pronto até" não inicia
+        e = arm.iniciar(a["chave"], "Chefe", "lider")
+        self.assertEqual((e["status"], e["iniciado_por"]), ("montagem", "Chefe"))
+        arm.marcar(a["chave"], 0, "T", "Ana", "estoquista")
+        self.assertEqual([e["numero"] for e in arm.listar()], ["C", "B", "A"])   # fila primeiro, depois montagem
+        with self.assertRaises(arm.ErroMontagem):
+            arm.alterar_prazo(a["chave"], "")                                # em montagem o prazo não pode sumir
+
+    def test_envio_antigo_sem_status_esta_em_montagem(self):
+        e = self._criar(iniciar=False)
+        dados = arm._ler()
+        for k in ("status", "ordem"):
+            dados["envios"][e["chave"]].pop(k)
+        arm._gravar(dados)
+        arm.marcar(e["chave"], 0, "T", "Ana", "estoquista")
+
+    def test_amazon_excluido_nao_volta(self):
+        e = self._criar("amazon", "FBA1", iniciar=False)
+        arm.remover(e["chave"])
+        self.assertIn("amazon-FBA1", arm.dispensados())
 
     def test_canais_nao_colidem(self):
         self._criar("meli", "123")
