@@ -3,13 +3,15 @@ marketplaces/expedicao/bipagem.py — Etiqueta bipada -> pedido no Bling (soment
 MZ App
 
 O leitor manda o código da etiqueta (código de barras = número do envio do ML; o QR do Flex é um JSON com "id").
-Procura nos três Blings pelo numeroLoja (número do pedido ou do pacote no marketplace). Se o código for um envio do
-ML, descobre o pedido pelo mapa do galpão ou, se não estiver lá, pela API do ML (/shipments/{id}) nas três contas.
+Envio do ML (10 a 12 dígitos): descobre pedido e pacote pelo mapa do galpão em memória ou por /shipments/{id}.
+Depois pergunta direto ao Bling pelo numeroLoja (filtro numerosLojas[]: ~1 s, sem baixar a lista de pedidos).
+Qualquer outro código (pack, pedido, Shopee...) vai direto ao Bling.
 """
 
 import json
 import re
 
+from marketplaces.bling import api as bling
 from marketplaces.expedicao import bling_checkout, ml
 
 BLINGS = ("bling01", "bling02", "bling03")
@@ -38,14 +40,18 @@ def normalizar(codigo: str) -> str:
 def _no_bling(chaves: list, blings=BLINGS) -> tuple:
     """(achado, erros): o primeiro pedido dos Blings cujo numeroLoja é uma das chaves."""
     erros = {}
+    chaves = [str(k) for k in chaves if k]
     for b in blings:
         try:
-            por_loja = bling_checkout._pedidos(b)
+            st, r = bling.get(b, "/pedidos/vendas", **{"numerosLojas[]": chaves})
+            if st != 200:
+                raise RuntimeError(f"HTTP {st}")
         except Exception as e:
             erros[b] = f"{type(e).__name__}: {str(e)[:80]}"
             continue
+        por_loja = {str(p.get("numeroLoja")): p for p in (r or {}).get("data", [])}
         for k in chaves:
-            p = por_loja.get(str(k)) if k else None
+            p = por_loja.get(k)
             if p:
                 sit = (p.get("situacao") or {}).get("id")
                 return {"bling": b, "bling_n": int(b[-1]), "numero": p.get("numero"), "numero_loja": p.get("numeroLoja"),
@@ -83,12 +89,18 @@ def buscar(codigo: str, conta: str = None) -> dict:
     if conta and conta not in bling_checkout.PARES:
         raise ValueError("conta inválida")
     blings = (bling_checkout.PARES[conta],) if conta else BLINGS
-    achado, erros = _no_bling([cod], blings)             # já é o número do pedido/pacote (ML, Shopee, Amazon...)
-    envio = None
-    if not achado:
+    achado, erros, envio = None, {}, None
+    parece_envio = cod.isdigit() and 10 <= len(cod) <= 12
+    if not parece_envio:
+        achado, erros = _no_bling([cod], blings)          # pack/pedido do ML, Shopee, Amazon...
+    if not achado and cod.isdigit():
         envio = _envio_ml(cod, [conta] if conta else None)
         if envio:
-            achado, erros = _no_bling([envio.get("pacote"), envio.get("pedido")], blings)
+            par = bling_checkout.PARES.get(envio["conta"])
+            ordem = [par] + [b for b in blings if b != par] if par in blings else list(blings)   # o Bling da conta primeiro
+            achado, erros = _no_bling([envio.get("pacote"), envio.get("pedido")], ordem)
+    if not achado and parece_envio and not envio:
+        achado, erros = _no_bling([cod], blings)
     res = {"encontrado": bool(achado), "codigo": cod, "conta": conta, "envio_ml": envio, "erros_bling": erros}
     if achado:
         res.update(achado)

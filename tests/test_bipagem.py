@@ -10,7 +10,9 @@ PEDIDOS = {"bling01": {}, "bling02": {"2000015869601391": {"numero": 11642, "num
 
 class TestBipagem(unittest.TestCase):
     def setUp(self):
-        self.p = mock.patch.object(bipagem.bling_checkout, "_pedidos", lambda b: PEDIDOS[b])
+        def falso_get(b, path, **params):
+            return 200, {"data": [p for k, p in PEDIDOS[b].items() if k in params["numerosLojas[]"]]}
+        self.p = mock.patch.object(bipagem.bling, "get", falso_get)
         self.p.start()
 
     def tearDown(self):
