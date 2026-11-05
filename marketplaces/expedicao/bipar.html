@@ -63,7 +63,23 @@ async function buscar(c) {
   bip(d.encontrado);
   hist.insertAdjacentHTML('afterbegin', `<tr><td>${hora}</td><td>${esc(d.codigo)}</td><td>${d.encontrado ? 'Bling ' + d.bling_n : '—'}</td><td><b>${d.encontrado ? esc(d.numero) : 'não encontrado'}</b></td><td>${esc(d.situacao || '')}</td></tr>`);
 }
-cod.addEventListener('keydown', e => { if (e.key === 'Enter') { const c = cod.value.trim(); cod.value = ''; if (c) buscar(c); } });
+// O QR do Flex chega inteiro e o leitor digita ~100 caracteres (id, sender_id, hash_code...). Assim que o número do
+// envio aparece completo no campo, a busca já começa; o resto da digitação é descartado no Enter.
+let jaBuscou = false, calado = null;
+cod.addEventListener('input', () => {
+  clearTimeout(calado);                            // leitor sem Enter: 1 s sem digitação encerra a leitura
+  calado = setTimeout(() => { if (jaBuscou) { jaBuscou = false; cod.value = ''; } }, 1000);
+  if (jaBuscou) return;
+  const m = /(?:^|[^a-z_])id\D{0,6}(\d{10,12})\D/i.exec(cod.value);
+  if (m) { jaBuscou = true; buscar(m[1]); }
+});
+cod.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const c = cod.value.trim(); cod.value = '';
+  if (jaBuscou) { jaBuscou = false; return; }      // já buscou pelo envio no meio da leitura
+  if (c) buscar(c);
+});
 document.addEventListener('click', e => { if (!e.target.closest('select')) cod.focus(); });   // não rouba o foco do seletor de conta
 aquecer();
 </script>
