@@ -275,6 +275,9 @@ def lista() -> dict:
     for dados in (catalogo.ler().get("blings") or {}).values():
         for s, x in (dados.get("skus") or {}).items():
             nomes.setdefault(_chave(s), x.get("nome") or "")
+        for s, x in (dados.get("kits") or {}).items():
+            if _chave(s) in DIRETO_NO_PRODUTO:   # fora de kits, mas precisa aparecer para receber o valor
+                nomes.setdefault(_chave(s), x.get("nome") or "")
     contas = {}
     try:
         import produtos_store

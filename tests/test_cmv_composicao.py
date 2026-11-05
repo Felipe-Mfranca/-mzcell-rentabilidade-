@@ -173,6 +173,12 @@ class TestComposicao(unittest.TestCase):
             r = cc.validar_blings()
         self.assertEqual((r["kits"], r["divergentes"]), (1, []))
 
+    def test_unitario_sem_cmv_e_sem_anuncio_aparece_na_pagina(self):
+        cat = {"gerado_em": "x", "blings": {"bling01": {"kits": {"ARVNAT-SHP-150": {"nome": "Arvore", "comp": [["A", 1]]}}}}}
+        with mock.patch("marketplaces.balanco.catalogo.ler", lambda: cat), mock.patch("marketplaces.balanco.catalogo.atualizar", lambda: {}),                 mock.patch.object(cc, "_catalogo", CATALOGO_REAL):
+            linha = next(x for x in cc.lista()["linhas"] if x["sku"] == "ARVNAT-SHP-150")
+        self.assertEqual((linha["tipo"], linha["status"], linha["descricao"]), ("simples", "sem_cmv", "Arvore"))
+
     def test_validacao_ignora_os_fones_pedidos(self):
         cat = {"blings": {"bling01": {"kits": {"FONBTHM-LY124-BRANCO": {"comp": []}, "FONBTHM-LY124ROSA": {"comp": []}}}, "bling02": {"kits": {}}}}
         with mock.patch("marketplaces.balanco.catalogo.ler", lambda: cat):
