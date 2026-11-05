@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bipar etiqueta</title>
+<style>
+  :root { --bg:#f3f4f6; --card:#fff; --txt:#111827; --mut:#6b7280; --bd:#e5e7eb; --ok:#166534; --okb:#dcfce7; --vm:#991b1b; --vmb:#fee2e2; --hd:#1f2937; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1318; --card:#1a1f27; --txt:#e8eaee; --mut:#9aa3b2; --bd:#2f3642; --ok:#4ade80; --okb:#12301d; --vm:#f87171; --vmb:#3a1414; --hd:#0b0e12; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:16px/1.4 system-ui, "Segoe UI", sans-serif; }
+  header { background:var(--hd); color:#fff; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; }
+  header a { color:#fff; font-size:14px; }
+  main { max-width:900px; margin:0 auto; padding:16px; }
+  input { width:100%; font-size:22px; padding:14px; border:2px solid var(--bd); border-radius:10px; background:var(--card); color:var(--txt); }
+  #res { margin-top:16px; border-radius:12px; padding:20px; text-align:center; min-height:160px; background:var(--card); border:1px solid var(--bd); }
+  #res.ok { background:var(--okb); border-color:var(--ok); } #res.vm { background:var(--vmb); border-color:var(--vm); }
+  .bling { font-size:64px; font-weight:800; line-height:1.1; }
+  .ped { font-size:48px; font-weight:800; margin-top:6px; }
+  .det { color:var(--mut); margin-top:8px; font-size:14px; word-break:break-all; }
+  table { width:100%; border-collapse:collapse; margin-top:18px; font-size:14px; }
+  td, th { padding:6px 8px; border-bottom:1px solid var(--bd); text-align:left; }
+</style>
+</head>
+<body>
+<header><b>Bipar etiqueta → pedido no Bling</b><a href="/expedicao">← Expedição</a></header>
+<main>
+  <input id="cod" placeholder="Bipe a etiqueta (código de barras ou QR) ou digite o envio / pack" autofocus autocomplete="off">
+  <div id="res"><span class="det">Aguardando leitura…</span></div>
+  <table><thead><tr><th>Hora</th><th>Código</th><th>Bling</th><th>Pedido</th><th>Situação</th></tr></thead><tbody id="hist"></tbody></table>
+</main>
+<script>
+const cod = document.getElementById('cod'), res = document.getElementById('res'), hist = document.getElementById('hist');
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function bip(ok) {                                       // bip curto: agudo achou, grave não achou
+  try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator();
+    o.frequency.value = ok ? 1200 : 300; o.connect(a.destination); o.start(); o.stop(a.currentTime + (ok ? .12 : .4)); } catch (e) {}
+}
+async function buscar(c) {
+  res.className = ''; res.innerHTML = '<span class="det">Buscando ' + esc(c) + '…</span>';
+  let d;
+  try { const r = await fetch('/expedicao/bipar/buscar?codigo=' + encodeURIComponent(c)); d = await r.json(); if (!r.ok) throw new Error(d.detail || r.status); }
+  catch (e) { res.className = 'vm'; res.innerHTML = '<div class="ped">Erro</div><div class="det">' + esc(e.message) + '</div>'; bip(false); return; }
+  const hora = new Date().toLocaleTimeString('pt-BR');
+  if (d.encontrado) {
+    res.className = 'ok';
+    res.innerHTML = `<div class="bling">BLING ${d.bling_n}</div><div class="ped">Pedido ${esc(d.numero)}</div>
+      <div class="det">${esc(d.situacao)} · nº loja ${esc(d.numero_loja)}${d.envio_ml ? ' · ' + esc(d.envio_ml.conta) + ' envio ' + esc(d.codigo) : ''}</div>`;
+  } else {
+    res.className = 'vm';
+    res.innerHTML = `<div class="ped">Não encontrado</div><div class="det">${esc(d.motivo)} · código ${esc(d.codigo)}${Object.keys(d.erros_bling || {}).length ? ' · Bling com erro: ' + esc(Object.keys(d.erros_bling).join(', ')) : ''}</div>`;
+  }
+  bip(d.encontrado);
+  hist.insertAdjacentHTML('afterbegin', `<tr><td>${hora}</td><td>${esc(d.codigo)}</td><td>${d.encontrado ? 'Bling ' + d.bling_n : '—'}</td><td><b>${d.encontrado ? esc(d.numero) : 'não encontrado'}</b></td><td>${esc(d.situacao || '')}</td></tr>`);
+}
+cod.addEventListener('keydown', e => { if (e.key === 'Enter') { const c = cod.value.trim(); cod.value = ''; if (c) buscar(c); } });
+document.addEventListener('click', () => cod.focus());
+fetch('/expedicao/bipar/buscar?codigo=aquecer').catch(() => {});   // carrega os pedidos dos Blings antes da 1ª leitura
+</script>
+</body>
+</html>
