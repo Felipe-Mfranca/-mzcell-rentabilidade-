@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from datetime import date, datetime, timedelta
 
-from marketplaces.expedicao import amazon_dba, bling_checkout, cancelamentos as cancelamentos_mod, cortes as cortes_mod, dia as dia_mod, marcas, ml, simulacao, snapshot
+from marketplaces.expedicao import amazon_dba, bipagem, bling_checkout, cancelamentos as cancelamentos_mod, cortes as cortes_mod, dia as dia_mod, marcas, ml, simulacao, snapshot
 
 router = APIRouter(prefix="/expedicao", tags=["expedicao"])
 PAGINA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pagina.html")
@@ -53,6 +53,21 @@ def galpao(contas: str = None, atualizar: bool = False):
     res = ml.mapa(lista, forcar=atualizar)
     linhas, erros_bling = bling_checkout.enriquecer(res["linhas"])
     return dict(res, linhas=linhas, erros_bling=erros_bling)
+
+
+@router.get("/bipar", response_class=HTMLResponse)
+def bipar_pagina():
+    """Tela de bipagem: etiqueta -> número do pedido no Bling e qual Bling (1, 2 ou 3)."""
+    with open(os.path.join(os.path.dirname(PAGINA), "bipar.html"), encoding="utf-8") as f:
+        return f.read()
+
+
+@router.get("/bipar/buscar")
+def bipar_buscar(codigo: str, conta: str = None):
+    try:
+        return bipagem.buscar(codigo, conta or None)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/cancelamentos")

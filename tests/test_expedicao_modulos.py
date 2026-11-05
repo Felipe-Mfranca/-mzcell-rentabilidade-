@@ -67,6 +67,13 @@ class TestModulos(unittest.TestCase):
             self.assertEqual(m[k]["marcos"][0]["hhmm"], "12:00")
             self.assertIsNotNone(m[k]["principal"])
 
+    def test_shopee_zera_depois_do_corte(self):
+        antes, depois = mods([], agora=em(11)), mods([], agora=em(12, 30))
+        for k in ("shopee_xpress", "shopee_direta"):
+            self.assertIsNone(antes[k]["marcos"][0]["pendentes"])            # antes do corte: contagem regressiva
+            self.assertEqual(depois[k]["marcos"][0]["pendentes"], 0)         # depois: zerado, não atrasado
+            self.assertEqual(depois[k]["atrasados"], 0)
+
     def test_simulacao_alimenta_todos_os_cartoes(self):
         linhas, marc = simulacao.pedidos(DIA, em(5))
         r = d.montar(linhas, marc, [], em(5), DIA, cortes.carregar())

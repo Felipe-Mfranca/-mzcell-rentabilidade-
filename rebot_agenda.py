@@ -184,7 +184,9 @@ def analisar_conta(conta: str, com_baixa: bool = False):
     for i in range(0, len(ids), 20):
         st, lote = ml.get("/items", ids=",".join(ids[i:i + 20]),
                           attributes="id,title,price,category_id,listing_type_id")
-        for e in lote or []:
+        if not isinstance(lote, list):   # o ML devolveu erro (objeto), não a lista de anúncios
+            raise RuntimeError(f"detalhe dos anúncios HTTP {st}: {str((lote or {}).get('message', ''))[:80]}")
+        for e in lote:
             if e.get("code") == 200:
                 itens[e["body"]["id"]] = e["body"]
     if ids and not itens:

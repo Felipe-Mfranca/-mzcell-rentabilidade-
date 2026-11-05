@@ -883,6 +883,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
           <div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0">
             <button id="btn-cmv-importar" class="btn-save" style="margin:0" onclick="document.getElementById('cmv-arquivo').click()">Importar CMV (arquivo do Grupo)</button>
             <input type="file" id="cmv-arquivo" accept=".xlsx" style="display:none" onchange="cmvImportar(this)"/>
+            <button class="btn-sync-produto" style="height:34px" onclick="window.open(`${API}/cmv/modelo-carga`)" title="Todos os SKUs que não são kit (componentes do Bling e produtos simples) com o CMV atual; preencha e importe">Baixar planilha de componentes</button>
             <button class="btn-sync-produto" style="height:34px" onclick="cmvAplicar(false)">Simular aplicação nos produtos</button>
             <button class="btn-sync-produto" style="height:34px;border-color:var(--gold);color:var(--gold)" onclick="cmvAplicar(true)">Aplicar CMV e imposto</button>
           </div>
@@ -1037,6 +1038,17 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
 
 <script>
 const API = location.protocol.startsWith('http') ? location.origin : 'http://127.0.0.1:8001';   // a porta pode não ser a 8001 (ver index.js)
+// Acesso de outro PC (servidor na rede): sessão vencida ou servidor reiniciado → volta para a tela de login
+(() => {
+  const _fetch = window.fetch;
+  window.fetch = async (...args) => {
+    const r = await _fetch(...args);
+    if (r.status === 401 && user) {
+      try { if ((await r.clone().json()).detail === 'faça login no MZ App') { alert('Sua sessão expirou. Entre de novo.'); location.reload(); } } catch (e) {}
+    }
+    return r;
+  };
+})();
 let user = null, db = {}, rawDB = {}, prevDB = {}, marginFilter = {}, contaAtiva = 'meli01';
 let _tacos30 = 0;
 let _modalMlb = null, _modalConta = null, _modalPer = null;
@@ -1352,8 +1364,8 @@ async function cmvCarregarStatus() {
   } catch(e) { st.textContent = 'Base de CMV indisponível.'; }
   const box = document.getElementById('cmv-aliquotas'); if (!box) return;
   const btn = document.getElementById('btn-cmv-importar');
-  const liberado = ['zicri'].includes((user?.login || '').toLowerCase());
-  if (btn) { btn.disabled = !liberado; btn.title = liberado ? '' : 'Importação de CMV liberada só para o responsável'; }
+  const liberado = CMV_EDITAR_PERMITIDOS.includes((user?.login || '').toLowerCase());
+  if (btn) { btn.disabled = !liberado; btn.title = liberado ? '' : 'Importação de CMV liberada só para Zicri, Eduardo e Michel'; }
   const linhas = [];
   try {
     const imp = (await (await fetch(`${API}/impostos`)).json()).itens || {};
@@ -1376,7 +1388,9 @@ async function cmvImportar(input) {
     if (!r.ok) throw new Error(d.detail || r.status);
     out.innerHTML = `Importado: <b>${d.skus}</b> SKUs (${d.abas.map(a=>sacEsc(a.aba)+': '+a.skus_lidos).join(' · ')})` +
       (d.conflitos.length ? ` · <span style="color:var(--gold)">${d.conflitos.length} conflito(s): valia a primeira aba</span>` : '') +
-      (d.ignorados.length ? ` · ${d.ignorados.length} linha(s) sem CMV válido ignorada(s)` : '');
+      (d.ignorados.length ? ` · ${d.ignorados.length} linha(s) sem CMV válido ignorada(s)` : '') +
+      (d.kits && d.kits.recalculados != null ? ` · <b>${d.kits.recalculados}</b> kit(s)/clone(s) recalculado(s) pela soma dos componentes` +
+        (d.kits.kits_pendentes ? ` (${d.kits.kits_pendentes} ainda com componente sem CMV)` : '') : '');
     toast('CMV importado e aplicado nos anúncios do Mercado Livre');
     cmvCarregarStatus();
     ['meli01','meli02','meli03'].forEach(c => { if (document.getElementById(`de-${c}`)) buscarPeriodo(c); });   // tabelas com o CMV novo
@@ -2989,7 +3003,9 @@ function renderModalContent(mlb, conta) {
     </div>
     <div id="sim-out" class="mx-sim-out"></div>
     <div id="sim-real" class="mx-sim-info" style="margin-top:8px">Buscando custos reais…</div>
-    <div class="mx-sim-act"><a onclick="usarMediasDoPeriodo('${mlb}','${conta}')">Usar médias do período selecionado</a></div>
+    <div class="mx-sim-act"><a onclick="usarMediasDoPeriodo('${mlb}','${conta}')">Usar médias do período selecionado</a>
+      ${dbProd.sku ? ` · <a onclick="cmvAbrir('${sacEsc(dbProd.sku)}','${sacEsc(dbProd.sku)}')">Ajustar CMV (componentes do Bling)</a>` : ''}</div>
+    <div id="cmv-aj" style="display:none;margin-top:10px;border:1px solid var(--border2);border-radius:8px;padding:10px;font-size:12px"></div>
   </aside>`;
 
   document.getElementById('modal-body').innerHTML = `
@@ -3040,6 +3056,53 @@ function radarAbrir(conta, mlb) {
   closeModal();
   switchTab(conta, document.querySelector(`button.nav-item[onclick="switchTab('${conta}',this)"]`));
   radarCarregar(conta, mlb);
+}
+
+// Ajuste de CMV amarrado ao Bling: kit e clone valem a soma dos componentes; o CMV é gravado no componente
+// (universal: o mesmo SKU tem o mesmo CMV nas três empresas) e os kits que o usam são recalculados.
+const CMV_EDITAR_PERMITIDOS = ['zicri', 'eduardo', 'michel'];   // igual a CMV_IMPORTAR_PERMITIDOS no main.py
+async function cmvAbrir(sku, raiz) {
+  const box = document.getElementById('cmv-aj'); if (!box) return;
+  box.style.display = ''; box.innerHTML = 'Buscando a composição nos Blings…';
+  let d;
+  try { const r = await fetch(`${API}/cmv/composicao/${encodeURIComponent(sku)}`); d = await r.json(); if (!r.ok) throw new Error(d.detail || r.status); }
+  catch (e) { box.textContent = 'Composição indisponível: ' + e.message; return; }
+  const pode = CMV_EDITAR_PERMITIDOS.includes((user?.login || '').toLowerCase());
+  const v = x => x != null ? brl2(x) : '<span style="color:var(--gold)">sem CMV</span>';
+  const linha = (c, qtd, cmv, eKit) => `<tr><td style="padding:3px 4px">${eKit ? `<a onclick="cmvAbrir('${sacEsc(c)}','${sacEsc(raiz)}')" style="color:var(--gold);cursor:pointer">${sacEsc(c)} ▸</a>` : sacEsc(c)}</td>
+    <td style="text-align:center">${qtd}</td><td style="text-align:right">${v(cmv)}</td>
+    <td style="text-align:right">${eKit ? '<small>abra o kit</small>' : `<input type="number" step="0.01" min="0" id="cmv-in-${sacEsc(c)}" value="${cmv != null ? cmv.toFixed(2) : ''}" style="width:80px" ${pode ? '' : 'disabled'}/>
+      <button class="btn-sm" style="padding:3px 8px" ${pode ? '' : 'disabled'} onclick="cmvSalvar('${sacEsc(c)}','${sacEsc(raiz)}','${sacEsc(sku)}')">Salvar</button>`}</td></tr>`;
+  const tipo = {simples: 'produto simples', clone: 'clone', kit: 'kit'}[d.tipo];
+  let corpo = d.tipo === 'simples' ? linha(d.sku, 1, d.cmv, false) : d.componentes.map(c => linha(c.sku, c.qtd, c.cmv, c.e_kit)).join('');
+  box.innerHTML = `<div style="display:flex;justify-content:space-between;gap:8px"><b>${sacEsc(d.sku)} · ${tipo}${d.blings ? ' (' + d.blings.join(', ') + ')' : ''}</b>
+      <a onclick="document.getElementById('cmv-aj').style.display='none'" style="cursor:pointer">✕</a></div>
+    ${sku !== raiz ? `<div><a onclick="cmvAbrir('${sacEsc(raiz)}','${sacEsc(raiz)}')" style="color:var(--gold);cursor:pointer">← voltar para ${sacEsc(raiz)}</a></div>` : ''}
+    ${d.diverge ? `<div style="color:var(--gold);margin:4px 0">A composição é diferente entre os Blings: confira no Bling antes de ajustar. ${Object.entries(d.composicoes).map(([b, cs]) => `${b}: ${cs.map(c => c.qtd + '× ' + sacEsc(c.sku)).join(' + ')}`).join(' · ')}</div>` : ''}
+    <table style="width:100%;margin-top:6px;border-collapse:collapse"><thead><tr style="color:var(--muted2)"><th style="text-align:left">${d.tipo === 'simples' ? 'SKU' : 'Componente'}</th><th>Qtd</th><th style="text-align:right">CMV atual</th><th style="text-align:right">Novo CMV</th></tr></thead><tbody>${corpo}</tbody></table>
+    ${d.tipo !== 'simples' ? `<div style="margin-top:6px">CMV do ${tipo} (soma dos componentes): <b>${v(d.cmv)}</b>${d.cmv_base_kit != null && (d.cmv == null || Math.abs(d.cmv_base_kit - d.cmv) > 0.01) ? ` · na base hoje: ${brl2(d.cmv_base_kit)}` : ''}</div>` : ''}
+    <div class="sac-mut" style="margin-top:6px;font-size:11px">O CMV vale para o SKU em todas as empresas; ao salvar um componente, todos os kits e clones que o usam são recalculados.${pode ? '' : ' Ajuste liberado só para Zicri, Eduardo e Michel.'} Cada ajuste fica registrado no Mapa de alterações dos anúncios afetados.${d.catalogo_em ? ` Composição lida dos Blings em ${d.catalogo_em.replace('T', ' ').slice(0, 16)}.` : ''}</div>`;
+}
+async function cmvSalvar(comp, raiz, aberto) {
+  const el = document.getElementById(`cmv-in-${comp}`); if (!el) return;
+  const cmv = parseFloat(el.value);
+  if (!(cmv >= 0)) { toast('Informe um CMV válido', 'error'); return; }
+  if (!confirm(`Gravar CMV de ${brl2(cmv)} em ${comp}? Vale para todas as empresas e recalcula os kits e clones que usam este SKU.`)) return;
+  try {
+    const r = await fetch(`${API}/cmv/sku`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sku: comp, cmv, autor: user?.login || '', autor_nome: user?.nome || ''})});
+    const d = await r.json(); if (!r.ok) throw new Error(d.detail || r.status);
+    const pend = d.kits_pendentes.length ? ` · ${d.kits_pendentes.length} kit(s) ainda com componente sem CMV` : '';
+    toast(`CMV de ${comp} salvo · ${d.kits.length} kit(s)/clone(s) recalculado(s)${pend}`);
+    const k = d.kits.find(x => x.sku === String(raiz).toUpperCase());
+    const novoRaiz = k ? k.para : (String(raiz).toUpperCase() === d.sku ? d.para : null);
+    if (novoRaiz != null && _modalMlb) {
+      const s = document.getElementById('s-cmv'); if (s) s.value = novoRaiz.toFixed(2);
+      if (_custosML[_modalMlb]) _custosML[_modalMlb].cmv_referencia = novoRaiz;
+      calcSim(_modalMlb, _modalConta, true);
+    }
+    cmvAbrir(aberto, raiz);
+    mapaCarregar();   // o comentário automático da alteração aparece no Mapa de alterações
+  } catch (e) { toast('Erro ao salvar o CMV: ' + e.message, 'error'); }
 }
 
 // Seletor COM ST / SEM ST: aplica a alíquota da conta ao imposto e grava no produto
