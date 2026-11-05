@@ -11,6 +11,14 @@ import openpyxl
 import cmv_base
 
 
+def setUpModule():
+    """Sem isto, cada importar() de teste sobe SKUs de mentira para a planilha real da equipe."""
+    for nome, valor in (("publicar", lambda *a, **k: None), ("propagar_ml", lambda: {})):
+        p = mock.patch.object(cmv_base, nome, valor)
+        p.start()
+        unittest.addModuleCleanup(p.stop)
+
+
 def planilha(abas):
     wb = openpyxl.Workbook()
     wb.remove(wb.active)

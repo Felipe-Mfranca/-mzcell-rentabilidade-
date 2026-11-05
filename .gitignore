@@ -150,3 +150,6 @@ checkout_config.json
 checkout_gravacoes.jsonl
 sac_devolucoes_cache.json
 sac_devolucoes_cache.json.tmp
+
+# Token da API do TMS da J3
+j3_config.json
