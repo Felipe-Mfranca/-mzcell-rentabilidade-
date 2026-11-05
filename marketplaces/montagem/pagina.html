@@ -39,6 +39,8 @@ button.sec{background:#e5e7eb;color:#1f2933}button.perigo{background:#991b1b}
 <div id="lista"></div>
 <div class="card"><div class="top"><h2 style="margin:0">Produtividade do dia (só gestão)</h2><input type="date" id="pdia" onchange="carregarProd()"></div><div id="prod" class="mut">Carregando…</div></div>
 </main>
+<script>/* sessão vencida ou servidor reiniciado (acesso de outro PC): volta ao login e depois a esta tela */
+(()=>{const f=window.fetch;window.fetch=async(...a)=>{const r=await f(...a);if(r.status===401){try{if((await r.clone().json()).detail==='faça login no MZ App'){const t=window.top.location;t.href='/?volta='+encodeURIComponent(t.pathname+t.search)}}catch(e){}}return r}})();</script>
 <script>
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $=id=>document.getElementById(id);

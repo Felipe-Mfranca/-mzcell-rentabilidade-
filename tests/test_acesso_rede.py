@@ -6,14 +6,17 @@ from marketplaces.acesso_rede import caminho_liberado
 
 class TestAcessoRede(unittest.TestCase):
     def test_liberados(self):
-        for p in ("/expedicao/painel", "/expedicao", "/montagem/envios", "/tv/expedicao", "/static/x.js",
-                  "/fotos/meli01", "/sistema/versao", "/bling/estoque", "/bling/estoque/ABC"):
+        for p in ("/expedicao/tv", "/expedicao/painel", "/expedicao/dia", "/montagem/tv", "/montagem/tv/dados",
+                  "/montagem/tv-full", "/tv/expedicao", "/static/x.js", "/sistema/versao"):
             self.assertTrue(caminho_liberado(p), p)
 
     def test_bloqueados(self):
         for p in ("/", "/config", "/usuarios", "/amazon/contas", "/sac/devolucoes", "/checkout/x", "/financeiro/estado",
                   "/bling/token", "/sistema/abrir-link", "/expedicaoX", "/montagem/../config", "/docs", "/openapi.json",
-                  "/produtos/custos"):
+                  "/produtos/custos", "/expedicao", "/expedicao/bipar", "/expedicao/bipar/buscar", "/expedicao/marca",
+                  "/expedicao/galpao", "/expedicao/cancelamentos", "/expedicao/full", "/montagem", "/montagem/dados",
+                  "/montagem/envios", "/montagem/produtividade", "/montagem/pdf", "/montagem/tvx", "/fotos/meli01",
+                  "/bling/estoque", "/bling/estoque/ABC"):
             self.assertFalse(caminho_liberado(p), p)
 
     def test_middleware(self):
@@ -61,6 +64,36 @@ class TestAcessoRede(unittest.TestCase):
             self.assertEqual(c.get(rota).status_code, 403, rota)
         c.cookies.set(acesso_rede.COOKIE, "inventado")
         self.assertEqual(c.get("/produtos/meli01").status_code, 401)                   # cookie falso não passa
+
+    def test_gestao_pede_login_e_tv_nao(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from marketplaces import acesso_rede
+        app = FastAPI()
+        rotas = ("/expedicao", "/expedicao/bipar", "/expedicao/dia", "/expedicao/painel", "/montagem", "/montagem/dados",
+                 "/montagem/tv/dados")
+        for rota in rotas:
+            app.get(rota)(lambda: {"ok": 1})
+        app.post("/montagem/envios")(lambda: {"ok": 1})
+        acesso_rede.instalar(app)
+        html = {"accept": "text/html,*/*"}
+
+        c = TestClient(app, client=("192.168.15.50", 5000), follow_redirects=False)
+        for rota in ("/expedicao/painel", "/expedicao/dia", "/montagem/tv/dados"):     # TV abre sem login
+            self.assertEqual(c.get(rota, headers=html).status_code, 200, rota)
+        r = c.get("/expedicao/bipar?x=1", headers=html)                                # tela da gestão: vai ao login e volta
+        self.assertEqual(r.status_code, 303)
+        self.assertEqual(r.headers["location"], "/?volta=%2Fexpedicao%2Fbipar%3Fx%3D1")
+        self.assertEqual(c.get("/montagem/dados").status_code, 401)                    # dados sem login: 401, sem redirecionar
+        self.assertEqual(c.post("/montagem/envios", headers=html).status_code, 401)    # gravação nunca passa
+
+        c.cookies.set(acesso_rede.COOKIE, acesso_rede.criar_sessao("felipe"))
+        for rota in rotas:
+            self.assertEqual(c.get(rota, headers=html).status_code, 200, rota)         # com login, tudo abre
+        self.assertEqual(c.post("/montagem/envios").status_code, 200)
+
+        local = TestClient(app, follow_redirects=False)                                # app no próprio PC segue sem login
+        self.assertEqual(local.get("/montagem/dados").status_code, 200)
 
     def test_sessao_vence(self):
         from marketplaces import acesso_rede

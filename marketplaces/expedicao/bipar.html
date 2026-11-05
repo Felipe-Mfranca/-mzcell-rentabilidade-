@@ -35,6 +35,8 @@
   <div id="res"><span class="det">Aguardando leitura…</span></div>
   <table><thead><tr><th>Hora</th><th>Código</th><th>Bling</th><th>Pedido</th><th>Situação</th></tr></thead><tbody id="hist"></tbody></table>
 </main>
+<script>/* sessão vencida ou servidor reiniciado (acesso de outro PC): volta ao login e depois a esta tela */
+(()=>{const f=window.fetch;window.fetch=async(...a)=>{const r=await f(...a);if(r.status===401){try{if((await r.clone().json()).detail==='faça login no MZ App'){const t=window.top.location;t.href='/?volta='+encodeURIComponent(t.pathname+t.search)}}catch(e){}}return r}})();</script>
 <script>
 const cod = document.getElementById('cod'), res = document.getElementById('res'), hist = document.getElementById('hist');
 const sel = document.getElementById('conta');

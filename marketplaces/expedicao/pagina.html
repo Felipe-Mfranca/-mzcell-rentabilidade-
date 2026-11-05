@@ -71,6 +71,8 @@
   <a href="/expedicao/bipar" style="color:#fff;margin-right:12px;font-weight:600">▮▯ Bipar etiqueta</a>
   <button id="atualizar" type="button">Atualizar agora</button>
 </header>
+<script>/* sessão vencida ou servidor reiniciado (acesso de outro PC): volta ao login e depois a esta tela */
+(()=>{const f=window.fetch;window.fetch=async(...a)=>{const r=await f(...a);if(r.status===401){try{if((await r.clone().json()).detail==='faça login no MZ App'){const t=window.top.location;t.href='/?volta='+encodeURIComponent(t.pathname+t.search)}}catch(e){}}return r}})();</script>
 <script>fetch("/montagem/dados").then(r=>{if(r.ok)document.getElementById("navfull").style.display=""}).catch(()=>{})</script>
 <div id="prog" class="prog"></div>
 <main>

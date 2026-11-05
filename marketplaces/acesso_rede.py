@@ -3,18 +3,25 @@ marketplaces/acesso_rede.py — Trava de acesso pela rede interna (PC servidor)
 MZ App
 
 O servidor pode escutar na rede (0.0.0.0) para as TVs e os PCs do galpão. Quem vem de OUTRO computador enxerga sem login
-só as telas operacionais; o app completo abre depois do login (cookie de sessão criado em /auth/login). Credenciais e
-tokens dos marketplaces (SEMPRE_LOCAL) ficam restritos ao próprio PC (127.0.0.1), mesmo com login. O resto recebe 401/403.
+só as telas de TV; a gestão (Expedição, Full, bipagem) e o app completo abrem depois do login (cookie de sessão criado em
+/auth/login). Credenciais e tokens dos marketplaces (SEMPRE_LOCAL) ficam restritos ao próprio PC (127.0.0.1), mesmo com
+login. O resto recebe 401/403.
 """
 
 import secrets
 import threading
 import time
 
-from starlette.responses import HTMLResponse, JSONResponse
+from urllib.parse import quote
+
+from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 LOCAIS = {"127.0.0.1", "::1", "localhost", "testclient"}
-PERMITIDOS = ("/expedicao", "/montagem", "/tv", "/static", "/fotos/", "/sistema/versao", "/bling/estoque", "/favicon")
+# sem login, de outro PC: só as telas de TV e o que elas carregam
+PERMITIDOS = ("/expedicao/tv", "/expedicao/painel", "/expedicao/dia", "/montagem/tv", "/montagem/tv-full", "/tv", "/static",
+              "/sistema/versao", "/favicon")
+# abrir uma destas telas sem login leva ao login e, depois dele, de volta à tela
+GESTAO = ("/expedicao", "/montagem")
 # sem login, de outro PC: a tela de login e o "esqueci a senha"
 PUBLICOS = ("/", "/galpao", "/auth/login", "/auth/recuperar-senha", "/auth/redefinir-senha", "/sistema/houve-atualizacao")
 # nem com login, de outro PC: credenciais/tokens dos marketplaces e abrir programa na tela do servidor
@@ -55,9 +62,6 @@ def caminho_liberado(path: str) -> bool:
         if p == "/favicon":
             if path.startswith(p):
                 return True
-        elif p.endswith("/"):
-            if path.startswith(p):
-                return True
         elif path == p or path.startswith(p + "/"):
             return True
     return False
@@ -70,8 +74,8 @@ h1{font-size:22px}a{display:block;background:#fff;border:1px solid #ccc;border-r
 text-decoration:none;color:#166534;font-size:18px;font-weight:600}a small{display:block;color:#555;font-weight:400;font-size:14px}</style></head>
 <body><h1>MZ App — telas do galpão</h1>
 <a href="/expedicao/tv">Monitor da TV<small>Expedição do dia: cortes, quantidades e contagem regressiva</small></a>
-<a href="/expedicao">Expedição (galpão)<small>Pedidos do dia, prontos para o envio e cancelamentos</small></a>
-<a href="/montagem">Full — montagem de envios<small>Fila do estoquista, PDF de montagem, envios da Amazon</small></a>
+<a href="/expedicao">Expedição (galpão)<small>Abre com login. Pedidos do dia, prontos para o envio e cancelamentos</small></a>
+<a href="/montagem">Full — montagem de envios<small>Abre com login. Fila do estoquista, PDF de montagem, envios da Amazon</small></a>
 <a href="/" style="color:#333">App completo<small>Abre com login (usuário e senha do MZ App)</small></a></body></html>"""
 
 
@@ -88,4 +92,7 @@ def instalar(app):
             return HTMLResponse(MENU)
         if path in PUBLICOS or sessao_valida(request.cookies.get(COOKIE)):
             return await call_next(request)
+        if request.method == "GET" and _casa(path, GESTAO) and "text/html" in request.headers.get("accept", ""):
+            volta = path + ("?" + request.url.query if request.url.query else "")
+            return RedirectResponse("/?volta=" + quote(volta, safe=""), status_code=303)
         return JSONResponse({"detail": "faça login no MZ App"}, status_code=401)
