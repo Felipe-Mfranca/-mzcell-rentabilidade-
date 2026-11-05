@@ -668,11 +668,24 @@ def _aplicar_impostos(registros: list):
 CMV_IMPORTAR_PERMITIDOS = {"zicri", "eduardo", "michel"}   # quem importa, publica e ajusta o CMV; liberar outros aqui
 
 
+def _cmv_autor(request: Request, autor: str = "") -> str:
+    """Quem está alterando o CMV. De outro PC vale o dono da sessão, não o nome enviado pela tela."""
+    autor = str(autor or "").strip().lower()
+    try:
+        from marketplaces import acesso_rede
+        if (request.client.host if request.client else "") not in acesso_rede.LOCAIS:
+            autor = acesso_rede.login_da_sessao(request.cookies.get(acesso_rede.COOKIE))
+    except ImportError:
+        pass
+    if autor not in CMV_IMPORTAR_PERMITIDOS:
+        raise HTTPException(status_code=403, detail="CMV liberado só para Zicri, Eduardo e Michel")
+    return autor
+
+
 @app.post("/cmv/publicar")
-def cmv_publicar(autor: str = ""):
+def cmv_publicar(request: Request, autor: str = ""):
     """Sobe toda a base de CMV local para o banco compartilhado (semente inicial para as outras máquinas)."""
-    if autor.strip().lower() not in CMV_IMPORTAR_PERMITIDOS:
-        raise HTTPException(status_code=403, detail="publicação de CMV liberada só para Zicri, Eduardo e Michel")
+    _cmv_autor(request, autor)
     cmv_base = _modulo("cmv_base")
     base = cmv_base.carregar()
     cmv_base.publicar(base.get("itens", {}), "")
@@ -683,24 +696,34 @@ def _aplicar_cmv(registros: list):
     _modulo("cmv_base").aplicar_remoto(registros)
 
 
-@app.post("/cmv/importar")
-async def cmv_importar(file: UploadFile = File(...), autor: str = Form("")):
-    """Importa o arquivo de CMV do Grupo (abas com colunas SKU e CMV/Custo) para a base central cmv_base.json."""
-    if autor.strip().lower() not in CMV_IMPORTAR_PERMITIDOS:
-        raise HTTPException(status_code=403, detail="importação de CMV liberada só para Zicri, Eduardo e Michel")
-    cmv_base = _modulo("cmv_base")
-    conteudo = await file.read()
+def _cmv_carga(conteudo: bytes, arquivo: str, autor: str, confirmar: bool) -> dict:
+    """Carga de planilha: mesma gravação da página e do modal, com o mesmo registro nos anúncios."""
     try:
-        r = cmv_base.importar(conteudo, file.filename or "", autor[:40])
+        r = _modulo("cmv_composicao").carga_planilha(conteudo, arquivo, autor, confirmar)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro ao ler o arquivo: {e}")
-    try:   # kits e clones passam a valer a soma dos componentes importados
-        r["kits"] = _modulo("cmv_composicao").recalcular_kits(list(cmv_base.ler_planilha(conteudo)["itens"]), autor.strip().lower())
-    except Exception as e:
-        r["kits"] = {"erro": str(e)[:120]}
+    if confirmar:
+        log_atividade(f"CMV carga {arquivo}: {len(r['alterados'])} alterado(s) por {autor}")
+        r["comentarios"] = _comentar_cmv(r, autor, "")
     return r
+
+
+@app.post("/cmv/carga")
+async def cmv_carga(request: Request, file: UploadFile = File(...), autor: str = Form(""), confirmar: bool = Form(False)):
+    """Carga de CMV por planilha (python -m cmv_composicao). Simula por padrão."""
+    autor = _cmv_autor(request, autor)
+    return _cmv_carga(await file.read(), file.filename or "", autor, confirmar)
+
+
+@app.post("/cmv/importar")
+async def cmv_importar(request: Request, file: UploadFile = File(...), autor: str = Form("")):
+    """Botão de importar em Configurações: a mesma carga de planilha, já confirmada."""
+    autor = _cmv_autor(request, autor)
+    r = _cmv_carga(await file.read(), file.filename or "", autor, True)
+    return dict(r, kits_detalhe=r["kits"], kits={"recalculados": sum(1 for k in r["kits"] if k["de"] != k["para"]),
+                                                  "kits_pendentes": len(r["kits_pendentes"])})
 
 
 @app.get("/cmv/modelo-carga")
@@ -722,6 +745,13 @@ async def cmv_resumo():
 CMV_EDITAR_PERMITIDOS = CMV_IMPORTAR_PERMITIDOS   # quem ajusta o CMV pelo modal; liberar outros aqui
 
 
+@app.get("/cmv/lista")
+def cmv_lista(request: Request, autor: str = ""):
+    """Página CMV: todos os SKUs com o valor na base, a soma dos componentes e onde são anunciados."""
+    _cmv_autor(request, autor)
+    return _modulo("cmv_composicao").lista()
+
+
 @app.get("/cmv/composicao/{sku}")
 def cmv_composicao(sku: str):
     """Componentes do SKU nos Blings (kit/clone) com o CMV de cada um."""
@@ -729,11 +759,9 @@ def cmv_composicao(sku: str):
 
 
 @app.post("/cmv/sku")
-def cmv_salvar_sku(payload: dict):
-    """Grava o CMV de um componente/produto simples e recalcula os kits e clones que o usam."""
-    autor = str(payload.get("autor") or "").strip().lower()
-    if autor not in CMV_EDITAR_PERMITIDOS:
-        raise HTTPException(status_code=403, detail="ajuste de CMV liberado só para Zicri, Eduardo e Michel")
+def cmv_salvar_sku(request: Request, payload: dict):
+    """Página CMV e modal do produto: grava o CMV de um componente/produto simples e recalcula os kits e clones que o usam."""
+    autor = _cmv_autor(request, payload.get("autor"))
     try:
         r = _modulo("cmv_composicao").salvar_cmv(payload.get("sku"), float(payload.get("cmv")), autor)
     except (TypeError, ValueError) as e:
@@ -744,18 +772,26 @@ def cmv_salvar_sku(payload: dict):
 
 
 def _comentar_cmv(r: dict, autor: str, autor_nome: str) -> int:
-    """Registra no Mapa de alterações de cada anúncio ML afetado (o componente e os kits recalculados)."""
+    """Registra no Mapa de alterações de cada anúncio ML afetado (os SKUs alterados e os kits recalculados)."""
     brl = lambda v: "sem CMV" if v is None else f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    mudou = {r["sku"]: (r["de"], r["para"])}
-    mudou.update({k["sku"]: (k["de"], k["para"]) for k in r["kits"]})
-    texto_comp = f"CMV de {r['sku']} ajustado: {brl(r['de'])} → {brl(r['para'])}"
+    diretos = {a["sku"]: (a["de"], a["para"]) for a in r["alterados"]}
+    mudou = dict(diretos)
+    mudou.update({k["sku"]: (k["de"], k["para"]) for k in r["kits"] if k["de"] != k["para"]})
+    if len(diretos) == 1:
+        s, (de, para) = next(iter(diretos.items()))
+        texto_comp = f"CMV de {s} ajustado: {brl(de)} → {brl(para)}"
+    else:
+        texto_comp = f"Carga de CMV por planilha ({len(diretos)} SKUs)"
     n = 0
     for mlb, p in load_json(PRODUTOS_PATH).items():
         sku = str(p.get("sku") or "").strip().upper()
         if sku not in mudou or not p.get("conta"):
             continue
         de, para = mudou[sku]
-        texto = texto_comp if sku == r["sku"] else f"{texto_comp}. CMV de {sku}: {brl(de)} → {brl(para)} (soma dos componentes)"
+        if sku in diretos:
+            texto = texto_comp if len(diretos) == 1 else f"{texto_comp}. CMV de {sku}: {brl(de)} → {brl(para)}"
+        else:
+            texto = f"{texto_comp}. CMV de {sku}: {brl(de)} → {brl(para)} (soma dos componentes)"
         try:
             _registrar_anotacao(p["conta"], mlb, f"[automático] {texto}", autor, autor_nome)
             n += 1
@@ -765,17 +801,19 @@ def _comentar_cmv(r: dict, autor: str, autor_nome: str) -> int:
 
 
 @app.post("/cmv/preencher-kits")
-def cmv_preencher_kits(confirmar: bool = False, autor: str = ""):
+def cmv_preencher_kits(request: Request, confirmar: bool = False, autor: str = ""):
     """Kits e clones sem CMV recebem a soma dos componentes do Bling. Simula por padrão."""
-    if confirmar and autor.strip().lower() not in CMV_EDITAR_PERMITIDOS:
-        raise HTTPException(status_code=403, detail="ajuste de CMV liberado só para Zicri, Eduardo e Michel")
+    if confirmar:
+        autor = _cmv_autor(request, autor)
     return _modulo("cmv_composicao").preencher_kits(confirmar, autor.strip().lower())
 
 
 @app.post("/cmv/aplicar/{conta}")
-def cmv_aplicar(conta: str, confirmar: bool = False, tem_st_padrao: Optional[bool] = None, imposto: bool = False):
+def cmv_aplicar(request: Request, conta: str, confirmar: bool = False, tem_st_padrao: Optional[bool] = None, imposto: bool = False, autor: str = ""):
     """Aplica a base de CMV aos produtos da conta (ml: produtos.json; amazon: amazon_custos.json).
     Simula por padrão; só grava com confirmar=true. Amazon: SKU sem imposto cadastrado precisa de tem_st_padrao."""
+    if confirmar:
+        _cmv_autor(request, autor)
     cmv_base = _modulo("cmv_base")
     if conta.startswith("meli"):
         return cmv_base.aplicar_ml(conta, confirmar, imposto=imposto)

@@ -51,6 +51,13 @@ def sessao_valida(token) -> bool:
     return bool(s) and s[1] > time.time()
 
 
+def login_da_sessao(token) -> str:
+    """Login dono do cookie de sessão válido; vazio se não houver."""
+    with _trava:
+        s = _sessoes.get(token) if token else None
+    return s[0] if s and s[1] > time.time() else ""
+
+
 def _casa(path: str, prefixos) -> bool:
     return any(path == p or path.startswith(p.rstrip("/") + "/") for p in prefixos)
 

@@ -820,6 +820,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       <div class="nav-section">Módulos</div>
       <button class="nav-item" data-mod="expedicao" onclick="switchTab('expedicao',this)"><span class="icon">▤</span> Expedição</button>
       <button class="nav-item" data-mod="sac" onclick="switchTab('sac',this)"><span class="icon">✉</span> SAC</button>
+      <button class="nav-item" id="nav-cmv" style="display:none" onclick="switchTab('cmv',this)"><span class="icon">$</span> CMV</button>
       <div class="nav-section">Sistema</div>
       <button class="nav-item" onclick="switchTab('config',this)"><span class="icon">⚙</span> Configurações</button>
     </div>
@@ -875,6 +876,24 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       <div class="tab" id="tab-amazon02"><div id="repo-amazon02"></div><div id="painel-amazon02"></div></div>
       <div class="tab" id="tab-shopee"><div id="painel-shopee"></div></div>
       <div class="tab" id="tab-magalu"><div class="periodo-card" style="margin:24px"><span class="periodo-label">Magalu</span><span class="sac-mut">Em construção</span></div></div>
+      <div class="tab" id="tab-cmv">
+        <div class="periodo-card" style="flex-wrap:wrap">
+          <span class="periodo-label">CMV por SKU</span>
+          <input id="cmv-busca" class="modal-date" style="min-width:240px" placeholder="Buscar ou cadastrar SKU" oninput="cmvPagDesenhar()"/>
+          <select id="cmv-filtro" class="modal-date" onchange="cmvPagDesenhar()">
+            <option value="anuncios">Com anúncio</option>
+            <option value="sem">Sem CMV com anúncio</option>
+            <option value="sem_todos">Sem CMV (todos)</option>
+            <option value="kits">Kits e clones</option>
+            <option value="todos">Todos</option>
+          </select>
+          <button class="btn-sm" onclick="window.open(`${API}/cmv/modelo-carga`)">Baixar planilha de componentes</button>
+          <span id="cmv-pag-status" class="sac-mut"></span>
+        </div>
+        <div id="cmv-pag-aviso"></div>
+        <div id="cmv-pag-aj" style="display:none;margin-bottom:16px;border:1px solid var(--border2);border-radius:8px;padding:10px;font-size:12px"></div>
+        <div id="cmv-pag-lista"></div>
+      </div>
       <div class="tab" id="tab-config">
         <div class="config-card" id="cfg-cmv-card" style="max-width:760px;margin-bottom:24px">
           <div class="config-card-title">CMV e imposto</div>
@@ -1354,9 +1373,10 @@ function switchTab(tab, btn) {
   document.getElementById(`tab-${tab}`).classList.add('active');
   btn.classList.add('active');
   contaAtiva = tab;
-  const titles = {meli01:'Meli01 — Rentabilidade',meli02:'Meli02 — Rentabilidade',meli03:'Meli03 — Rentabilidade',config:'Configurações',expedicao:'Expedição — Galpão',amazon01:'Amazon 01 — Rentabilidade',amazon02:'Amazon 02 — Rentabilidade',shopee:'Shopee',magalu:'Magalu — Em construção',sac:'SAC — Pendências e contestações'};
+  const titles = {meli01:'Meli01 — Rentabilidade',meli02:'Meli02 — Rentabilidade',meli03:'Meli03 — Rentabilidade',config:'Configurações',expedicao:'Expedição — Galpão',amazon01:'Amazon 01 — Rentabilidade',amazon02:'Amazon 02 — Rentabilidade',shopee:'Shopee',magalu:'Magalu — Em construção',sac:'SAC — Pendências e contestações',cmv:'CMV por SKU'};
   document.getElementById('topbar-title').textContent = titles[tab] || tab;
   if(tab==='config'){ loadConfig(); cmvCarregarStatus(); }
+  if(tab==='cmv') cmvPagCarregar();
   if(tab==='amazon01'||tab==='amazon02') amzAbrirAba(tab);
   if(tab==='shopee') shopeeAbrirAba();
   if(tab==='expedicao'){ const f=document.getElementById('frame-expedicao'); if(!f.getAttribute('src')) f.setAttribute('src',`${API}/expedicao`); }
@@ -1399,6 +1419,7 @@ async function cmvImportar(input) {
     out.innerHTML = `Importado: <b>${d.skus}</b> SKUs (${d.abas.map(a=>sacEsc(a.aba)+': '+a.skus_lidos).join(' · ')})` +
       (d.conflitos.length ? ` · <span style="color:var(--gold)">${d.conflitos.length} conflito(s): valia a primeira aba</span>` : '') +
       (d.ignorados.length ? ` · ${d.ignorados.length} linha(s) sem CMV válido ignorada(s)` : '') +
+      (d.recusados.length ? ` · <span style="color:var(--gold)">${d.recusados.length} kit(s)/clone(s) da planilha recusado(s): valem os componentes</span>` : '') +
       (d.kits && d.kits.recalculados != null ? ` · <b>${d.kits.recalculados}</b> kit(s)/clone(s) recalculado(s) pela soma dos componentes` +
         (d.kits.kits_pendentes ? ` (${d.kits.kits_pendentes} ainda com componente sem CMV)` : '') : '');
     toast('CMV importado e aplicado nos anúncios do Mercado Livre');
@@ -1414,7 +1435,7 @@ async function cmvAplicar(confirmar) {
   const linhas = []; let falhou = false;
   for (const c of CMV_CONTAS_ML) {
     try {
-      const r = await fetch(`${API}/cmv/aplicar/${c}?confirmar=${confirmar}&imposto=true`, {method:'POST'}); const d = await r.json();
+      const r = await fetch(`${API}/cmv/aplicar/${c}?confirmar=${confirmar}&imposto=true&autor=${encodeURIComponent(user?.login || '')}`, {method:'POST'}); const d = await r.json();
       if (!r.ok) throw new Error(d.detail || r.status);
       linhas.push(`<div><b>${c}</b>: CMV ${confirmar ? 'atualizado em' : 'mudaria em'} <b>${d.mudariam}</b> anúncio(s) · imposto ${confirmar ? 'ajustado em' : 'mudaria em'} <b>${d.imposto_mudaria}</b> · já iguais ${d.ja_iguais} · sem CMV na base ${d.sem_cmv_na_base} · sem SKU ${d.sem_sku}</div>`);
     } catch(e) { falhou = true; linhas.push(`<div><b>${c}</b>: erro (${sacEsc(e.message)})</div>`); }
@@ -2160,6 +2181,8 @@ function temModulo(m) {
 }
 function aplicarModulos() {
   const completo = temModulo('meli') && temModulo('amazon') && temModulo('shopee') && temModulo('expedicao') && temModulo('sac');
+  const navCmv = document.getElementById('nav-cmv');
+  if (navCmv) navCmv.style.display = CMV_EDITAR_PERMITIDOS.includes((user?.login || '').toLowerCase()) ? '' : 'none';
   document.querySelectorAll('.nav-item[data-mod], .nav-section[data-mod]').forEach(el => { el.style.display = temModulo(el.dataset.mod) ? '' : 'none'; });
   // seção "Módulos" e "Sistema": aparecem se algum item filho estiver visível
   document.querySelectorAll('.sidebar-nav .nav-section').forEach(sec => {
@@ -3014,7 +3037,7 @@ function renderModalContent(mlb, conta) {
     <div id="sim-out" class="mx-sim-out"></div>
     <div id="sim-real" class="mx-sim-info" style="margin-top:8px">Buscando custos reais…</div>
     <div class="mx-sim-act"><a onclick="usarMediasDoPeriodo('${mlb}','${conta}')">Usar médias do período selecionado</a>
-      ${dbProd.sku ? ` · <a onclick="cmvAbrir('${sacEsc(dbProd.sku)}','${sacEsc(dbProd.sku)}')">Ajustar CMV (componentes do Bling)</a>` : ''}</div>
+      ${dbProd.sku ? ` · <a onclick="_cmvAlvo='cmv-aj';cmvAbrir('${sacEsc(dbProd.sku)}','${sacEsc(dbProd.sku)}')">Ajustar CMV (componentes do Bling)</a>` : ''}</div>
     <div id="cmv-aj" style="display:none;margin-top:10px;border:1px solid var(--border2);border-radius:8px;padding:10px;font-size:12px"></div>
   </aside>`;
 
@@ -3071,8 +3094,47 @@ function radarAbrir(conta, mlb) {
 // Ajuste de CMV amarrado ao Bling: kit e clone valem a soma dos componentes; o CMV é gravado no componente
 // (universal: o mesmo SKU tem o mesmo CMV nas três empresas) e os kits que o usam são recalculados.
 const CMV_EDITAR_PERMITIDOS = ['zicri', 'eduardo', 'michel'];   // igual a CMV_IMPORTAR_PERMITIDOS no main.py
+// Página CMV e modal do produto usam as mesmas rotas e o mesmo editor (cmvAbrir/cmvSalvar); _cmvAlvo diz onde ele abre.
+let _cmvAlvo = 'cmv-aj', _cmvLista = [];
+async function cmvPagCarregar() {
+  const st = document.getElementById('cmv-pag-status'); st.textContent = 'Carregando…';
+  try {
+    const r = await fetch(`${API}/cmv/lista?autor=${encodeURIComponent(user?.login || '')}`); const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || r.status);
+    _cmvLista = d.linhas;
+    const erros = Object.keys(d.catalogo_erros || {});
+    document.getElementById('cmv-pag-aviso').innerHTML = erros.length ? `<div class="periodo-card" style="color:var(--gold)">Catálogo do Bling incompleto (${erros.map(sacEsc).join(', ')}): algum kit pode aparecer como produto simples. <button class="btn-sm" onclick="cmvPagReler()">Ler o catálogo de novo</button></div>` : '';
+    st.textContent = d.catalogo_em ? `catálogo de ${d.catalogo_em.slice(0, 16).replace('T', ' ')}` : '';
+    cmvPagDesenhar();
+  } catch (e) { st.textContent = 'Erro: ' + e.message; }
+}
+async function cmvPagReler() {
+  document.getElementById('cmv-pag-aviso').innerHTML = '<div class="periodo-card">Lendo o catálogo nos Blings; atualize a página em alguns minutos.</div>';
+  try { await fetch(`${API}/balanco/atualizar`, {method: 'POST'}); } catch (e) {}
+}
+function cmvPagDesenhar() {
+  const busca = document.getElementById('cmv-busca').value.trim().toUpperCase(), filtro = document.getElementById('cmv-filtro').value;
+  const temAnuncio = x => Object.keys(x.contas).length > 0;
+  const ls = _cmvLista.filter(x => {
+    if (busca) return x.sku.includes(busca) || (x.descricao || '').toUpperCase().includes(busca);
+    if (filtro === 'anuncios') return temAnuncio(x);
+    if (filtro === 'sem') return temAnuncio(x) && x.status !== 'ok';
+    if (filtro === 'sem_todos') return x.status !== 'ok';
+    if (filtro === 'kits') return x.tipo !== 'simples';
+    return true;
+  }).sort((a, b) => (a.status === 'ok') - (b.status === 'ok') || a.sku.localeCompare(b.sku));
+  const v = x => x != null ? brl2(x) : '—';
+  const situacao = {ok: '', a_preencher: '<span style="color:var(--gold)">soma pronta, sem valor na base</span>', sem_cmv: '<span style="color:var(--gold)">sem CMV</span>'};
+  const abrir = s => `_cmvAlvo='cmv-pag-aj';cmvAbrir('${sacEsc(s)}','${sacEsc(s)}');document.getElementById('cmv-pag-aj').scrollIntoView({block:'nearest'})`;
+  const linhas = ls.slice(0, 300).map(x => `<tr onclick="${abrir(x.sku)}"><td style="text-align:left"><b>${sacEsc(x.sku)}</b><div class="sac-mut">${sacEsc((x.descricao || '').slice(0, 70))}</div></td><td>${{simples: 'Simples', clone: 'Clone', kit: 'Kit'}[x.tipo]}${x.diverge ? ' <span style="color:var(--gold)">diverge</span>' : ''}</td><td>${v(x.cmv)}<div>${situacao[x.status]}</div></td><td>${v(x.soma)}</td><td>${Object.entries(x.contas).map(([c, n]) => sacEsc(c) + ': ' + n).join('<br>') || '—'}</td><td>${x.atualizado_em ? x.atualizado_em.slice(0, 10).split('-').reverse().join('/') : '—'}<div class="sac-mut">${sacEsc(x.autor)}</div></td></tr>`).join('');
+  const exato = busca && _cmvLista.some(x => x.sku === busca);
+  document.getElementById('cmv-pag-lista').innerHTML = (busca && !exato ? `<div style="margin-bottom:10px"><button class="btn-sm" onclick="${abrir(busca)}">Cadastrar ${sacEsc(busca)}</button></div>` : '') +
+    `<div class="sac-mut" style="margin-bottom:6px">${ls.length} SKU(s)${ls.length > 300 ? ' · mostrando 300: use a busca' : ''}</div>` +
+    `<table class="tbl"><thead><tr><th>SKU</th><th>Tipo</th><th>CMV na base</th><th>Soma dos componentes</th><th>Anúncios</th><th>Alterado em</th></tr></thead><tbody>${linhas}</tbody></table>`;
+}
 async function cmvAbrir(sku, raiz) {
-  const box = document.getElementById('cmv-aj'); if (!box) return;
+  const box = document.getElementById(_cmvAlvo); if (!box) return;
+  const outro = document.getElementById(_cmvAlvo === 'cmv-aj' ? 'cmv-pag-aj' : 'cmv-aj'); if (outro) { outro.innerHTML = ''; outro.style.display = 'none'; }
   box.style.display = ''; box.innerHTML = 'Buscando a composição nos Blings…';
   let d;
   try { const r = await fetch(`${API}/cmv/composicao/${encodeURIComponent(sku)}`); d = await r.json(); if (!r.ok) throw new Error(d.detail || r.status); }
@@ -3086,7 +3148,7 @@ async function cmvAbrir(sku, raiz) {
   const tipo = {simples: 'produto simples', clone: 'clone', kit: 'kit'}[d.tipo];
   let corpo = d.tipo === 'simples' ? linha(d.sku, 1, d.cmv, false) : d.componentes.map(c => linha(c.sku, c.qtd, c.cmv, c.e_kit)).join('');
   box.innerHTML = `<div style="display:flex;justify-content:space-between;gap:8px"><b>${sacEsc(d.sku)} · ${tipo}${d.blings ? ' (' + d.blings.join(', ') + ')' : ''}</b>
-      <a onclick="document.getElementById('cmv-aj').style.display='none'" style="cursor:pointer">✕</a></div>
+      <a onclick="document.getElementById(_cmvAlvo).style.display='none'" style="cursor:pointer">✕</a></div>
     ${sku !== raiz ? `<div><a onclick="cmvAbrir('${sacEsc(raiz)}','${sacEsc(raiz)}')" style="color:var(--gold);cursor:pointer">← voltar para ${sacEsc(raiz)}</a></div>` : ''}
     ${d.diverge ? `<div style="color:var(--gold);margin:4px 0">A composição é diferente entre os Blings: confira no Bling antes de ajustar. ${Object.entries(d.composicoes).map(([b, cs]) => `${b}: ${cs.map(c => c.qtd + '× ' + sacEsc(c.sku)).join(' + ')}`).join(' · ')}</div>` : ''}
     <table style="width:100%;margin-top:6px;border-collapse:collapse"><thead><tr style="color:var(--muted2)"><th style="text-align:left">${d.tipo === 'simples' ? 'SKU' : 'Componente'}</th><th>Qtd</th><th style="text-align:right">CMV atual</th><th style="text-align:right">Novo CMV</th></tr></thead><tbody>${corpo}</tbody></table>
@@ -3105,13 +3167,14 @@ async function cmvSalvar(comp, raiz, aberto) {
     toast(`CMV de ${comp} salvo · ${d.kits.length} kit(s)/clone(s) recalculado(s)${pend}`);
     const k = d.kits.find(x => x.sku === String(raiz).toUpperCase());
     const novoRaiz = k ? k.para : (String(raiz).toUpperCase() === d.sku ? d.para : null);
-    if (novoRaiz != null && _modalMlb) {
+    if (_cmvAlvo === 'cmv-aj' && novoRaiz != null && _modalMlb) {
       const s = document.getElementById('s-cmv'); if (s) s.value = novoRaiz.toFixed(2);
       if (_custosML[_modalMlb]) _custosML[_modalMlb].cmv_referencia = novoRaiz;
       calcSim(_modalMlb, _modalConta, true);
     }
     cmvAbrir(aberto, raiz);
-    mapaCarregar();   // o comentário automático da alteração aparece no Mapa de alterações
+    if (_cmvAlvo === 'cmv-aj') mapaCarregar();   // o comentário automático da alteração aparece no Mapa de alterações
+    else cmvPagCarregar();
   } catch (e) { toast('Erro ao salvar o CMV: ' + e.message, 'error'); }
 }
 

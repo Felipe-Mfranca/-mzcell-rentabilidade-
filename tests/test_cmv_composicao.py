@@ -84,6 +84,82 @@ class TestComposicao(unittest.TestCase):
         self.assertEqual(r["recalculados"], 1)
         self.assertEqual(cmv_base.carregar()["itens"]["CONTROLPC"]["cmv"], 40.0)
 
+    def planilha(self, linhas):
+        import io, openpyxl
+        wb = openpyxl.Workbook()
+        wb.active.append(["SKU", "CMV"])
+        for x in linhas:
+            wb.active.append(x)
+        out = io.BytesIO()
+        wb.save(out)
+        return out.getvalue()
+
+    def test_lote_simulado_nao_grava(self):
+        antes = cmv_base.carregar()["itens"]
+        r = cc.gravar_lote({"faca": 6.0}, "zicri", confirmar=False)
+        self.assertFalse(r["confirmado"])
+        self.assertEqual(r["alterados"], [{"sku": "FACA", "de": 5.0, "para": 6.0}])
+        self.assertEqual(cmv_base.carregar()["itens"], antes)
+
+    def test_lote_grava_recalcula_e_recusa_kit(self):
+        pub = []
+        with mock.patch.object(cmv_base, "publicar", lambda m, a="": pub.extend(m)):
+            r = cc.gravar_lote({"faca": 6.0, "AFIADOR": 8.0, "KIT-FACA-9": 1.0, "TABUA": "abc"}, "zicri", "carga de planilha")
+        self.assertEqual([x["sku"] for x in r["recusados"]], ["KIT-FACA-9", "TABUA"])
+        self.assertEqual(r["iguais"], 1)                                     # AFIADOR já valia 8: não regrava
+        itens = cmv_base.carregar()["itens"]
+        self.assertEqual(itens["FACA"]["aba"], "carga de planilha")
+        self.assertEqual(itens["KIT-FACA-9"]["cmv"], 6 * 6 + 8 + 4 + 10)     # kit vale a soma, não o valor enviado
+        self.assertIn("FACA", pub)
+        self.assertNotIn("AFIADOR", pub)
+
+    def test_um_sku_e_planilha_gravam_igual(self):
+        cc.salvar_cmv("faca", 7.0, "zicri")
+        pelo_modal = cmv_base.carregar()["itens"]["KIT-FACA-9"]["cmv"]
+        cc.salvar_cmv("faca", 5.0, "zicri")
+        cc.carga_planilha(self.planilha([["FACA", 7.0]]), "a.xlsx", "zicri", True)
+        self.assertEqual(cmv_base.carregar()["itens"]["KIT-FACA-9"]["cmv"], pelo_modal)
+
+    def test_carga_simula_por_padrao_e_mostra_linhas_ruins(self):
+        r = cc.carga_planilha(self.planilha([["FACA", 9.0], ["GARRA", None], ["CONTROLPC", 3.0]]), "a.xlsx", "zicri")
+        self.assertEqual(cmv_base.carregar()["itens"]["FACA"]["cmv"], 5.0)
+        self.assertEqual(len(r["alterados"]), 1)
+        self.assertEqual(len(r["ignorados"]), 1)
+        self.assertEqual(r["recusados"][0]["sku"], "CONTROLPC")
+
+    def test_carga_recusa_gravar_com_catalogo_incompleto(self):
+        with mock.patch.object(cc, "_catalogo", lambda: {"kits": KITS, "gerado_em": "x", "erros": {"bling03": "timeout"}}):
+            self.assertIn("bling03", cc.carga_planilha(self.planilha([["FACA", 9.0]]), "a", "z")["catalogo_erros"])
+            with self.assertRaises(ValueError):
+                cc.carga_planilha(self.planilha([["FACA", 9.0]]), "a", "z", True)
+        self.assertEqual(cmv_base.carregar()["itens"]["FACA"]["cmv"], 5.0)
+
+    def test_lista_situacao_de_cada_sku(self):
+        cmv_base.salvar({k: {"sku": k, "cmv": v} for k, v in {"FACA": 5.0, "KIT-FACA-9": 99.0}.items()})
+        with mock.patch("marketplaces.balanco.catalogo.ler", lambda: {"blings": {"b": {"skus": {"NOVO": {"nome": "Novo"}}}}}), \
+                mock.patch("produtos_store.ler", lambda: {"MLB1": {"sku": "faca", "conta": "meli01"}, "MLB2": {"sku": "NOVO", "conta": "meli02"}}), \
+                mock.patch.object(cmv_base, "ASIN_PATH", os.path.join(self.tmp, "nao_existe.json")):
+            d = {x["sku"]: x for x in cc.lista()["linhas"]}
+        self.assertEqual((d["FACA"]["status"], d["FACA"]["contas"]), ("ok", {"meli01": 1}))
+        self.assertEqual(d["NOVO"]["status"], "sem_cmv")
+        self.assertEqual((d["KIT-FACA6"]["status"], d["KIT-FACA6"]["soma"]), ("a_preencher", 30.0))
+        self.assertEqual((d["KIT-FACA-9"]["status"], d["KIT-FACA-9"]["soma"], d["KIT-FACA-9"]["cmv"]), ("ok", None, 99.0))
+
+    def test_outro_pc_nao_altera_cmv_em_nome_de_outra_pessoa(self):
+        from fastapi.testclient import TestClient
+        import main
+        from marketplaces import acesso_rede
+        c = TestClient(main.app, client=("192.168.15.50", 5000))
+        c.cookies.set(acesso_rede.COOKIE, acesso_rede.criar_sessao("kauan"))
+        corpo = {"sku": "FACA", "cmv": 1.0, "autor": "zicri"}
+        self.assertEqual(c.post("/cmv/sku", json=corpo).status_code, 403)
+        self.assertEqual(c.get("/cmv/lista?autor=zicri").status_code, 403)
+        self.assertEqual(c.post("/cmv/aplicar/meli01?confirmar=true&autor=zicri").status_code, 403)
+        c.cookies.set(acesso_rede.COOKIE, acesso_rede.criar_sessao("zicri"))
+        with mock.patch.object(main, "_comentar_cmv", lambda *a, **k: 0), mock.patch.object(main, "log_atividade", lambda *a, **k: None):
+            self.assertEqual(c.post("/cmv/sku", json=dict(corpo, autor="kauan")).status_code, 200)
+        self.assertEqual(cmv_base.carregar()["itens"]["FACA"]["autor"], "zicri")   # vale a sessão, não o nome enviado
+
     def test_planilha_de_carga_so_tem_componentes(self):
         import io, openpyxl
         with mock.patch("marketplaces.balanco.catalogo.ler", lambda: {"blings": {"bling01": {"skus": {"FACA": {"nome": "Faca"}}}}}):

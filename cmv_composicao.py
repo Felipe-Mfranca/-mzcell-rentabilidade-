@@ -8,6 +8,12 @@ componente; ao salvar, todo kit/clone que usa aquele componente (direta ou indir
 
 A composição vem do catálogo do balanço (balanco_catalogo.json, lido dos três Blings e renovado a cada 24 h).
 Se o mesmo kit tiver composição diferente entre os Blings, ele não é recalculado e a divergência é avisada.
+
+Página CMV, modal do produto e carga de planilha leem por composicao()/lista() e gravam só por gravar_lote():
+mesma validação, mesmo recálculo de kits, mesma publicação na planilha da equipe e mesma propagação aos anúncios.
+
+Carga de planilha pela linha de comando (com o servidor no ar; simula sem --confirmar):
+  python -m cmv_composicao arquivo.xlsx --autor zicri [--confirmar]
 """
 
 from datetime import datetime
@@ -31,7 +37,7 @@ def _catalogo() -> dict:
     for b, dados in (cat.get("blings") or {}).items():
         for kit, x in (dados.get("kits") or {}).items():
             kits.setdefault(_chave(kit), {})[b] = [(_chave(c), float(q or 1)) for c, q in x.get("comp") or []]
-    return {"kits": kits, "gerado_em": cat.get("gerado_em")}
+    return {"kits": kits, "gerado_em": cat.get("gerado_em"), "erros": cat.get("erros") or {}}
 
 
 def _comp_unica(kits: dict, sku: str):
@@ -153,29 +159,112 @@ def recalcular_kits(skus, autor: str = "") -> dict:
     return {"recalculados": len(mudados), "kits_pendentes": len(pendentes)}
 
 
-def salvar_cmv(sku: str, cmv: float, autor: str = "") -> dict:
-    """Grava o CMV do SKU (componente ou produto simples) e recalcula os kits/clones que o usam."""
-    sku = _chave(sku)
-    if cmv is None or cmv < 0:
-        raise ValueError("CMV inválido")
+def gravar_lote(valores: dict, autor: str = "", origem: str = "ajuste no MZ App", descricoes: dict = None,
+                confirmar: bool = True, arquivo: str = None) -> dict:
+    """ÚNICA gravação de CMV: {SKU: valor} de componentes ou produtos simples. Kit/clone é recusado (vale a soma dos
+    componentes). Recalcula os kits que usam cada SKU, publica e propaga aos anúncios. confirmar=False só simula."""
     cat = _catalogo()
     kits = cat["kits"]
-    if sku in kits:
-        raise ValueError("Este SKU é kit/clone no Bling: ajuste o CMV nos componentes.")
     base = cmv_base.carregar()
     itens = base.get("itens", {})
     agora = datetime.now().isoformat(timespec="seconds")
-    antes = (itens.get(sku) or {}).get("cmv")
-    itens[sku] = dict(itens.get(sku) or {"sku": sku, "tipo": "", "descricao": ""},
-                      cmv=round(float(cmv), 4), aba="ajuste no MZ App", atualizado_em=agora, autor=autor[:40])
-    mudados, kits_ok, kits_pendentes = _recalcular(kits, itens, [sku], agora, autor)
-    mudados[sku] = itens[sku]
-    cmv_base.salvar(itens, base.get("_arquivo", ""))
-    cmv_base.publicar(mudados, autor)
-    propagado = cmv_base.propagar_ml()
-    return {"success": True, "sku": sku, "de": antes, "para": itens[sku]["cmv"], "kits": kits_ok,
-            "kits_pendentes": kits_pendentes,
+    gravados, recusados, mudados = [], [], {}
+    for bruto, valor in valores.items():
+        sku = _chave(bruto)
+        try:
+            novo = round(float(valor), 4)
+        except (TypeError, ValueError):
+            novo = -1
+        if not sku or novo < 0:
+            recusados.append({"sku": sku, "motivo": "CMV inválido"})
+            continue
+        if sku in kits:
+            recusados.append({"sku": sku, "motivo": "Este SKU é kit/clone no Bling: ajuste o CMV nos componentes."})
+            continue
+        antes = (itens.get(sku) or {}).get("cmv")
+        gravados.append({"sku": sku, "de": antes, "para": novo})
+        if antes is None or abs(antes - novo) > 0.00005:
+            desc = (descricoes or {}).get(sku, "")
+            itens[sku] = dict(itens.get(sku) or {"sku": sku, "tipo": "", "descricao": desc},
+                              cmv=novo, aba=origem, atualizado_em=agora, autor=autor[:40])
+            mudados[sku] = itens[sku]
+    alterados = [g for g in gravados if g["sku"] in mudados]
+    de_kits, kits_ok, kits_pendentes = _recalcular(kits, itens, [g["sku"] for g in gravados], agora, autor)
+    mudados.update(de_kits)
+    propagado = {}
+    if confirmar and mudados:
+        cmv_base.salvar(itens, base.get("_arquivo", "") if arquivo is None else arquivo)
+        cmv_base.publicar(mudados, autor)
+        propagado = cmv_base.propagar_ml()
+    return {"success": True, "confirmado": bool(confirmar), "gravados": gravados, "alterados": alterados,
+            "iguais": len(gravados) - len(alterados), "recusados": recusados, "kits": kits_ok,
+            "kits_pendentes": kits_pendentes, "catalogo_erros": cat.get("erros") or {},
             "anuncios_ml": {c: (r.get("mudariam") if isinstance(r, dict) else None) for c, r in propagado.items()}}
+
+
+def salvar_cmv(sku: str, cmv: float, autor: str = "") -> dict:
+    """Grava o CMV de um SKU (página CMV e modal do produto)."""
+    r = gravar_lote({sku: cmv}, autor)
+    if r["recusados"]:
+        raise ValueError(r["recusados"][0]["motivo"])
+    return dict(r, sku=r["gravados"][0]["sku"], de=r["gravados"][0]["de"], para=r["gravados"][0]["para"])
+
+
+def carga_planilha(conteudo: bytes, arquivo: str = "", autor: str = "", confirmar: bool = False) -> dict:
+    """Carga de planilha (colunas SKU e CMV): cada linha passa por gravar_lote. Simula se confirmar=False.
+    Com o catálogo incompleto a gravação é recusada: um kit do Bling que faltou seria tratado como produto simples."""
+    lido = cmv_base.ler_planilha(conteudo)
+    if not lido["itens"]:
+        raise ValueError("Nenhuma aba com colunas SKU e CMV/Custo foi encontrada.")
+    erros = _catalogo().get("erros")
+    if confirmar and erros:
+        raise ValueError("Catálogo do Bling incompleto (" + ", ".join(sorted(erros)) + "): atualize o catálogo e carregue de novo.")
+    r = gravar_lote({k: v["cmv"] for k, v in lido["itens"].items()}, autor, f"carga de planilha ({arquivo or 'sem nome'})"[:60],
+                    {k: v.get("descricao") or "" for k, v in lido["itens"].items()}, confirmar, arquivo=arquivo or None)
+    return dict(r, skus=len(r["gravados"]), abas=lido["abas"], conflitos=lido["conflitos"], ignorados=lido["ignorados"])
+
+
+def lista() -> dict:
+    """Todos os SKUs para a página CMV: base, catálogo dos Blings e anúncios. status: ok, a_preencher (kit sem valor na base,
+    mas a soma já fecha) ou sem_cmv. O valor vale o que os anúncios usam, ou seja, o da base."""
+    from marketplaces.balanco import catalogo
+    cat = _catalogo()
+    kits, itens = cat["kits"], cmv_base.carregar().get("itens", {})
+    nomes = {}
+    for dados in (catalogo.ler().get("blings") or {}).values():
+        for s, x in (dados.get("skus") or {}).items():
+            nomes.setdefault(_chave(s), x.get("nome") or "")
+    contas = {}
+    try:
+        import produtos_store
+        for p in produtos_store.ler().values():
+            s = _chave(p.get("sku"))
+            if s and p.get("conta"):
+                nomes.setdefault(s, p.get("titulo") or "")
+                contas.setdefault(s, {}).setdefault(p["conta"], 0)
+                contas[s][p["conta"]] += 1
+    except Exception:
+        pass
+    try:
+        import json
+        with open(cmv_base.ASIN_PATH, encoding="utf-8") as f:
+            for conta, m in json.load(f).items():
+                for s in m.get("sku_asin") or {}:
+                    contas.setdefault(_chave(s), {}).setdefault(conta, 0)
+                    contas[_chave(s)][conta] += 1
+    except (FileNotFoundError, ValueError, AttributeError):
+        pass
+    linhas = []
+    for s in sorted(set(nomes) | set(contas) | set(itens) | set(kits)):
+        x = itens.get(s) or {}
+        comp, diverge = _comp_unica(kits, s)
+        tipo = "simples" if comp is None else ("clone" if len(comp) == 1 and comp[0][1] == 1 else "kit")
+        soma = cmv_calculado(s, kits, itens) if comp is not None else None
+        status = "ok" if x.get("cmv") is not None else ("a_preencher" if soma is not None else "sem_cmv")
+        linhas.append({"sku": s, "descricao": x.get("descricao") or nomes.get(s, ""), "tipo": tipo, "cmv": x.get("cmv"), "soma": soma,
+                       "diverge": diverge, "status": status, "contas": contas.get(s, {}),
+                       "atualizado_em": x.get("atualizado_em") or "", "autor": x.get("autor") or "", "origem": x.get("aba") or ""})
+    return {"linhas": linhas, "catalogo_em": cat["gerado_em"], "catalogo_erros": cat.get("erros") or {}}
 
 
 def planilha_carga() -> bytes:
@@ -228,3 +317,36 @@ def planilha_carga() -> bytes:
     out = io.BytesIO()
     wb.save(out)
     return out.getvalue()
+
+
+if __name__ == "__main__":
+    import argparse
+    import json as _json
+    import sys
+    import httpx
+    sys.stdout.reconfigure(encoding="utf-8")
+    ap = argparse.ArgumentParser(description="Carga de CMV por planilha, pelo servidor do MZ App (simula sem --confirmar)")
+    ap.add_argument("arquivo")
+    ap.add_argument("--autor", required=True)
+    ap.add_argument("--confirmar", action="store_true")
+    ap.add_argument("--url", default="http://127.0.0.1:8001")
+    a = ap.parse_args()
+    with open(a.arquivo, "rb") as f:
+        resp = httpx.post(a.url + "/cmv/carga", files={"file": (a.arquivo.replace(chr(92), "/").split("/")[-1], f.read())},
+                          data={"autor": a.autor, "confirmar": "true" if a.confirmar else "false"}, timeout=600)
+    d = resp.json()
+    if resp.status_code != 200:
+        sys.exit(f"Recusado: {d.get('detail')}")
+    print("GRAVADO" if d["confirmado"] else "SIMULAÇÃO (nada foi gravado)")
+    print(f"Linhas válidas: {d['skus']} · a alterar: {len(d['alterados'])} · iguais: {d['iguais']} · recusados: {len(d['recusados'])} · "
+          f"sem CMV na planilha: {len(d['ignorados'])} · conflitos: {len(d['conflitos'])}")
+    for g in d["alterados"]:
+        print(f"  {g['sku']}: {g['de']} -> {g['para']}")
+    for g in d["recusados"]:
+        print(f"  RECUSADO {g['sku']}: {g['motivo']}")
+    kits = [k for k in d["kits"] if k["de"] != k["para"]]
+    print(f"Kits/clones recalculados: {len(kits)} · ainda pendentes: {len(d['kits_pendentes'])}")
+    for k in kits:
+        print(f"  {k['sku']}: {k['de']} -> {k['para']}")
+    if d["catalogo_erros"]:
+        print("ATENÇÃO, catálogo incompleto:", _json.dumps(d["catalogo_erros"], ensure_ascii=False))
