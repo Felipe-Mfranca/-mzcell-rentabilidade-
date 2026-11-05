@@ -665,14 +665,14 @@ def _aplicar_impostos(registros: list):
     _modulo("impostos").aplicar_remoto(registros)
 
 
-CMV_IMPORTAR_PERMITIDOS = {"zicri"}   # só o responsável importa e publica o CMV; liberar outros aqui
+CMV_IMPORTAR_PERMITIDOS = {"zicri", "eduardo", "michel"}   # quem importa, publica e ajusta o CMV; liberar outros aqui
 
 
 @app.post("/cmv/publicar")
 def cmv_publicar(autor: str = ""):
     """Sobe toda a base de CMV local para o banco compartilhado (semente inicial para as outras máquinas)."""
     if autor.strip().lower() not in CMV_IMPORTAR_PERMITIDOS:
-        raise HTTPException(status_code=403, detail="publicação de CMV liberada só para o responsável")
+        raise HTTPException(status_code=403, detail="publicação de CMV liberada só para Zicri, Eduardo e Michel")
     cmv_base = _modulo("cmv_base")
     base = cmv_base.carregar()
     cmv_base.publicar(base.get("itens", {}), "")
@@ -687,15 +687,29 @@ def _aplicar_cmv(registros: list):
 async def cmv_importar(file: UploadFile = File(...), autor: str = Form("")):
     """Importa o arquivo de CMV do Grupo (abas com colunas SKU e CMV/Custo) para a base central cmv_base.json."""
     if autor.strip().lower() not in CMV_IMPORTAR_PERMITIDOS:
-        raise HTTPException(status_code=403, detail="importação de CMV liberada só para o responsável")
+        raise HTTPException(status_code=403, detail="importação de CMV liberada só para Zicri, Eduardo e Michel")
     cmv_base = _modulo("cmv_base")
     conteudo = await file.read()
     try:
-        return cmv_base.importar(conteudo, file.filename or "", autor[:40])
+        r = cmv_base.importar(conteudo, file.filename or "", autor[:40])
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro ao ler o arquivo: {e}")
+    try:   # kits e clones passam a valer a soma dos componentes importados
+        r["kits"] = _modulo("cmv_composicao").recalcular_kits(list(cmv_base.ler_planilha(conteudo)["itens"]), autor.strip().lower())
+    except Exception as e:
+        r["kits"] = {"erro": str(e)[:120]}
+    return r
+
+
+@app.get("/cmv/modelo-carga")
+def cmv_modelo_carga():
+    """Planilha de carga inicial: SKUs que não são kit (componentes do Bling e produtos simples) com o CMV atual."""
+    from datetime import date as _date
+    dados = _modulo("cmv_composicao").planilha_carga()
+    return StreamingResponse(io.BytesIO(dados), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                             headers={"Content-Disposition": f"attachment; filename=CMV_carga_componentes_{_date.today():%Y-%m-%d}.xlsx"})
 
 
 @app.get("/cmv/base")
@@ -703,6 +717,59 @@ async def cmv_resumo():
     cmv_base = _modulo("cmv_base")
     b = cmv_base.carregar()
     return {"skus": len(b["itens"]), "atualizado_em": b.get("_atualizado_em"), "arquivo": b.get("_arquivo")}
+
+
+CMV_EDITAR_PERMITIDOS = CMV_IMPORTAR_PERMITIDOS   # quem ajusta o CMV pelo modal; liberar outros aqui
+
+
+@app.get("/cmv/composicao/{sku}")
+def cmv_composicao(sku: str):
+    """Componentes do SKU nos Blings (kit/clone) com o CMV de cada um."""
+    return _modulo("cmv_composicao").composicao(sku)
+
+
+@app.post("/cmv/sku")
+def cmv_salvar_sku(payload: dict):
+    """Grava o CMV de um componente/produto simples e recalcula os kits e clones que o usam."""
+    autor = str(payload.get("autor") or "").strip().lower()
+    if autor not in CMV_EDITAR_PERMITIDOS:
+        raise HTTPException(status_code=403, detail="ajuste de CMV liberado só para Zicri, Eduardo e Michel")
+    try:
+        r = _modulo("cmv_composicao").salvar_cmv(payload.get("sku"), float(payload.get("cmv")), autor)
+    except (TypeError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    log_atividade(f"CMV ajustado: {r['sku']} {r['de']} -> {r['para']} ({len(r['kits'])} kit(s)) por {autor}")
+    r["comentarios"] = _comentar_cmv(r, autor, str(payload.get("autor_nome") or ""))
+    return r
+
+
+def _comentar_cmv(r: dict, autor: str, autor_nome: str) -> int:
+    """Registra no Mapa de alterações de cada anúncio ML afetado (o componente e os kits recalculados)."""
+    brl = lambda v: "sem CMV" if v is None else f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    mudou = {r["sku"]: (r["de"], r["para"])}
+    mudou.update({k["sku"]: (k["de"], k["para"]) for k in r["kits"]})
+    texto_comp = f"CMV de {r['sku']} ajustado: {brl(r['de'])} → {brl(r['para'])}"
+    n = 0
+    for mlb, p in load_json(PRODUTOS_PATH).items():
+        sku = str(p.get("sku") or "").strip().upper()
+        if sku not in mudou or not p.get("conta"):
+            continue
+        de, para = mudou[sku]
+        texto = texto_comp if sku == r["sku"] else f"{texto_comp}. CMV de {sku}: {brl(de)} → {brl(para)} (soma dos componentes)"
+        try:
+            _registrar_anotacao(p["conta"], mlb, f"[automático] {texto}", autor, autor_nome)
+            n += 1
+        except Exception:
+            pass
+    return n
+
+
+@app.post("/cmv/preencher-kits")
+def cmv_preencher_kits(confirmar: bool = False, autor: str = ""):
+    """Kits e clones sem CMV recebem a soma dos componentes do Bling. Simula por padrão."""
+    if confirmar and autor.strip().lower() not in CMV_EDITAR_PERMITIDOS:
+        raise HTTPException(status_code=403, detail="ajuste de CMV liberado só para Zicri, Eduardo e Michel")
+    return _modulo("cmv_composicao").preencher_kits(confirmar, autor.strip().lower())
 
 
 @app.post("/cmv/aplicar/{conta}")
@@ -1472,6 +1539,13 @@ async def salvar_anotacao(conta: str, mlb: str, payload: dict):
     if not texto:
         raise HTTPException(status_code=400, detail="Texto não pode ser vazio")
 
+    anotacao = _registrar_anotacao(conta, mlb, texto, payload.get("autor", ""), payload.get("autor_nome", ""),
+                                   payload.get("dados") if isinstance(payload.get("dados"), dict) else None)
+    return {"success": True, "anotacao": anotacao}
+
+
+def _registrar_anotacao(conta: str, mlb: str, texto: str, autor: str = "", autor_nome: str = "", dados: dict = None) -> dict:
+    from datetime import datetime as _dt
     db = _load_anotacoes()
     if conta not in db:
         db[conta] = {}
@@ -1483,16 +1557,16 @@ async def salvar_anotacao(conta: str, mlb: str, payload: dict):
         "texto":     texto,
         "criado_em": _dt.now().strftime("%d/%m/%Y %H:%M"),
         "criado_ts": _dt.now().isoformat(),
-        "autor":     str(payload.get("autor", ""))[:40],
-        "autor_nome": str(payload.get("autor_nome", ""))[:60],
+        "autor":     str(autor or "")[:40],
+        "autor_nome": str(autor_nome or "")[:60],
     }
-    if isinstance(payload.get("dados"), dict):
-        anotacao["dados"] = payload["dados"]
+    if dados:
+        anotacao["dados"] = dados
     db[conta][mlb].append(anotacao)
     _save_anotacoes(db)
     shared_store.enviar_async("comentarios", f"{conta}|{mlb}|{anotacao['id']}", anotacao, anotacao["autor"])
     log_atividade(f"Anotação: {mlb} ({conta}) {anotacao['criado_em']}")
-    return {"success": True, "anotacao": anotacao}
+    return anotacao
 
 
 @app.post("/anotacoes/{conta}/{mlb}/{anotacao_id}/favorito")
