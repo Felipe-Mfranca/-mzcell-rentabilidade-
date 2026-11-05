@@ -83,7 +83,7 @@ function mostrarPrevia(){const p=previa;
  const m=p.manual,cv=$('canal').value,contas=cv==='amazon'?['amazon01','amazon02']:(cv==='shopee'?['shopee']:['meli01','meli02','meli03']);
  h+='<div class="top"><label>'+(m||cv==='shopee'?'Nº do envio':'Frete')+' <input id="n_frete" value="'+esc(p.frete)+'" style="width:150px"></label>'+
  '<label>Conta <select id="n_conta"><option value="">—</option>'+contas.map(c=>'<option '+(c===p.conta_sugerida?'selected':'')+'>'+c+'</option>').join('')+'</select></label>'+
- '<label>Coleta <input type="date" id="n_coleta" value="'+esc(p.coleta||'')+'"></label><label>Pronto até <input type="datetime-local" id="n_prazo"> <span class="mut">(pode ficar pendente)</span></label></div>';
+ '<label><b>Coleta</b> (obrigatória) <input type="date" id="n_coleta" required value="'+esc(p.coleta||'')+'"></label><label>Pronto até <input type="datetime-local" id="n_prazo"> <span class="mut">(vazio = dia útil anterior à coleta, 17h)</span></label></div>';
  h+='<table><tr><th>SKU</th><th>Produto</th><th>Unid.</th><th>Estoquista</th><th>Embalador</th></tr>'+p.produtos.map(linhaProd).join('')+'</table>';
  if(m)h+='<p><button class="sec" onclick="addLinha()">+ produto</button></p>';
  h+='<p><button onclick="criar()">Colocar na fila</button> <button class="sec" onclick="trocaCanal()">Cancelar</button></p><div id="n_msg"></div>';
@@ -95,12 +95,15 @@ async function criar(){const body={frete:$('n_frete').value,canal:$('canal').val
  try{await api('/montagem/envios',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});trocaCanal();carregar()}
  catch(e){$('n_msg').innerHTML='<div class="erro">'+esc(e.message)+'</div>'}}
 function resta(prazo){if(!prazo)return '<span class="atraso">pronto até pendente</span>';const ms=new Date(prazo)-new Date();const m=Math.round(Math.abs(ms)/60000);const t=Math.floor(m/60)+'h'+String(m%60).padStart(2,'0');return ms<0?'<span class="atraso">atrasado '+t+'</span>':'faltam '+t}
+const DIAS=['dom','seg','ter','qua','qui','sex','sáb'];
+function dataBR(d){if(!d)return '—';const [a,m,di]=d.split('-');return di+'/'+m+' ('+DIAS[new Date(+a,+m-1,+di).getDay()]+')'}
 function cartao(e,pos,nfila){const r=e.resumo,k=esc(e.chave),fila=e.status==='fila';
-  return '<div class="card"'+(fila?' style="border-left:5px solid #854d0e"':'')+'><div class="top"><h2 style="margin:0">'+(fila?'<span class="badge" style="background:#854d0e">'+pos+'º da fila</span> ':'')+'<span class="badge '+esc(e.canal)+'">'+esc(NOMES[e.canal]||e.canal)+'</span> Envio #'+esc(e.numero)+' · '+esc(e.conta||'?')+(e.concluido_em?' · <span style="color:#166534">concluído</span>':'')+'</h2>'+
+  return '<div class="card"'+(fila?' style="border-left:5px solid #854d0e"':'')+'><div class="top"><h2 style="margin:0">'+(fila?'<span class="badge" style="background:#854d0e">'+pos+'º da fila</span> ':'')+'<span class="badge '+esc(e.canal)+'">'+esc(NOMES[e.canal]||e.canal)+'</span> Envio #'+esc(e.numero)+' · '+esc(e.conta||'?')+(fila?' · <span style="color:#854d0e">coleta '+dataBR(e.coleta)+'</span>':'')+(e.concluido_em?' · <span style="color:#166534">concluído</span>':'')+'</h2>'+
   '<span>Coleta: <input type="date" value="'+esc(e.coleta||'')+'" onchange="coleta(\''+k+'\',this.value,\''+esc(e.prazo||'')+'\')"></span><span>Pronto até: <input type="datetime-local" value="'+esc(e.prazo)+'" onchange="prazo(\''+k+'\',this.value)"> '+(fila?(e.prazo?'':'<span class="mut">pendente</span>'):(e.concluido_em?'':resta(e.prazo)))+'</span>'+
   (fila?'<button class="sec" '+(pos<2?'disabled':'')+' onclick="mover(\''+k+'\','+(pos-1)+')" title="subir na fila">↑</button><button class="sec" '+(pos>=nfila?'disabled':'')+' onclick="mover(\''+k+'\','+(pos+1)+')" title="descer na fila">↓</button><button onclick="iniciar(\''+k+'\')">Iniciar</button>':
    '<span class="mut">'+(e.iniciado_por?'iniciado por '+esc(e.iniciado_por)+' em '+esc((e.iniciado_em||'').slice(8,10)+'/'+(e.iniciado_em||'').slice(5,7)+' '+(e.iniciado_em||'').slice(11,16)):'')+'</span>')+
   '<button class="perigo" onclick="remover(\''+k+'\')">Excluir</button></div>'+
+  (fila?(e.falta&&e.falta.length?'<div class="aviso">Falta programar: '+e.falta.map(esc).join(', ')+'</div>':'<div class="aviso" style="background:#dcfce7;color:#166534">✔ Programado — aguardando o líder iniciar</div>'):'')+
   '<div class="barra"><div style="width:'+r.percentual+'%"></div></div><div class="mut">'+r.unidades_prontas+' de '+r.unidades_total+' un. prontas ('+r.percentual+'%)</div>'+
   '<table><tr><th>Produto</th><th>Unid.</th><th>Estoquista</th><th>Embalador</th><th>Etapas (T · E · OK)</th></tr>'+e.produtos.map((p,i)=>
   '<tr><td>'+esc(p.sku)+'<div class="mut">'+esc(p.titulo)+'</div></td><td>'+p.unidades+'</td>'+
@@ -119,7 +122,7 @@ async function marca(k,i,t,on){try{
  else{const por=$('eu').value.trim();if(!por){alert('Preencha "Eu sou" no alto da página.');return}
   await api('/montagem/envios/'+k+'/produtos/'+i+'/marcar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag:t,por,papel:$('papel').value})})}
  carregar()}catch(e){alert(e.message)}}
-async function resp(k,i,campo,v){try{await api('/montagem/envios/'+k+'/produtos/'+i+'/responsaveis',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[campo]:v})})}catch(e){alert(e.message)}}
+async function resp(k,i,campo,v){try{await api('/montagem/envios/'+k+'/produtos/'+i+'/responsaveis',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[campo]:v})});carregar()}catch(e){alert(e.message)}}
 async function prazo(k,v){try{await api('/montagem/envios/'+k+'/prazo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prazo:v})});carregar()}catch(e){alert(e.message)}}
 async function coleta(k,v,pz){try{await api('/montagem/envios/'+k+'/prazo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prazo:pz,coleta:v})});carregar()}catch(e){alert(e.message)}}
 async function mover(k,pos){try{await api('/montagem/envios/'+k+'/ordem',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({posicao:pos})});carregar()}catch(e){alert(e.message)}}

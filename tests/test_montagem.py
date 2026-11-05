@@ -79,7 +79,8 @@ class TestArmazenamento(unittest.TestCase):
     def test_fila_ordem_e_inicio(self):
         a = self._criar(numero="A", iniciar=False)
         b = self._criar(numero="B", iniciar=False)
-        c = arm.criar("C", "meli01", "2026-11-06", "", self.prods)          # pronto até pendente: pode entrar na fila
+        c = arm.criar("C", "meli01", "2026-11-06", "", self.prods)
+        c = arm.alterar_prazo(c["chave"], "")                                # pronto até apagado: pode ficar na fila
         self.assertEqual([e["status"] for e in (a, b, c)], ["fila"] * 3)
         self.assertEqual([e["numero"] for e in arm.listar()], ["A", "B", "C"])
         arm.mover(c["chave"], 1)                                             # C passa a ser o próximo
@@ -98,6 +99,26 @@ class TestArmazenamento(unittest.TestCase):
         self.assertEqual([e["numero"] for e in arm.listar()], ["C", "B", "A"])   # fila primeiro, depois montagem
         with self.assertRaises(arm.ErroMontagem):
             arm.alterar_prazo(a["chave"], "")                                # em montagem o prazo não pode sumir
+
+    def test_coleta_obrigatoria_e_o_que_falta_programar(self):
+        with self.assertRaises(arm.ErroMontagem):
+            arm.criar("X", "meli01", "", "", self.prods)
+        e = arm.criar("X", "meli01", "2026-11-06", "", [{"sku": "S", "unidades": 5, "estoquista": "Roger"}], canal="shopee")
+        self.assertEqual(e["prazo"], "2026-11-05T17:00")                     # dia útil anterior à coleta
+        self.assertEqual(arm.falta_programar(e), ["embalador"])
+        arm.atribuir(e["chave"], 0, embalador="Beto")
+        e = arm.alterar_prazo(e["chave"], "2026-11-06T08:00")
+        self.assertEqual(arm.falta_programar(e), [])
+
+    def test_pronto_ate_sugerido_acompanha_a_coleta(self):
+        self.assertEqual(arm.prazo_padrao("2026-11-09"), "2026-11-06T17:00")    # coleta segunda -> sexta
+        self.assertEqual(arm.prazo_padrao("2026-11-10"), "2026-11-09T17:00")
+        e = arm.criar("Y", "meli01", "2026-11-09", "", self.prods)
+        e = arm.alterar_prazo(e["chave"], e["prazo"], "2026-11-11")             # mudou a coleta: acompanha
+        self.assertEqual(e["prazo"], "2026-11-10T17:00")
+        e = arm.alterar_prazo(e["chave"], "2026-11-10T10:00")                   # ajustado à mão
+        e = arm.alterar_prazo(e["chave"], e["prazo"], "2026-11-12")
+        self.assertEqual(e["prazo"], "2026-11-10T10:00")
 
     def test_envio_antigo_sem_status_esta_em_montagem(self):
         e = self._criar(iniciar=False)

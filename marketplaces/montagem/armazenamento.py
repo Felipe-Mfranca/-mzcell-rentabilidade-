@@ -16,11 +16,12 @@ disso ninguém marca etapas. Envios antigos, sem status, contam como já em mont
 import json
 import os
 import threading
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CAMINHO = os.path.join(BASE_DIR, "montagem_envios.json")
 TAGS = ("T", "E", "OK")
+HORA_PRONTO = "17:00"                    # "pronto até" sugerido: dia útil anterior à coleta, neste horário
 CANAIS = ("meli", "amazon", "shopee")   # Full do Mercado Livre, FBA da Amazon e Fulfillment da Shopee: mesma fila
 _trava = threading.Lock()
 
@@ -33,6 +34,17 @@ class ErroMontagem(Exception):
 
 def agora() -> str:
     return datetime.now().isoformat(timespec="seconds")
+
+
+def prazo_padrao(coleta: str) -> str:
+    """Dia útil (seg–sex) anterior à coleta, às HORA_PRONTO. Feriados não entram: ajustar à mão."""
+    try:
+        d = date.fromisoformat(str(coleta)[:10]) - timedelta(days=1)
+    except ValueError:
+        return ""
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return f"{d.isoformat()}T{HORA_PRONTO}"
 
 
 def _ler() -> dict:
@@ -77,6 +89,8 @@ def criar(numero: str, conta: str, coleta: str, prazo: str, produtos: list, cria
         raise ErroMontagem("Canal inválido. Use meli, amazon ou shopee.")
     if not numero:
         raise ErroMontagem("Informe o número do envio.")
+    if not coleta:
+        raise ErroMontagem("Informe a data da coleta.")
     if not produtos:
         raise ErroMontagem("O envio não tem produtos.")
     itens = []
@@ -95,7 +109,7 @@ def criar(numero: str, conta: str, coleta: str, prazo: str, produtos: list, cria
             raise ErroMontagem(f"O envio {numero} ({canal}) já foi cadastrado.", 409)
         ordem = max([e.get("ordem") or 0 for e in _fila(dados)], default=0) + 1
         envio = {"chave": chave, "canal": canal, "numero": numero, "frete": chave, "conta": conta, "coleta": coleta,
-                 "prazo": prazo or "", "criado_em": agora(), "criado_por": criado_por, "produtos": itens, "concluido_em": None,
+                 "prazo": prazo or prazo_padrao(coleta), "prazo_auto": not prazo, "criado_em": agora(), "criado_por": criado_por, "produtos": itens, "concluido_em": None,
                  "status": "fila", "ordem": ordem}
         dados["envios"][chave] = envio
         _gravar(dados)
@@ -177,11 +191,25 @@ def alterar_prazo(frete: str, prazo: str, coleta: str = None) -> dict:
             raise ErroMontagem("Envio não encontrado.", 404)
         if not prazo and status(envio) != "fila":
             raise ErroMontagem('Full em montagem precisa do "pronto até".')
+        if coleta is not None and coleta != envio.get("coleta") and envio.get("prazo_auto") and prazo == envio.get("prazo"):
+            prazo = prazo_padrao(coleta)          # coleta mudou e o "pronto até" ainda é o sugerido: acompanha
+        elif prazo != envio.get("prazo"):
+            envio["prazo_auto"] = False           # ajustado à mão: não mexe mais sozinho
         envio["prazo"] = prazo or ""
         if coleta is not None:
             envio["coleta"] = coleta
         _gravar(dados)
         return envio
+
+
+def falta_programar(envio: dict) -> list:
+    """O que ainda falta para o Full da fila estar programado (vazio = programado)."""
+    falta = [] if envio.get("prazo") else ["pronto até"]
+    if any(not p.get("estoquista") for p in envio["produtos"]):
+        falta.append("estoquista")
+    if any(not p.get("embalador") for p in envio["produtos"]):
+        falta.append("embalador")
+    return falta
 
 
 def iniciar(frete: str, por: str, papel: str) -> dict:

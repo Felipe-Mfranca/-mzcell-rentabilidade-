@@ -147,7 +147,7 @@ def importar_prontos(dados: dict = None) -> list:
     for x in dados["envios"]:
         if x.get("pronto") and f"amazon-{x['numero']}" not in ja:
             try:
-                arm.criar(x["numero"], x["conta"], x["coleta"], x["prazo"], x["produtos"], "automático (Amazon)", "amazon")
+                arm.criar(x["numero"], x["conta"], x["coleta"], "", x["produtos"], "automático (Amazon)", "amazon")
                 criados.append(x["numero"])
             except arm.ErroMontagem:
                 pass

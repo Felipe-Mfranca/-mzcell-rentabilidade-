@@ -87,7 +87,8 @@ def tv_full():
 def dados():
     """Gestão: tudo, inclusive quem marcou cada etapa e quando."""
     envios = arm.listar()
-    return {"agora": arm.agora(), "envios": [dict(e, resumo=arm.resumo(e)) for e in envios]}
+    return {"agora": arm.agora(), "envios": [dict(e, resumo=arm.resumo(e), status=arm.status(e), falta=arm.falta_programar(e))
+                                             for e in envios]}
 
 
 @router.get("/tv/dados")
@@ -166,7 +167,7 @@ def amazon_importar(b: ImportarAmazon):
             falhas.append({"numero": n, "motivo": "não está pronto (NF emitida e coleta agendada) ou não foi encontrado"})
             continue
         try:
-            arm.criar(n, x["conta"], x["coleta"], x["prazo"], x["produtos"], b.criado_por, "amazon")
+            arm.criar(n, x["conta"], x["coleta"], "", x["produtos"], b.criado_por, "amazon")
             criados.append(n)
         except arm.ErroMontagem as e:
             falhas.append({"numero": n, "motivo": str(e)})
