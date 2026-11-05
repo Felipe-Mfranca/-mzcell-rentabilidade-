@@ -161,6 +161,17 @@
   function dur(m) { var h = Math.floor(m / 60), r = m % 60; return h ? h + "h" + (r < 10 ? "0" : "") + r : r + " min"; }
   // Já postado (lista de postagem ou agência) não aparece: a tela mostra só o que ainda vai ser postado.
   function naoPostado(l) { return !postadoML(l) && !marcado(l, "liberado"); }
+  // Hoje: os pedidos sem checkout aparecem pedido a pedido em qualquer visão; de manhã são muitos, por isso a lista recolhe.
+  var semChkAberto = null;
+  function semCheckoutHtml(ls) {
+    if (!ls.length) return "<div class='kpi' style='margin-bottom:10px'><h3>Pedidos sem checkout: nenhum pendente</h3></div>";
+    var aberto = semChkAberto === null ? ls.length <= 10 : semChkAberto;
+    return "<details class='kpi' style='margin-bottom:10px'" + (aberto ? " open" : "") + " ontoggle='semChkAberto=this.open'><summary style='cursor:pointer'><b>Pedidos sem checkout (" + ls.length + ")</b></summary>" +
+      ls.map(function (l) {
+        var skus = l.itens.map(function (i) { return esc(i.qtd) + "× " + esc(i.sku || "sem SKU"); }).join(", ");
+        return "<div class='n'><span><b>" + esc(l.canal) + "</b> · " + esc(l.conta) + " · " + (l.bling_numero ? "Bling " + esc(l.bling_numero) + " (" + esc(l.bling_situacao || "") + ")" : "sem pedido no Bling") + " · " + numVenda(l) + " · " + skus + "</span><span>" + esc(l._f.txt) + "</span></div>";
+      }).join("") + "</details>";
+  }
   function desenhar() {
     if (!dados) return;
     var abertas = dados.linhas.filter(naoPostado).filter(passaFiltro);
@@ -239,8 +250,11 @@
     var alertaAtraso = (atrasados.length ? "<div class='erro'>⚠ " + plural(atrasados.length, 'pedido', 'pedidos') + " com prazo de dia anterior, fora da montagem: verificar atraso na montagem ou na postagem.</div>" : "") +
       (atrasadosPostar.length ? "<div class='erro'>⚠ " + plural(atrasadosPostar.length, 'pedido', 'pedidos') + " com checkout feito e prazo de dia anterior, ainda sem postagem/coleta: levar ou cobrar a coleta.</div>" : "");
     var listaPedidos = html || "<p class='meta'>" + (aba === "hoje" ? "Nenhum envio para hoje." : "Nenhum envio para os próximos dias.") + "</p>";
+    var semChk = [];
+    Object.keys(porCanal).forEach(function (k) { semChk = semChk.concat(porCanal[k]); });
+    semChk.sort(function (a, b) { return (a.meta || "9") < (b.meta || "9") ? -1 : 1; });
     var conteudo = vista === 'pedidos' ? listaPedidos
-      : alertaAtraso + (vista === 'geral' ? montagemHtml(paraMontar) : montagemContasHtml(paraMontar));
+      : (aba === 'hoje' ? semCheckoutHtml(semChk) : "") + alertaAtraso + (vista === 'geral' ? montagemHtml(paraMontar) : montagemContasHtml(paraMontar));
     var prontos = abertas.filter(function (l) { return emAberto(l) && checkoutEf(l); });
     el("aba-prontos").textContent = "Prontos para o envio (" + prontos.length + ")";
     el("lista").innerHTML = aba === "prontos" ? prontosHtml(prontos) : abasVista + conteudo;

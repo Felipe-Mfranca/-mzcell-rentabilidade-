@@ -74,6 +74,20 @@ def _cartao(canal: str, linhas: list, marcas: dict, agora: datetime) -> dict:
             "no_ponto": no_ponto if canal == "DBA" else None}
 
 
+def _sem_checkout(do_dia: list, herdados: list, marcas: dict, agora: datetime) -> list:
+    """Pedido a pedido, o que os cartões contam como pendente: do dia e de dias anteriores, a meta mais antiga primeiro."""
+    saida = []
+    for l, herdado in [(x, False) for x in do_dia if not estado(x, marcas)[1]] + [(x, True) for x in herdados]:
+        meta = _dt(l.get("meta"))
+        saida.append({"canal": nome_canal(l), "conta": l.get("conta"), "pedido": l.get("pedido"), "pacote": l.get("pacote"),
+                      "envio": l.get("envio"), "bling_numero": l.get("bling_numero"), "bling_situacao": l.get("bling_situacao"),
+                      "situacao": l.get("situacao") or l.get("status"), "meta": l.get("meta"), "herdado": herdado,
+                      "atrasado": bool(meta and meta < agora), "unidades": l.get("unidades"),
+                      "itens": [{"sku": i.get("sku"), "qtd": i.get("qtd")} for i in l.get("itens") or []]})
+    saida.sort(key=lambda x: x["meta"] or "9")
+    return saida
+
+
 def _full(envio: dict, agora: datetime) -> dict:
     prods = envio["produtos"]
     total = sum(p["unidades"] for p in prods)
@@ -213,7 +227,7 @@ def montar(linhas: list, marcas: dict, full: list, agora: datetime, dia, platafo
     feitos = sum(c["checkout"] for c in cartoes)
     return {"dia": dia.isoformat(), "agora": agora.isoformat(timespec="seconds"), "cartoes": cartoes, "cortes": cortes, "cortes_plataformas": plat, "full": envios_full,
             "modulos": _modulos(do_dia, marcas, agora, dia, plataformas),
-            "alertas": alertas, "herdados": len(herdados),
+            "alertas": alertas, "herdados": len(herdados), "sem_checkout": _sem_checkout(do_dia, herdados, marcas, agora),
             "geral": {"pedidos": tot, "checkout": feitos, "pendentes": tot - feitos, "percentual": round(100 * feitos / tot, 1) if tot else 100.0,
                       "atrasados": sum(c["atrasados"] for c in cartoes) + len(herdados),
                       "full_envios": len(envios_full), "full_unidades": sum(f["unidades_total"] for f in envios_full),

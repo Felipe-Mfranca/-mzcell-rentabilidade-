@@ -17,6 +17,33 @@ def painel(agora):
     return d.montar(linhas, marcas, s.envios_full(DIA, agora), agora, DIA)
 
 
+class TestSemCheckout(unittest.TestCase):
+    def linha(self, envio, h, **extra):
+        return dict({"conta": "meli01", "canal": "Flex", "envio": envio, "pedido": envio, "unidades": 1, "bling_numero": 66341,
+                     "bling_situacao": "Em aberto", "meta": em(h).isoformat(), "itens": [{"sku": "KIT", "qtd": 1}]}, **extra)
+
+    def test_lista_bate_com_os_pendentes(self):
+        linhas = [self.linha(1, 15), self.linha(2, 12), self.linha(3, 12, bling_checkout=True), self.linha(4, 12)]
+        p = d.montar(linhas, {"4": {"checkout": True}}, [], em(13), DIA)
+        ls = p["sem_checkout"]
+        self.assertEqual([x["envio"] for x in ls], [2, 1])                # meta mais antiga primeiro; com checkout fica de fora
+        self.assertEqual(len(ls), p["geral"]["pendentes"])
+        self.assertEqual([x["atrasado"] for x in ls], [True, False])
+        self.assertEqual(ls[0]["bling_numero"], 66341)
+        self.assertEqual(ls[0]["itens"], [{"sku": "KIT", "qtd": 1}])
+
+    def test_dia_anterior_vem_marcado_e_sem_itens_nao_quebra(self):
+        ontem = self.linha(9, 12, meta="2026-11-03T12:00:00-03:00", canal="DBA")
+        ontem["itens"] = []
+        ls = d.montar([ontem], {}, [], em(13), DIA)["sem_checkout"]
+        self.assertEqual(len(ls), 1)
+        self.assertTrue(ls[0]["herdado"])
+        self.assertEqual(ls[0]["itens"], [])
+
+    def test_tudo_com_checkout_lista_vazia(self):
+        self.assertEqual(d.montar([self.linha(1, 12, bling_checkout=True)], {}, [], em(13), DIA)["sem_checkout"], [])
+
+
 class TestSimulacao(unittest.TestCase):
     def test_volumes_do_plano(self):
         p = painel(em(5))
