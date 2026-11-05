@@ -171,7 +171,7 @@ def montar(linhas: list, marcas: dict, full: list, agora: datetime, dia, platafo
     envios_full = [_full(e, agora) for e in full
                    if (e.get("coleta") or (e.get("prazo") or "")[:10]) == dia.isoformat()
                    or ((_dt(e.get("prazo")) and _dt(e["prazo"]).date() == dia))]
-    envios_full.sort(key=lambda f: f["prazo"] or "")
+    envios_full.sort(key=lambda f: (f["concluido"], f["prazo"] or ""))          # prontos no fim
     alertas = []
     for c in cartoes:
         if c["atrasados"]:

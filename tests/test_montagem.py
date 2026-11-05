@@ -193,6 +193,19 @@ class TestArmazenamento(unittest.TestCase):
         p = arm.produtividade()["pessoas"]
         self.assertEqual(p[0]["pessoa"], "Ana")
         self.assertEqual(p[0]["marcas"], 3)
+        hoje = arm.agora()[:10]
+        d = arm.produtividade(hoje)
+        self.assertEqual(d["pessoas"][0]["marcas"], 3)
+        self.assertEqual(d["fulls"][0]["iniciado_por"], "Chefe")
+        self.assertEqual(arm.produtividade("2000-01-01"), {"dia": "2000-01-01", "pessoas": [], "fulls": []})
+
+    def test_concluidos_vao_para_o_fim(self):
+        a = self._criar(numero="A")
+        self._criar(numero="B")
+        for i, quem in ((0, "Ana"), (1, "Caio")):
+            for t in ("T", "E", "OK"):
+                arm.marcar(a["chave"], i, t, quem, "estoquista")
+        self.assertEqual([e["numero"] for e in arm.listar()], ["B", "A"])
 
 
 if __name__ == "__main__":

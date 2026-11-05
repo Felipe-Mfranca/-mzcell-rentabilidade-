@@ -70,13 +70,15 @@ def _fila(dados) -> list:
 
 
 def listar(incluir_concluidos: bool = True) -> list:
-    """Fila primeiro (na ordem programada), depois as montagens por prazo."""
+    """Fila primeiro (na ordem programada), depois as montagens por prazo e, no fim, os concluídos (mais recente primeiro)."""
     dados = _ler()
     fila = _fila(dados)
     resto = [e for e in dados["envios"].values() if status(e) != "fila"]
     if not incluir_concluidos:
         resto = [e for e in resto if not e.get("concluido_em")]
-    return fila + sorted(resto, key=lambda e: (e.get("prazo") or "", e["chave"]))
+    abertos = sorted((e for e in resto if not e.get("concluido_em")), key=lambda e: (e.get("prazo") or "", e["chave"]))
+    prontos = sorted((e for e in resto if e.get("concluido_em")), key=lambda e: e["concluido_em"], reverse=True)
+    return fila + abertos + prontos
 
 
 def criar(numero: str, conta: str, coleta: str, prazo: str, produtos: list, criado_por: str = "", canal: str = "meli") -> dict:
@@ -284,22 +286,39 @@ def para_tv(envio: dict) -> dict:
     return e
 
 
-def produtividade() -> dict:
-    """Por pessoa: marcas feitas, unidades liberadas (T/E/OK) e tempo médio entre etapas. Só leitura; uso da gestão."""
-    pessoas = {}
+def _minutos(a: str, b: str):
+    return round((datetime.fromisoformat(b) - datetime.fromisoformat(a)).total_seconds() / 60, 1)
+
+
+def produtividade(dia: str = None) -> dict:
+    """Por pessoa: marcas feitas, unidades liberadas (T/E/OK), tempo médio entre etapas e primeira/última marca.
+    Por Full: início (líder), conclusão e duração. `dia` (AAAA-MM-DD) limita às marcas desse dia. Só leitura; uso da gestão."""
+    pessoas, fulls = {}, []
+    no_dia = (lambda em: str(em or "")[:10] == dia) if dia else (lambda em: True)
     for envio in _ler()["envios"].values():
+        ini, fim = envio.get("iniciado_em"), envio.get("concluido_em")
+        if no_dia(ini) or no_dia(fim):
+            fulls.append({"chave": envio["chave"], "canal": envio.get("canal"), "numero": envio.get("numero"),
+                          "unidades": sum(p["unidades"] for p in envio["produtos"]), "iniciado_por": envio.get("iniciado_por", ""),
+                          "iniciado_em": ini, "concluido_em": fim,
+                          "duracao_min": _minutos(ini, fim) if ini and fim else None})
         for p in envio["produtos"]:
             for tag, m in p["etapas"].items():
-                x = pessoas.setdefault(m["por"], {"pessoa": m["por"], "marcas": 0, "unidades": 0, "por_etapa": {}, "tempos_min": []})
+                if not no_dia(m["em"]):
+                    continue
+                x = pessoas.setdefault(m["por"], {"pessoa": m["por"], "marcas": 0, "unidades": 0, "por_etapa": {}, "tempos_min": [],
+                                                  "primeira": m["em"], "ultima": m["em"]})
+                x["primeira"], x["ultima"] = min(x["primeira"], m["em"]), max(x["ultima"], m["em"])
                 x["marcas"] += 1
                 x["unidades"] += p["unidades"]
                 x["por_etapa"][tag] = x["por_etapa"].get(tag, 0) + 1
             e = p["etapas"]
             for a, b in (("T", "E"), ("E", "OK")):
-                if a in e and b in e:
+                if a in e and b in e and no_dia(e[b]["em"]) and e[b]["por"] in pessoas:
                     d = (datetime.fromisoformat(e[b]["em"]) - datetime.fromisoformat(e[a]["em"])).total_seconds() / 60
                     pessoas[e[b]["por"]]["tempos_min"].append(round(d, 1))
     for x in pessoas.values():
         t = x.pop("tempos_min")
         x["tempo_medio_entre_etapas_min"] = round(sum(t) / len(t), 1) if t else None
-    return {"pessoas": sorted(pessoas.values(), key=lambda x: -x["unidades"])}
+    fulls.sort(key=lambda f: f["iniciado_em"] or f["concluido_em"] or "")
+    return {"dia": dia, "pessoas": sorted(pessoas.values(), key=lambda x: -x["unidades"]), "fulls": fulls}

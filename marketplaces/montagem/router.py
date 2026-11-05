@@ -5,7 +5,7 @@ GET    /montagem                           gestão (líder e equipe)
 GET    /montagem/tv                        painel para TV (tela cheia, atualiza sozinho)
 GET    /montagem/dados                     gestão: envios, progresso e quem marcou
 GET    /montagem/tv/dados                  TV: só andamento e responsáveis
-GET    /montagem/produtividade             gestão: marcas e tempos por pessoa
+GET    /montagem/produtividade?dia=        gestão: marcas e tempos por pessoa e duração de cada Full (log do dia)
 POST   /montagem/pdf                       lê o PDF do Full do Meli e devolve a prévia (não grava)
                                            (Amazon e Shopee entram à mão: canal + número + produtos)
 POST   /montagem/envios                    cria o envio com conta, coleta, prazo e responsáveis
@@ -98,8 +98,8 @@ def dados_tv():
 
 
 @router.get("/produtividade")
-def produtividade():
-    return arm.produtividade()
+def produtividade(dia: str = None):
+    return arm.produtividade(dia)
 
 
 def _contas_do_sku() -> dict:

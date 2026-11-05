@@ -37,13 +37,13 @@ button.sec{background:#e5e7eb;color:#1f2933}button.perigo{background:#991b1b}
 <div id="amz"></div>
 <div id="previa"></div></div>
 <div id="lista"></div>
-<div class="card"><h2>Produtividade (só gestão)</h2><div id="prod" class="mut">Carregando…</div></div>
+<div class="card"><div class="top"><h2 style="margin:0">Produtividade do dia (só gestão)</h2><input type="date" id="pdia" onchange="carregarProd()"></div><div id="prod" class="mut">Carregando…</div></div>
 </main>
 <script>
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $=id=>document.getElementById(id);
 const NOMES={meli:'Mercado Livre',amazon:'Amazon',shopee:'Shopee'};
-$('eu').value=localStorage.getItem('mz_eu')||'';$('papel').value=localStorage.getItem('mz_papel')||'estoquista';
+$('pdia').value=new Date(Date.now()-3*3600e3).toISOString().slice(0,10);$('eu').value=localStorage.getItem('mz_eu')||'';$('papel').value=localStorage.getItem('mz_papel')||'estoquista';
 $('eu').onchange=()=>localStorage.setItem('mz_eu',$('eu').value.trim());$('papel').onchange=()=>localStorage.setItem('mz_papel',$('papel').value);
 async function api(url,opt){const r=await fetch(url,opt);let d={};try{d=await r.json()}catch(e){}if(!r.ok||d.success===false)throw new Error(d.error||('Erro '+r.status));return d}
 let previa=null;
@@ -115,8 +115,13 @@ async function carregar(){const d=await api('/montagem/dados');
  const fila=d.envios.filter(e=>e.status==='fila'),mont=d.envios.filter(e=>e.status!=='fila');
  $('lista').innerHTML='<h2 style="margin:18px 0 8px">Fila — aguardando início ('+fila.length+')</h2>'+(fila.map((e,i)=>cartao(e,i+1,fila.length)).join('')||'<div class="card mut">Fila vazia.</div>')+
   '<h2 style="margin:18px 0 8px">Em montagem</h2>'+(mont.map(e=>cartao(e)).join('')||'<div class="card mut">Nenhum Full em montagem.</div>');
- const pr=await api('/montagem/produtividade');
- $('prod').innerHTML=pr.pessoas.length?'<table><tr><th>Pessoa</th><th>Marcas</th><th>Unidades</th><th>Tempo médio entre etapas</th></tr>'+pr.pessoas.map(x=>'<tr><td>'+esc(x.pessoa)+'</td><td>'+x.marcas+' ('+Object.entries(x.por_etapa).map(([k,v])=>k+':'+v).join(' ')+')</td><td>'+x.unidades+'</td><td>'+(x.tempo_medio_entre_etapas_min??'—')+' min</td></tr>').join('')+'</table>':'Sem marcas ainda.'}
+ carregarProd()}
+function hm(iso){return iso?iso.slice(11,16):'—'}
+function dur(min){if(min==null)return '—';const m=Math.round(min);return Math.floor(m/60)+'h'+String(m%60).padStart(2,'0')}
+async function carregarProd(){const dia=$('pdia').value;const pr=await api('/montagem/produtividade'+(dia?'?dia='+dia:''));
+ let h=pr.pessoas.length?'<table><tr><th>Pessoa</th><th>Marcas</th><th>Unidades</th><th>Primeira · última marca</th><th>Tempo médio entre etapas</th></tr>'+pr.pessoas.map(x=>'<tr><td>'+esc(x.pessoa)+'</td><td>'+x.marcas+' ('+Object.entries(x.por_etapa).map(([k,v])=>k+':'+v).join(' ')+')</td><td>'+x.unidades+'</td><td>'+hm(x.primeira)+' · '+hm(x.ultima)+'</td><td>'+dur(x.tempo_medio_entre_etapas_min)+'</td></tr>').join('')+'</table>':'<p>Sem marcas neste dia.</p>';
+ h+='<h3 style="margin:14px 0 4px">Fulls do dia</h3>'+(pr.fulls.length?'<table><tr><th>Envio</th><th>Unid.</th><th>Iniciado</th><th>Concluído</th><th>Duração</th></tr>'+pr.fulls.map(f=>'<tr><td><span class="badge '+esc(f.canal)+'">'+esc(NOMES[f.canal]||f.canal)+'</span> #'+esc(f.numero)+'</td><td>'+f.unidades+'</td><td>'+hm(f.iniciado_em)+(f.iniciado_por?' · '+esc(f.iniciado_por):'')+'</td><td>'+(f.concluido_em?hm(f.concluido_em):'em andamento')+'</td><td>'+dur(f.duracao_min)+'</td></tr>').join('')+'</table>':'<p>Nenhum Full iniciado ou concluído neste dia.</p>');
+ $('prod').innerHTML=h}
 async function marca(k,i,t,on){try{
  if(on){if(!confirm('Desfazer a marca '+t+'?'))return;await api('/montagem/envios/'+k+'/produtos/'+i+'/marcar/'+t,{method:'DELETE'})}
  else{const por=$('eu').value.trim();if(!por){alert('Preencha "Eu sou" no alto da página.');return}
