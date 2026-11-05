@@ -18,6 +18,7 @@ from datetime import datetime, timedelta, timezone
 BRT = timezone(timedelta(hours=-3))
 ORDEM = ("Flex", "Coleta", "Places", "DBA")
 ATENCAO_MIN = 60   # faltando menos que isso para a meta e ainda com pendentes: atenção
+POSTADO = ("in_hub", "in_packing_list", "dropped_off", "picked_up")   # igual a postadoML em pagina.html
 
 
 def _dt(iso):
@@ -32,10 +33,15 @@ def nome_canal(linha: dict) -> str:
     return "Places" if linha.get("canal") == "Agência" else linha.get("canal")
 
 
+def postado(linha: dict) -> bool:
+    """Já saiu do galpão (na agência, na lista de postagem ou coletado): a parte da Expedição terminou."""
+    return linha.get("status") == "ready_to_ship" and linha.get("substatus") in POSTADO
+
+
 def estado(linha: dict, marcas: dict) -> tuple:
     """(embalado, checkout) de um pedido do galpão."""
     m = marcas.get(str(linha.get("envio")), {})
-    checkout = bool(m.get("checkout")) or bool(linha.get("bling_checkout")) or bool(linha.get("checkout_auto"))
+    checkout = bool(m.get("checkout")) or bool(linha.get("bling_checkout")) or bool(linha.get("checkout_auto")) or postado(linha)
     return checkout or bool(m.get("embalado")), checkout
 
 

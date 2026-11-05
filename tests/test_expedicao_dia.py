@@ -40,6 +40,16 @@ class TestSemCheckout(unittest.TestCase):
         self.assertTrue(ls[0]["herdado"])
         self.assertEqual(ls[0]["itens"], [])
 
+    def test_postado_conclui_mesmo_sem_checkout(self):
+        for sub in ("in_hub", "in_packing_list", "dropped_off", "picked_up"):
+            p = d.montar([self.linha(1, 12, status="ready_to_ship", substatus=sub)], {}, [], em(13), DIA)
+            self.assertEqual(p["sem_checkout"], [], sub)
+            self.assertEqual((p["geral"]["pedidos"], p["geral"]["pendentes"], p["geral"]["atrasados"]), (1, 0, 0), sub)
+
+    def test_impresso_segue_pendente(self):
+        p = d.montar([self.linha(1, 12, status="ready_to_ship", substatus="printed")], {}, [], em(13), DIA)
+        self.assertEqual(len(p["sem_checkout"]), 1)
+
     def test_tudo_com_checkout_lista_vazia(self):
         self.assertEqual(d.montar([self.linha(1, 12, bling_checkout=True)], {}, [], em(13), DIA)["sem_checkout"], [])
 

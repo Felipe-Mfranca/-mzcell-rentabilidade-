@@ -112,7 +112,7 @@
   // Prazo de dias anteriores: fica fora da contagem e vira alerta (atraso na montagem ou na postagem).
   // Postado no ML (na agência, na lista de postagem ou já coletado): sai da montagem e do atraso, mesmo sem marca do estoquista.
   function postadoML(l) {
-    return l.status === "ready_to_ship" && (l.substatus === "in_hub" || l.substatus === "in_packing_list" || l.substatus === "dropped_off");
+    return l.status === "ready_to_ship" && (l.substatus === "in_hub" || l.substatus === "in_packing_list" || l.substatus === "dropped_off" || l.substatus === "picked_up");
   }
   function emAberto(l) {
     if (postadoML(l)) return false;
