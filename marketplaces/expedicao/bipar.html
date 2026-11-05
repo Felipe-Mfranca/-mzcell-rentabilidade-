@@ -25,12 +25,22 @@
 <body>
 <header><b>Bipar etiqueta → pedido no Bling</b><a href="/expedicao">← Expedição</a></header>
 <main>
+  <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap">
+    <b>Conta:</b>
+    <select id="conta" style="font-size:18px;padding:8px;border-radius:8px">
+      <option value="">Todas (mais lento)</option>
+      <option value="meli01">Meli 01 · Bling 1</option><option value="meli02">Meli 02 · Bling 2</option><option value="meli03">Meli 03 · Bling 3</option>
+    </select></div>
   <input id="cod" placeholder="Bipe a etiqueta (código de barras ou QR) ou digite o envio / pack" autofocus autocomplete="off">
   <div id="res"><span class="det">Aguardando leitura…</span></div>
   <table><thead><tr><th>Hora</th><th>Código</th><th>Bling</th><th>Pedido</th><th>Situação</th></tr></thead><tbody id="hist"></tbody></table>
 </main>
 <script>
 const cod = document.getElementById('cod'), res = document.getElementById('res'), hist = document.getElementById('hist');
+const sel = document.getElementById('conta');
+try { sel.value = localStorage.getItem('bipar_conta') || ''; } catch (e) {}
+sel.addEventListener('change', () => { try { localStorage.setItem('bipar_conta', sel.value); } catch (e) {} aquecer(); cod.focus(); });
+function aquecer() { fetch('/expedicao/bipar/buscar?codigo=aquecer&conta=' + sel.value).catch(() => {}); }   // carrega os pedidos do Bling antes da leitura
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function bip(ok) {                                       // bip curto: agudo achou, grave não achou
   try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator();
@@ -39,7 +49,7 @@ function bip(ok) {                                       // bip curto: agudo ach
 async function buscar(c) {
   res.className = ''; res.innerHTML = '<span class="det">Buscando ' + esc(c) + '…</span>';
   let d;
-  try { const r = await fetch('/expedicao/bipar/buscar?codigo=' + encodeURIComponent(c)); d = await r.json(); if (!r.ok) throw new Error(d.detail || r.status); }
+  try { const r = await fetch('/expedicao/bipar/buscar?codigo=' + encodeURIComponent(c) + '&conta=' + sel.value); d = await r.json(); if (!r.ok) throw new Error(d.detail || r.status); }
   catch (e) { res.className = 'vm'; res.innerHTML = '<div class="ped">Erro</div><div class="det">' + esc(e.message) + '</div>'; bip(false); return; }
   const hora = new Date().toLocaleTimeString('pt-BR');
   if (d.encontrado) {
@@ -48,14 +58,14 @@ async function buscar(c) {
       <div class="det">${esc(d.situacao)} · nº loja ${esc(d.numero_loja)}${d.envio_ml ? ' · ' + esc(d.envio_ml.conta) + ' envio ' + esc(d.codigo) : ''}</div>`;
   } else {
     res.className = 'vm';
-    res.innerHTML = `<div class="ped">Não encontrado</div><div class="det">${esc(d.motivo)} · código ${esc(d.codigo)}${Object.keys(d.erros_bling || {}).length ? ' · Bling com erro: ' + esc(Object.keys(d.erros_bling).join(', ')) : ''}</div>`;
+    res.innerHTML = `<div class="ped">Não encontrado</div><div class="det">${esc(d.motivo)}${d.conta ? ' (só ' + esc(d.conta) + ')' : ''} · código ${esc(d.codigo)}${Object.keys(d.erros_bling || {}).length ? ' · Bling com erro: ' + esc(Object.keys(d.erros_bling).join(', ')) : ''}</div>`;
   }
   bip(d.encontrado);
   hist.insertAdjacentHTML('afterbegin', `<tr><td>${hora}</td><td>${esc(d.codigo)}</td><td>${d.encontrado ? 'Bling ' + d.bling_n : '—'}</td><td><b>${d.encontrado ? esc(d.numero) : 'não encontrado'}</b></td><td>${esc(d.situacao || '')}</td></tr>`);
 }
 cod.addEventListener('keydown', e => { if (e.key === 'Enter') { const c = cod.value.trim(); cod.value = ''; if (c) buscar(c); } });
 document.addEventListener('click', () => cod.focus());
-fetch('/expedicao/bipar/buscar?codigo=aquecer').catch(() => {});   // carrega os pedidos dos Blings antes da 1ª leitura
+aquecer();
 </script>
 </body>
 </html>

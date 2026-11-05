@@ -63,8 +63,11 @@ def bipar_pagina():
 
 
 @router.get("/bipar/buscar")
-def bipar_buscar(codigo: str):
-    return bipagem.buscar(codigo)
+def bipar_buscar(codigo: str, conta: str = None):
+    try:
+        return bipagem.buscar(codigo, conta or None)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/cancelamentos")

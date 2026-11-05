@@ -19,6 +19,17 @@ class TestBipagem(unittest.TestCase):
     def test_qr_do_flex_vira_o_envio(self):
         self.assertEqual(bipagem.normalizar('{"id":"48431307475","t":"lm"}'), "48431307475")
 
+    def test_qr_do_flex_com_aspas_trocadas_pelo_teclado(self):
+        sujo = 'Ç~id~Ç~48431307475~,~t~Ç~lm~,~sender_id~Ç1874506744,~hash_code~Ç~abc123=~}'
+        self.assertEqual(bipagem.normalizar(sujo), "48431307475")
+        self.assertEqual(bipagem.normalizar('{"sender_id":1874506744,"id":"48431307475"}'), "48431307475")
+
+    def test_conta_selecionada_so_procura_no_bling_dela(self):
+        self.assertFalse(bipagem.buscar("2000015869601391", "meli01")["encontrado"])
+        self.assertEqual(bipagem.buscar("2000015869601391", "meli02")["numero"], 11642)
+        with self.assertRaises(ValueError):
+            bipagem.buscar("1", "meli09")
+
     def test_pack_direto_no_bling(self):
         r = bipagem.buscar("2000015869601391")
         self.assertEqual((r["bling_n"], r["numero"], r["situacao"]), (2, 11642, "Em aberto"))
