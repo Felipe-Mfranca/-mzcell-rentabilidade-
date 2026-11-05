@@ -23,6 +23,8 @@ JANELA_DIAS = 21              # só olha planos criados nos últimos N dias
 PAGINAS_MAX = 12
 # Depois da NF e do transporte confirmados a Amazon já marca SHIPPED, mesmo antes da coleta: o que vale é a data da coleta.
 STATUS_ABERTOS = ("WORKING", "READY_TO_SHIP", "SHIPPED", "IN_TRANSIT")
+# O plano inteiro também vira SHIPPED nesse momento (visto 05/11); só VOIDED/ERRORED ficam de fora.
+PLANOS_ABERTOS = ("ACTIVE", "SHIPPED")
 ANTECEDENCIA_MIN = 60         # "pronto até" = 1 h antes do início da janela de coleta
 CACHE_SEG = 600
 _cache = {"ts": 0.0, "dados": None}
@@ -118,9 +120,12 @@ def buscar(contas=CONTAS, dias=JANELA_DIAS, agora=None) -> dict:
     envios, erros = [], {}
     for conta in contas:
         try:
-            planos = _paginas(conta, f"{BASE}/inboundPlans", "inboundPlans")
+            # Sem "status" a Amazon só lista os ACTIVE: pede cada status, do mais novo ao mais antigo.
+            planos = [p for st in PLANOS_ABERTOS
+                      for p in _paginas(conta, f"{BASE}/inboundPlans", "inboundPlans", max_paginas=3,
+                                        status=st, sortBy="CREATION_TIME", sortOrder="DESC")]
             for p in planos:
-                if p.get("status") != "ACTIVE" or (p.get("createdAt") or "") < corte[:19]:
+                if p.get("status") not in PLANOS_ABERTOS or (p.get("createdAt") or "") < corte[:19]:
                     continue
                 s, plano = _get(conta, f"{BASE}/inboundPlans/{p['inboundPlanId']}")
                 if s == 200:

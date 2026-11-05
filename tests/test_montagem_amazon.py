@@ -17,11 +17,16 @@ class FalsaAmazon:
         "wfA": {"name": "MZ 4 SKUs", "shipments": [{"shipmentId": "shA", "status": "WORKING"}]},
         "wfB": {"name": "Sem NF", "shipments": [{"shipmentId": "shB", "status": "WORKING"}]},
         "wfC": {"name": "Coleta antiga", "shipments": [{"shipmentId": "shC", "status": "SHIPPED"}]},
+        "wfV": {"name": "Cancelado", "shipments": [{"shipmentId": "shV", "status": "WORKING"}]},
     }
+    # Com NF e transporte confirmados a Amazon marca o plano todo como SHIPPED (caso real de 05/11).
+    STATUS = {"wfA": "SHIPPED", "wfV": "VOIDED"}
 
     def get(self, conta, caminho, **kw):
         if caminho.endswith("/inboundPlans"):
-            return 200, {"inboundPlans": [{"inboundPlanId": k, "status": "ACTIVE", "createdAt": "2026-11-03T10:00:00Z"} for k in self.PLANOS]}
+            # Como a Amazon real: sem "status" só vêm os ACTIVE.
+            return 200, {"inboundPlans": [{"inboundPlanId": k, "status": self.STATUS.get(k, "ACTIVE"), "createdAt": "2026-11-03T10:00:00Z"}
+                                          for k in self.PLANOS if self.STATUS.get(k, "ACTIVE") == kw.get("status", "ACTIVE")]}
         for k, p in self.PLANOS.items():
             if caminho.endswith(f"/inboundPlans/{k}"):
                 return 200, p
@@ -62,6 +67,7 @@ class TestAmazonFBA(unittest.TestCase):
         self.assertFalse(por["FBABBB"]["pronto"])
         self.assertIn("NF", por["FBABBB"]["motivo"])
         self.assertNotIn("FBACCC", por)                                          # coleta antiga: ignorada mesmo como SHIPPED
+        self.assertNotIn("FBAVVV", por)                                          # plano cancelado (VOIDED) fica de fora
 
     def test_cria_na_fila_sem_responsaveis(self):
         r = af.buscar(contas=("amazon01",), agora=AGORA)
