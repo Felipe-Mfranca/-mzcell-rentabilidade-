@@ -154,29 +154,59 @@ def _por_unidade(x: dict) -> dict:
             "taxa_fba": f(x["taxa_fba"]), "outras_taxas": f(x["outras_taxas"]), "receita": round(x["receita_liquida"] / un, 2)}
 
 
+def _skus_do_asin(conta: str, sku: str, cache: dict):
+    """(ASIN, SKUs do mesmo ASIN): pelos títulos do cache e pelo mapa amazon_asin_skus.json. Sem ASIN conhecido, só o próprio SKU."""
+    titulos = cache.get("titulos") or {}
+    try:
+        with open(os.path.join(api.BASE_DIR, "amazon_asin_skus.json"), encoding="utf-8") as f:
+            mapa = json.load(f).get(conta) or {}
+    except (FileNotFoundError, ValueError):
+        mapa = {}
+    asin = (titulos.get(sku) or {}).get("asin") or (mapa.get("sku_asin") or {}).get(sku) or ""
+    if not asin:
+        return "", [sku]
+    return asin, sorted({sku} | {s for s, t in titulos.items() if t.get("asin") == asin} | set((mapa.get("asin_skus") or {}).get(asin, [])))
+
+
+def _somar_linhas(linhas: list):
+    """Soma as linhas de margem dos SKUs de um ASIN. Faltando custo em um deles, imposto, CMV e margem ficam sem valor, como num SKU incompleto."""
+    if not linhas:
+        return None
+    if len(linhas) == 1:
+        return linhas[0]
+    r = {k: round(sum(x[k] for x in linhas), 2) for k in ("un_enviadas", "un_devolvidas", "un_liquidas", "receita", "estornos", "promocoes",
+                                                         "receita_liquida", "comissao", "taxa_fba", "outras_taxas", "margem_apos_taxas")}
+    completo = all(x["completo"] for x in linhas)
+    for k in ("imposto", "cmv", "margem"):
+        r[k] = round(sum(x[k] for x in linhas), 2) if completo else None
+    r["margem_pct"] = round(r["margem"] / r["receita_liquida"] * 100, 2) if completo and r["receita_liquida"] > 0 else None
+    r["completo"] = completo
+    return r
+
+
 def sku_detalhe(conta: str, sku: str, de: str = None, ate: str = None) -> dict:
+    """Dados do modal: vendas somadas de todos os SKUs do ASIN (a buy box é do ASIN: vendas, Ads e visitas já vêm juntas)."""
     if not de or not ate:
         de, ate = periodo_padrao(7)
     _validar(de, ate)
     cache = _exige_cache(conta)
     pa_de, pa_ate = _anterior(de, ate)
     d30, a30 = periodo_padrao(30)
+    asin, skus = _skus_do_asin(conta, sku, cache)
+    do_asin = {s.upper() for s in skus}
 
     def linha(a, b):
         ag = financeiro.somar_periodo(cache["por_dia"], a, b)
-        custos = rentabilidade.custos_com_base(conta, [sku])
-        indice = {k.upper(): k for k in ag["skus"]}
-        chave = indice.get(sku.upper())
-        if chave is None:
-            return None
-        return rentabilidade.margem_sku(ag["skus"][chave], custos.get(sku))
+        chaves = [k for k in ag["skus"] if k.upper() in do_asin]
+        custos = rentabilidade.custos_com_base(conta, chaves)
+        return _somar_linhas([rentabilidade.margem_sku(ag["skus"][k], custos.get(k)) for k in chaves])
 
     custo = rentabilidade.custos_com_base(conta, [sku]).get(sku)
     com_st, sem_st = custos_xlsx.aliquotas_da_conta(conta)
     atual = linha(de, ate)
     l30 = linha(d30, a30)
     t = cache.get("titulos", {}).get(sku, {})
-    return {"conta": conta, "sku": sku, "titulo": t.get("titulo", ""), "asin": t.get("asin", ""),
+    return {"conta": conta, "sku": sku, "titulo": t.get("titulo", ""), "asin": asin, "skus": skus,
             "periodo": {"de": de, "ate": ate}, "anterior": {"de": pa_de, "ate": pa_ate},
             "faixa_30d": _por_unidade(l30) if l30 else {"disponivel": False},
             # janela fixa de 30 dias (faixa do topo do modal): Ads e TACOS de 30 dias, como no Meli

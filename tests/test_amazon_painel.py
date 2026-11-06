@@ -89,6 +89,26 @@ class Painel(unittest.TestCase):
         self.assertEqual(d["aliquotas"], {"com_st": 0.1072, "sem_st": 0.1487})
         self.assertEqual(d["custo"]["cmv_unit"], 20.0)
 
+    def test_detalhe_soma_os_skus_do_mesmo_asin(self):
+        um = {"un_enviadas": 2, "un_devolvidas": 0, "un_liquidas": 2, "receita": 100.0, "estornos": 0.0, "promocoes": 0.0, "receita_liquida": 100.0,
+              "comissao": -15.0, "taxa_fba": -10.0, "outras_taxas": 0.0, "margem_apos_taxas": 75.0, "imposto": -10.0, "cmv": -40.0, "margem": 25.0,
+              "margem_pct": 25.0, "completo": True}
+        dois = dict(um, un_enviadas=1, un_liquidas=1, receita=50.0, receita_liquida=50.0, margem_apos_taxas=37.5, imposto=-5.0, cmv=-20.0, margem=12.5)
+        r = painel._somar_linhas([um, dois])
+        self.assertEqual((r["un_liquidas"], r["receita_liquida"], r["cmv"], r["margem"], r["margem_pct"], r["completo"]), (3, 150.0, -60.0, 37.5, 25.0, True))
+        r = painel._somar_linhas([um, dict(dois, imposto=None, cmv=None, margem=None, margem_pct=None, completo=False)])
+        self.assertEqual((r["receita_liquida"], r["margem"], r["completo"]), (150.0, None, False))
+        self.assertIsNone(painel._somar_linhas([]))
+
+        cache = painel.carregar_cache("amazon02")
+        cache["titulos"] = {"S1": {"titulo": "Produto 1", "asin": "B1"}, "S2": {"titulo": "Produto 2", "asin": "B1"}}
+        with mock.patch.object(painel, "carregar_cache", return_value=cache):
+            d = painel.sku_detalhe("amazon02", "S1", "2026-10-10", "2026-10-11")
+            sozinho = next(x for x in painel.painel("amazon02", "2026-10-10", "2026-10-11")["skus"] if x["sku"] == "S2")
+        self.assertEqual((d["asin"], d["skus"]), ("B1", ["S1", "S2"]))
+        self.assertEqual(d["atual"]["un_liquidas"], 3 + sozinho["un_liquidas"])
+        self.assertFalse(d["atual"]["completo"])   # S2 sem custo: a margem do ASIN não fecha
+
     def test_periodo_invalido_e_sem_cache(self):
         from marketplaces.amazon import api
         with self.assertRaises(api.ErroAmazon):

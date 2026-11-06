@@ -344,8 +344,9 @@ def lista() -> dict:
                         irmaos.setdefault(_chave(s), _chave(next((i for i in ir if valor_sku(i) is not None), ir[0])))
     except (FileNotFoundError, ValueError, AttributeError):
         pass
+    usado_em = {c: _quem_usa(kits, c) for por_bling in kits.values() for comp in por_bling.values() for c, _q in comp}
     linhas = []
-    for s in sorted(set(nomes) | set(contas) | set(itens) | set(kits)):
+    for s in sorted(set(nomes) | set(contas) | set(itens) | set(kits) | set(usado_em)):   # componente sem saldo e sem CMV também aparece
         x = itens.get(s) or {}
         ref = irmaos.get(s) or s        # SKU da Amazon fora do Bling segue o irmão do mesmo ASIN: tipo, composição e valor
         comp, diverge = _comp_unica(kits, ref)
@@ -356,7 +357,7 @@ def lista() -> dict:
             cmv = x.get("cmv")
         status = "ok" if cmv is not None else ("a_preencher" if soma is not None else "sem_cmv")
         linhas.append({"sku": s, "descricao": x.get("descricao") or nomes.get(s, ""), "tipo": tipo, "cmv": cmv, "soma": soma, "irmao": irmaos.get(s),
-                       "diverge": diverge, "status": status, "contas": contas.get(s, {}),
+                       "usado_em": usado_em.get(ref, []), "diverge": diverge, "status": status, "contas": contas.get(s, {}),
                        "atualizado_em": x.get("atualizado_em") or "", "autor": x.get("autor") or "", "origem": x.get("aba") or ""})
     return {"linhas": linhas, "catalogo_em": cat["gerado_em"], "catalogo_erros": cat.get("erros") or {}}
 

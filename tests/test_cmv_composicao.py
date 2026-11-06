@@ -186,6 +186,16 @@ class TestComposicao(unittest.TestCase):
         self.assertEqual((d["KIT-FBA"]["irmao"], d["KIT-FBA"]["tipo"], d["KIT-FBA"]["soma"], d["KIT-FBA"]["status"]), ("KIT-FACA6", "kit", 30.0, "a_preencher"))
         self.assertIsNone(d["FACA"]["irmao"])
 
+    def test_lista_acha_componente_e_diz_quem_usa(self):
+        cmv_base.salvar({"FACA": {"sku": "FACA", "cmv": 5.0}})
+        with mock.patch("marketplaces.balanco.catalogo.ler", lambda: {"blings": {}}), mock.patch("produtos_store.ler", lambda: {}), \
+                mock.patch.object(cmv_base, "ASIN_PATH", os.path.join(self.tmp, "nao_existe.json")):
+            d = {x["sku"]: x for x in cc.lista()["linhas"]}
+        self.assertEqual(d["GARRA"]["status"], "sem_cmv")                                # componente sem saldo e sem CMV na base aparece
+        self.assertEqual(d["GARRA"]["usado_em"], ["KIT-FACA-9"])
+        self.assertEqual(d["FACA"]["usado_em"], ["KIT-FACA6", "KIT-FACA-9"])              # inclusive o kit dentro de kit
+        self.assertEqual(d["KIT-FACA-9"]["usado_em"], [])
+
     def test_validar_blings_aponta_diferencas(self):
         cat = {"gerado_em": "x", "erros": {}, "blings": {
             "bling01": {"skus": {"SO-AQUI": {}}, "kits": {"IGUAL": {"comp": [["A", 1], ["B", 2]]}, "DIF": {"comp": [["A", 1]]}, "PARCIAL": {"comp": [["A", 1]]}, "VAZIO": {"comp": []}}},

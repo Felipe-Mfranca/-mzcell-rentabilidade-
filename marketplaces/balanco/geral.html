@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Relatório de Balanço Geral</title>
+<style>
+  @page { margin: 10mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; font-size: 13px; color: #111; margin: 16px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { color: #555; margin-bottom: 10px; }
+  .barra { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+  button { padding: 6px 12px; border: 1px solid #888; background: #f3f4f6; border-radius: 6px; cursor: pointer; }
+  button.ativo { background: #111; color: #fff; }
+  .erro { padding: 10px 12px; border-radius: 8px; margin: 10px 0; border: 1px solid #f87171; background: #fef2f2; color: #991b1b; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #bbb; padding: 4px 6px; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; font-size: 12px; }
+  td.n { text-align: right; white-space: nowrap; }
+  td.sk { font-family: Consolas, monospace; white-space: nowrap; }
+  td.bal { width: 90px; }
+  .neg { color: #b91c1c; font-weight: bold; }
+  @media print { .nao-imprime { display: none; } body { margin: 0; } tr { page-break-inside: avoid; } }
+</style>
+</head>
+<body>
+<h1>Relatório de Balanço Geral - Visão de Produto</h1>
+<div class="sub" id="sub">Carregando…</div>
+
+<div class="barra nao-imprime">
+  <button data-b="bling01" onclick="abrir('bling01')">Bling 1 (Techseller)</button>
+  <button data-b="bling02" onclick="abrir('bling02')">Bling 2 (Seller Info)</button>
+  <button data-b="bling03" onclick="abrir('bling03')">Bling 3 (Mizi)</button>
+  <label><input type="checkbox" id="sem-zero" onchange="desenhar()"> Esconder zerados</label>
+  <button onclick="window.print()">Imprimir</button>
+  <a href="/balanco">Voltar ao balanço</a>
+</div>
+<div id="aviso"></div>
+<div id="tabela"></div>
+
+<script>
+var NOMES = {bling01: "Bling 1 (Techseller)", bling02: "Bling 2 (Seller Info)", bling03: "Bling 3 (Mizi)"};
+var dados = null;
+function esc(t) { return String(t == null ? "" : t).replace(/[&<>"]/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]; }); }
+function num(v) { return Number(v).toLocaleString("pt-BR", {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+
+function abrir(b) {
+  document.querySelectorAll("button[data-b]").forEach(function (x) { x.classList.toggle("ativo", x.dataset.b === b); });
+  document.getElementById("sub").textContent = "Carregando…";
+  document.getElementById("tabela").innerHTML = "";
+  fetch("/balanco/geral/dados?bling=" + b).then(function (r) {
+    return r.json().then(function (d) { if (!r.ok) throw new Error(d.detail || r.status); return d; });
+  }).then(function (d) { dados = d; desenhar(); }).catch(function (e) { document.getElementById("sub").textContent = "Erro: " + e.message; });
+}
+function desenhar() {
+  if (!dados) return;
+  var semZero = document.getElementById("sem-zero").checked;
+  var ls = dados.linhas.filter(function (x) { return !semZero || x.estoque; });
+  document.getElementById("aviso").innerHTML = dados.erro ? '<div class="erro">Não foi possível ler o saldo deste Bling: ' + esc(dados.erro) + '. Não use esta folha para o balanço.</div>' : "";
+  document.getElementById("sub").textContent = NOMES[dados.bling] + " · depósito Geral · gerado em " + new Date().toLocaleString("pt-BR") + " · " + ls.length + " produto(s) · " + num(dados.total) + " un.";
+  document.getElementById("tabela").innerHTML = "<table><thead><tr><th>Descrição - Categoria do produto</th><th>Código (SKU)</th><th>Descrição</th><th>Estoque físico</th><th>Balanço</th></tr></thead><tbody>" +
+    ls.map(function (x) {
+      var est = dados.erro ? "—" : '<span class="' + (x.estoque < 0 ? "neg" : "") + '">' + num(x.estoque || 0) + "</span>";
+      return "<tr><td>" + esc(x.categoria) + '</td><td class="sk">' + esc(x.sku) + "</td><td>" + esc(x.descricao) + '</td><td class="n">' + est + '</td><td class="bal"></td></tr>';
+    }).join("") + "</tbody></table>";
+}
+abrir(new URLSearchParams(location.search).get("bling") || "bling01");
+</script>
+</body>
+</html>

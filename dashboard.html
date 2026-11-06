@@ -880,7 +880,8 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       <div class="tab" id="tab-cmv">
         <div class="periodo-card" style="flex-wrap:wrap">
           <span class="periodo-label">CMV por SKU</span>
-          <input id="cmv-busca" class="modal-date" style="min-width:240px" placeholder="Buscar ou cadastrar SKU" oninput="cmvPagDesenhar()"/>
+          <input id="cmv-busca" class="modal-date" style="min-width:300px" placeholder="SKU do produto, kit, clone ou componente" oninput="cmvPagDesenhar()" onkeydown="if(event.key==='Enter')cmvBuscar()"/>
+          <button class="btn-sm" onclick="cmvBuscar()">Buscar</button>
           <select id="cmv-filtro" class="modal-date" onchange="cmvPagDesenhar()">
             <option value="anuncios">Com anúncio</option>
             <option value="sem">Sem CMV com anúncio</option>
@@ -1036,7 +1037,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       <img id="amz-foto" class="foto-m" style="display:none" alt="">
       <div class="modal-header-info">
         <div class="modal-prod" id="amz-title"></div>
-        <div class="modal-meta"><span class="modal-sku" id="amz-sku"></span><span style="color:var(--border2)">·</span><span class="modal-mlb" id="amz-asin"></span></div>
+        <div class="modal-meta"><span class="modal-sku" id="amz-sku"></span><span style="color:var(--border2)">·</span><span class="modal-mlb" id="amz-asin"></span><span class="sac-mut" id="amz-skus" style="margin-left:8px"></span></div>
       </div>
       <div class="modal-header-actions">
         <button class="btn-sync-produto btn-azul" id="amz-btn-link" title="Abre o anúncio na Amazon">Link do anúncio ↗</button>
@@ -1871,6 +1872,7 @@ function amzDesenharModal(d) {
   const base = a.un_liquidas > 0 ? a : (p && p.un_liquidas > 0 ? p : null);
   document.getElementById('amz-title').textContent = d.titulo || sku;
   document.getElementById('amz-sku').textContent = sku; document.getElementById('amz-asin').textContent = d.asin || '';
+  document.getElementById('amz-skus').textContent = (d.skus || []).length > 1 ? `Soma dos ${d.skus.length} SKUs do ASIN: ${d.skus.join(', ')}` : '';
   // Faixa fixa (30D): a Amazon não entrega Ads por SKU sem a Advertising API
   const nd = '<span title="Indisponível: falta a Advertising API da Amazon">—</span>';
   // link do anúncio na Amazon: página do ASIN (sem ASIN, o botão fica desabilitado)
@@ -2007,8 +2009,9 @@ async function amzTrocarSt() {
   document.getElementById('as-imp').value = ((comSt ? al.com_st : al.sem_st) * 100).toFixed(2);
   amzCalc();
   try {
-    const r = await fetch(`${API}/amazon/custo/${_amz.conta}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({sku: _amz.sku, tem_st: comSt})});
-    toast(r.ok ? `Imposto ${comSt?'COM ST':'SEM ST'} salvo para o SKU` : 'Erro ao salvar o imposto', r.ok ? undefined : 'error');
+    const rs = await Promise.all((_amz.d.skus || [_amz.sku]).map(sku => fetch(`${API}/amazon/custo/${_amz.conta}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({sku, tem_st: comSt})})));
+    const ok = rs.every(r => r.ok);
+    toast(ok ? `Imposto ${comSt?'COM ST':'SEM ST'} salvo para ${rs.length > 1 ? 'os ' + rs.length + ' SKUs do ASIN' : 'o SKU'}` : 'Erro ao salvar o imposto', ok ? undefined : 'error');
   } catch(e) { toast('Erro ao salvar o imposto', 'error'); }
 }
 // ── SHOPEE: esqueleto na mesma estrutura (lojas e autorização; dados nas próximas fases) ──
@@ -3140,7 +3143,7 @@ function radarAbrir(conta, mlb) {
 // (universal: o mesmo SKU tem o mesmo CMV nas três empresas) e os kits que o usam são recalculados.
 const CMV_EDITAR_PERMITIDOS = ['zicri', 'eduardo', 'michel'];   // igual a CMV_IMPORTAR_PERMITIDOS no main.py
 // Página CMV e modal do produto usam as mesmas rotas e o mesmo editor (cmvAbrir/cmvSalvar); _cmvAlvo diz onde ele abre.
-let _cmvAlvo = 'cmv-aj', _cmvLista = [];
+let _cmvAlvo = 'cmv-aj', _cmvLista = [], _cmvAchados = [];
 // ── USUÁRIOS: só lista e grava pelo servidor; a senha nunca vem para a tela ──
 const USUARIOS_ADMIN = ['zicri', 'michel'];   // igual a ADMIN_USUARIOS em auth_service.py
 const USR_MODULOS = {expedicao: 'Expedição', sac: 'SAC', meli: 'Mercado Livre', amazon: 'Amazon', shopee: 'Shopee', magalu: 'Magalu'};
@@ -3228,22 +3231,37 @@ async function cmvValidar() {
 function cmvPagDesenhar() {
   const busca = document.getElementById('cmv-busca').value.trim().toUpperCase(), filtro = document.getElementById('cmv-filtro').value;
   const temAnuncio = x => Object.keys(x.contas).length > 0;
+  const noExato = new Set((_cmvLista.find(x => x.sku === busca) || {}).usado_em || []);   // buscou um componente: os kits e clones que o usam vêm junto
   const ls = _cmvLista.filter(x => {
-    if (busca) return x.sku.includes(busca) || (x.descricao || '').toUpperCase().includes(busca);
+    if (busca) return x.sku.includes(busca) || (x.descricao || '').toUpperCase().includes(busca) || noExato.has(x.sku);
     if (filtro === 'anuncios') return temAnuncio(x);
     if (filtro === 'sem') return temAnuncio(x) && x.status !== 'ok';
     if (filtro === 'sem_todos') return x.status !== 'ok';
     if (filtro === 'kits') return x.tipo !== 'simples';
     return true;
-  }).sort((a, b) => (a.status === 'ok') - (b.status === 'ok') || a.sku.localeCompare(b.sku));
+  }).sort((a, b) => (b.sku === busca) - (a.sku === busca) || (a.status === 'ok') - (b.status === 'ok') || a.sku.localeCompare(b.sku));
+  _cmvAchados = ls;
   const v = x => x != null ? brl2(x) : '—';
   const situacao = {ok: '', a_preencher: '<span style="color:var(--gold)">soma pronta, sem valor na base</span>', sem_cmv: '<span style="color:var(--gold)">sem CMV</span>'};
   const abrir = s => `_cmvAlvo='cmv-pag-aj';cmvAbrir('${sacEsc(s)}','${sacEsc(s)}');document.getElementById('cmv-pag-aj').scrollIntoView({block:'nearest'})`;
-  const linhas = ls.slice(0, 300).map(x => `<tr onclick="${abrir(x.irmao || x.sku)}"><td style="text-align:left"><b>${sacEsc(x.sku)}</b><div class="sac-mut">${x.irmao ? 'segue ' + sacEsc(x.irmao) + ' · ' : ''}${sacEsc((x.descricao || '').slice(0, 70))}</div></td><td>${{simples: 'Simples', clone: 'Clone', kit: 'Kit'}[x.tipo]}${x.diverge ? ' <span style="color:var(--gold)">diverge</span>' : ''}</td><td>${v(x.cmv)}<div>${situacao[x.status]}</div></td><td>${v(x.soma)}</td><td>${Object.entries(x.contas).map(([c, n]) => sacEsc(c) + ': ' + n).join('<br>') || '—'}</td><td>${x.atualizado_em ? x.atualizado_em.slice(0, 10).split('-').reverse().join('/') : '—'}<div class="sac-mut">${sacEsc(x.autor)}</div></td></tr>`).join('');
+  const linhas = ls.slice(0, 300).map(x => `<tr onclick="${abrir(x.irmao || x.sku)}"><td style="text-align:left"><b>${sacEsc(x.sku)}</b><div class="sac-mut">${x.irmao ? 'segue ' + sacEsc(x.irmao) + ' · ' : ''}${(x.usado_em || []).length ? 'usado em ' + x.usado_em.length + ' kit(s)/clone(s) · ' : ''}${sacEsc((x.descricao || '').slice(0, 70))}</div></td><td>${{simples: 'Simples', clone: 'Clone', kit: 'Kit'}[x.tipo]}${x.diverge ? ' <span style="color:var(--gold)">diverge</span>' : ''}</td><td>${v(x.cmv)}<div>${situacao[x.status]}</div></td><td>${v(x.soma)}</td><td>${Object.entries(x.contas).map(([c, n]) => sacEsc(c) + ': ' + n).join('<br>') || '—'}</td><td>${x.atualizado_em ? x.atualizado_em.slice(0, 10).split('-').reverse().join('/') : '—'}<div class="sac-mut">${sacEsc(x.autor)}</div></td></tr>`).join('');
   const exato = busca && _cmvLista.some(x => x.sku === busca);
   document.getElementById('cmv-pag-lista').innerHTML = (busca && !exato ? `<div style="margin-bottom:10px"><button class="btn-sm" onclick="${abrir(busca)}">Cadastrar ${sacEsc(busca)}</button></div>` : '') +
     `<div class="sac-mut" style="margin-bottom:6px">${ls.length} SKU(s)${ls.length > 300 ? ' · mostrando 300: use a busca' : ''}</div>` +
     `<table class="tbl"><thead><tr><th>SKU</th><th>Tipo</th><th>CMV na base</th><th>Soma dos componentes</th><th>Anúncios</th><th>Alterado em</th></tr></thead><tbody>${linhas}</tbody></table>`;
+}
+// Busca da página CMV: achando o SKU, abre o editor; kit e clone abrem nos componentes, FBA fora do Bling abre no irmão.
+async function cmvBuscar() {
+  const busca = document.getElementById('cmv-busca').value.trim().toUpperCase();
+  cmvPagDesenhar();
+  const x = _cmvAchados[0];
+  if (!busca || !x || (x.sku !== busca && _cmvAchados.length > 1)) return;
+  const alvo = x.irmao || x.sku;
+  _cmvAlvo = 'cmv-pag-aj';
+  await cmvAbrir(alvo, alvo);
+  const box = document.getElementById('cmv-pag-aj');
+  if (x.irmao) box.insertAdjacentHTML('afterbegin', `<div class="sac-mut" style="margin-bottom:6px">${sacEsc(x.sku)} segue o irmão do Bling: ${sacEsc(x.irmao)}</div>`);
+  box.scrollIntoView({block: 'nearest'});
 }
 async function cmvAbrir(sku, raiz) {
   const box = document.getElementById(_cmvAlvo); if (!box) return;
