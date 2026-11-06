@@ -284,38 +284,68 @@
     });
     return h;
   }
-  // Montagem para os embaladores: um produto por bloco, com a quebra de pacotes (1 pedido = 1 pacote)
+  // Um pacote é uma etiqueta (envio): compra de carrinho vira vários pedidos no mesmo envio, um produto em cada.
+  function pacotesDe(ls) {
+    var g = {}, ordem = [];
+    ls.forEach(function (l) {
+      var k = String(l.envio || l.pedido);
+      if (!g[k]) { g[k] = { envio: l.envio, pacote: l.pacote, canal: l.canal, conta: l.conta, meta: l.meta, pedidos: [], itens: {}, unidades: 0 }; ordem.push(k); }
+      g[k].pedidos.push(l.pedido);
+      (l.itens || []).forEach(function (i) {
+        var c = i.sku || i.mlb || i.titulo, it = g[k].itens[c] = g[k].itens[c] || { sku: i.sku, mlb: i.mlb, titulo: i.titulo, comp: i.comp, qtd: 0 };
+        it.qtd += i.qtd || 0; g[k].unidades += i.qtd || 0;
+      });
+    });
+    return ordem.map(function (k) { g[k].lista = Object.keys(g[k].itens).map(function (c) { return g[k].itens[c]; }); return g[k]; });
+  }
+  function pacoteAtencao(p) { return p.lista.length > 1 || p.unidades > 1; }
+  function atencaoOrdenados(pacotes) {
+    return pacotes.filter(pacoteAtencao).sort(function (a, b) { return (a.canal === "Flex" ? 0 : 1) - (b.canal === "Flex" ? 0 : 1) || ((a.meta || "9") < (b.meta || "9") ? -1 : 1); });
+  }
+  // O que o kit leva, já multiplicado pela quantidade do pacote: 2 kits de (1 afiador + 2 garras) = 2 afiadores + 4 garras
+  function compTxt(comp, qtd) {
+    return (comp || []).map(function (c) { return (c.qtd * qtd) + "× " + c.sku; }).join(" + ");
+  }
+  function atencaoHtml(lista) {
+    if (!lista.length) return "";
+    return "<h2>Pacotes com mais de uma peça <small>· " + lista.length + " · confira o conteúdo de cada etiqueta</small></h2>" +
+      lista.map(function (p) {
+        return "<div class='linha cz'><div><b>Etiqueta " + esc(p.envio) + "</b><div class='meta'>" + esc(p.canal) + " · " + esc(p.conta) + (p.pedidos.length > 1 ? " · " + p.pedidos.length + " pedidos: " + p.pedidos.map(esc).join(", ") : " · pedido " + esc(p.pedidos[0])) + "</div></div><div>" +
+          "<div class='quebra'>Deve conter " + plural(p.unidades, "unidade", "unidades") + (p.lista.length > 1 ? " de " + p.lista.length + " produtos" : "") + "</div>" +
+          p.lista.map(function (i) {
+            return "<div class='it'><b>" + esc(i.qtd) + "×</b> " + esc((i.titulo || "").slice(0, 70)) + (i.sku ? " <span class='meta'>" + esc(i.sku) + "</span>" : "") +
+              (i.comp ? "<div class='meta'>leva " + esc(compTxt(i.comp, i.qtd)) + "</div>" : "") + "</div>";
+          }).join("") + "</div></div>";
+      }).join("");
+  }
+  // Montagem para os embaladores: um produto por bloco, com a quebra de pacotes (por etiqueta)
   function plural(n, s, p) { return n + ' ' + (n === 1 ? s : p); }
   function montagemHtml(ls, titulo) {
-    var g = {}, mistos = [];
-    ls.forEach(function (l) {
-      if (l.itens.length !== 1) { mistos.push(l); return; }
-      var i = l.itens[0], k = i.mlb || i.titulo;
-      var x = g[k] = g[k] || { mlb: i.mlb, sku: i.sku, conta: l.conta, titulo: i.titulo, un: 0, ped: 0, pac: {} };
-      x.un += i.qtd || 0; x.ped++; x.pac[i.qtd] = (x.pac[i.qtd] || 0) + 1;
+    var g = {}, pacotes = pacotesDe(ls);
+    pacotes.forEach(function (p) {
+      var misto = p.lista.length > 1;
+      p.lista.forEach(function (i) {
+        var k = i.mlb || i.titulo;
+        var x = g[k] = g[k] || { mlb: i.mlb, sku: i.sku, conta: p.conta, titulo: i.titulo, comp: i.comp, un: 0, ped: 0, pac: {}, mistos: 0 };
+        x.un += i.qtd || 0; x.ped++;
+        if (misto) x.mistos++; else x.pac[i.qtd] = (x.pac[i.qtd] || 0) + 1;
+      });
     });
     var lista = Object.keys(g).map(function (k) { return g[k]; }).sort(function (a, b) { return b.un - a.un; });
-    var h = "<h2>" + esc(titulo || "Montagem") + " <small>· " + lista.length + " produto(s), " + plural(ls.length, 'pedido', 'pedidos') + "</small></h2>";
+    var h = "<h2>" + esc(titulo || "Montagem") + " <small>· " + lista.length + " produto(s), " + plural(pacotes.length, 'pacote', 'pacotes') + "</small></h2>" + atencaoHtml(atencaoOrdenados(pacotes));
     lista.forEach(function (x) {
       var quebra = Object.keys(x.pac).map(Number).sort(function (a, b) { return a - b; })
-        .map(function (q) { return plural(x.pac[q], 'pacote', 'pacotes') + " de " + plural(q, 'un', 'un'); }).join(' · ');
+        .map(function (q) { return plural(x.pac[q], 'pacote', 'pacotes') + " de " + plural(q, 'un', 'un'); });
+      if (x.mistos) quebra.push(plural(x.mistos, 'pacote', 'pacotes') + " com outro produto");
       var foto = fotos[x.mlb] ? "<img class='foto' src='" + esc(fotos[x.mlb]) + "' alt=''>" : "<div class='foto sem'>sem foto</div>";
       h += "<div class='mont'>" + foto + "<div><div class='mt'>" + esc((x.titulo || '').slice(0, 90)) + "</div>" +
         "<div class='meta'>" + (x.sku ? esc(x.sku) + " · " : "") + esc(x.mlb || '') + "</div>" +
-        "<div><b>" + plural(x.un, 'unidade', 'unidades') + "</b> em " + plural(x.ped, 'pedido', 'pedidos') + "</div>" +
-        "<div class='quebra'>" + quebra + "</div>" + balancoHtml(x.conta, x.sku, x.un, x.mlb) + "</div></div>";
+        (x.comp ? "<div class='meta'><b>Cada unidade leva " + esc(compTxt(x.comp, 1)) + "</b></div>" : "") +
+        "<div><b>" + plural(x.un, 'unidade', 'unidades') + "</b> em " + plural(x.ped, 'pacote', 'pacotes') + "</div>" +
+        "<div class='quebra'>" + quebra.join(" · ") + "</div>" + balancoHtml(x.conta, x.sku, x.un, x.mlb) + "</div></div>";
     });
-    if (mistos.length) {
-      h += "<h2>Pedidos com mais de um produto <small>· " + mistos.length + "</small></h2>";
-      mistos.forEach(function (l) {
-        h += "<div class='linha cz'><div><b>" + numVenda(l) + "</b><div class='meta'>" + esc(l.canal) + " · " + esc(l.conta) + "</div></div><div>" +
-          l.itens.map(function (i) { return "<div class='it'><b>" + esc(i.qtd) + "×</b> " + esc((i.titulo || '').slice(0, 70)) + (i.sku ? " <span class='meta'>" + esc(i.sku) + "</span>" : "") + "</div>"; }).join('') +
-          "</div></div>";
-      });
-    }
     return h;
   }
-  // Visão por conta e modalidade: Flex, e Places (Coleta + Agência, os demais canais do ML)
   function montagemContasHtml(ls) {
     var h = "";
     ["meli01", "meli02", "meli03"].forEach(function (c) {
@@ -331,6 +361,15 @@
     return h || "<p class='meta'>Nenhum envio para esta visão.</p>";
   }
   function trocaVista(v) { vista = v; desenhar(); }
+  function atencaoPrint(lista) {
+    if (!lista.length) return "";
+    return "<p class='pc'><b>Pacotes com mais de uma peça (" + lista.length + "): conferir por etiqueta</b></p><table class='pc'><tr><th>Etiqueta</th><th>Deve conter</th><th>Total</th></tr>" +
+      lista.map(function (p) {
+        return "<tr><td class='sk'>" + esc(p.envio) + "</td><td>" + p.lista.map(function (i) {
+          return "<b>" + esc(i.qtd) + "×</b> " + esc(i.sku || (i.titulo || "").slice(0, 40)) + (i.comp ? " (leva " + esc(compTxt(i.comp, i.qtd)) + ")" : "");
+        }).join("<br>") + "</td><td class='q'>" + p.unidades + "</td></tr>";
+      }).join("") + "</table>";
+  }
   // Impressão da montagem do dia: Flex primeiro (primeira embalagem), depois Places por horário. Sai o que já está embalado.
   function imprimirMontagem() {
     var base = dados.linhas.filter(naoPostado).filter(passaFiltro).filter(function (l) {
@@ -362,7 +401,7 @@
           var sb = saldoBling(p.conta, p.sku, p.mlb), fica = typeof sb === "number" ? sb - p.un : null;
           return "<tr><td>" + esc((p.titulo || "").slice(0, 40)) + "</td><td class='sk'>" + esc(p.sku || "") + "</td><td class='q'>" + p.un + "</td><td class='q'>" + (typeof sb === "number" ? sb : (sb === "pai" ? "pai" : "-")) + "</td><td class='q" + (fica != null && fica < 0 ? " falta" : "") + "'>" + (fica == null ? "-" : fica) + "</td></tr>";
         }).join("") +
-        "</table>";
+        "</table>" + atencaoPrint(atencaoOrdenados(pacotesDe(g.linhas)));
     }).join("");
     // Total consolidado por SKU (todas as contas e modalidades juntas), no fim da lista
     var cons = {}, consUn = 0, pedidos = {};
@@ -391,6 +430,7 @@
       "td.sk{white-space:normal;word-break:break-all;font-size:10px}" +
       "h2.cons{margin-top:18px;page-break-before:auto}table.tc{page-break-inside:auto}tr{page-break-inside:avoid}table.tc th:nth-child(1){width:55mm}table.tc th:nth-child(3),table.tc th:nth-child(4){width:50px}" +
       "tr.tot td{border-top:2px solid #000;font-weight:700;font-size:12px}" +
+      "p.pc{margin-top:6px}table.pc th:nth-child(1){width:30mm}table.pc th:nth-child(2){width:auto}table.pc th:nth-child(3){width:44px}table.pc td{white-space:normal}" +
       "</style></head><body><h1>Montagem do dia · " + esc(hojeStr().split("-").reverse().join("-")) + "</h1>" + (corpo || "<p>Nenhum pedido para montar.</p>") + consHtml + "</body></html>");
     w.document.close(); w.focus(); w.print();
   }

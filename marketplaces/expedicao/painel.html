@@ -11,7 +11,8 @@
 .alertas{padding:10px 28px 0}.al{padding:7px 16px;border-radius:8px;margin-bottom:6px;font-size:20px;font-weight:600}
 .al.critico{background:#7f1d1d;color:#fecaca}.al.atencao{background:#78350f;color:#fde68a}
 .semchk{padding:6px 28px 0}.semchk h3{margin:4px 0 6px;font-size:18px;letter-spacing:1px;color:#94a3b8;font-weight:600}
-.semchk .ped{display:flex;flex-wrap:wrap;gap:4px 18px;padding:6px 14px;margin-bottom:4px;border-radius:8px;background:#1e293b;font-size:19px;color:#e2e8f0}.semchk .ped.atr{border-left:6px solid #ef4444}.semchk .ped span{color:#94a3b8}
+.semchk .nums2{display:flex;flex-wrap:wrap;gap:8px}.semchk .tot{padding:8px 16px;border-radius:8px;background:#1e293b;font-size:22px;color:#e2e8f0}.semchk .tot b{font-size:30px;margin-right:6px}.semchk .tot.atr{border-left:6px solid #ef4444}
+.fullc{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.fullc div{padding:8px 14px;border-radius:8px;background:#1e293b;font-size:18px;color:#cbd5e1}.fullc .ok{color:#86efac;font-weight:700}
 .mods{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;padding:14px 28px}
 @media (min-width:1100px){.mods{grid-template-columns:repeat(3,1fr)}}
 @media (min-width:1500px){.mods{grid-template-columns:repeat(4,1fr)}}
@@ -101,15 +102,16 @@ function cartao(m){
    (x.pendentes===0?'<b style="color:#86efac">✔ feito</b>':'<b data-iso="'+esc(x.iso)+'">--</b>')+'</div>').join('')+'</div>';
  return h+'</div>';
 }
-// pedidos sem checkout: de manhã são muitos, então a tela mostra os de meta mais antiga e diz quantos faltam
-const MAX_SEM_CHECKOUT=12;
+// pedidos sem checkout: na TV só os totais; a lista pedido a pedido fica na Expedição, com login
+const contaTv=c=>String(c||'').replace(/^meli0?(\d)$/,'Meli $1');
 function semCheckout(ls){
  if(!ls.length)return '';
- const venda=x=>x.bling_numero?'Bling '+esc(x.bling_numero):'sem pedido no Bling · '+esc(x.pacote||x.pedido);
- const skus=x=>(x.itens||[]).map(i=>esc(i.qtd)+'× '+esc(i.sku||'sem SKU')).join(', ')||esc(x.unidades||0)+' un.';
- return '<h3>PEDIDOS SEM CHECKOUT ('+ls.length+')</h3>'+ls.slice(0,MAX_SEM_CHECKOUT).map(x=>'<div class="ped'+(x.atrasado?' atr':'')+'"><b>'+esc(x.canal)+'</b><span>'+esc(x.conta)+'</span><b>'+venda(x)+'</b>'+skus(x)+'<span>'+esc(x.situacao||'')+(x.bling_situacao?' · Bling: '+esc(x.bling_situacao):'')+'</span><span>'+(x.herdado?'dia anterior · ':'')+'meta '+(x.meta?esc(x.meta.slice(11,16)):'—')+'</span></div>').join('')+
-  (ls.length>MAX_SEM_CHECKOUT?'<div class="ped"><span>e mais '+(ls.length-MAX_SEM_CHECKOUT)+' pedido(s)</span></div>':'');
+ const tot=ls.reduce((a,x)=>a+x.pedidos,0);
+ return '<h3>SEM CHECKOUT · '+tot+' PEDIDO'+(tot===1?'':'S')+'</h3><div class="nums2">'+ls.map(x=>'<div class="tot'+(x.atrasados?' atr':'')+'"><b>'+x.pedidos+'</b>'+(x.pedidos===1?'pedido ':'pedidos ')+esc(x.canal)+' '+esc(contaTv(x.conta))+'</div>').join('')+'</div>';
 }
+// Full: aberto só em andamento ou atrasado (com os nomes); os demais ficam recolhidos em número, plataforma e situação
+function fullAberto(f){return f.atrasado||(!f.concluido&&f.status!=='fila')}
+function fullRecolhido(f){return '<div><span class="canal '+esc(f.canal)+'">'+esc(NOMES[f.canal]||f.canal)+'</span> #'+esc(f.numero)+' · '+(f.concluido?'<span class="ok">✔ pronto</span>':'na fila')+'</div>'}
 let timer=null;
 async function carregar(){
  const sim=$('modo').value==='sim';$('boxhora').style.display=sim?'':'none';
@@ -124,14 +126,15 @@ async function carregar(){
  $('simtag').innerHTML=(d.modo==='simulacao'?'<span class="sim">SIMULAÇÃO</span>':'')+atual;
  SIM_FIXO=d.modo==='simulacao'?Date.parse(d.agora):null;DESVIO=Date.parse(d.agora)-Date.now();$('horatxt').textContent=hhmm(+$('hora').value);
  $('alertas').innerHTML=d.alertas.map(a=>'<div class="al '+a.nivel+'">'+(a.nivel==='critico'?'⚠ ':'• ')+esc(a.texto)+'</div>').join('');
- $('semchk').innerHTML=semCheckout(d.sem_checkout||[]);
+ $('semchk').innerHTML=semCheckout(d.sem_checkout_resumo||[]);
  $('mods').innerHTML=(d.modulos||[]).map(cartao).join('');
  const g=d.geral;$('fulltit').textContent='Montagem do Full no dia'+(g.full_envios?' · '+g.full_envios+' envio(s), '+g.full_unidades_restantes+' de '+g.full_unidades+' un. a montar':'');
- $('full').innerHTML=d.full.length?d.full.map(f=>{const cls=f.atrasado?'atraso':(f.minutos_ate_prazo!=null&&f.minutos_ate_prazo<=120&&!f.concluido?'alerta':'ok');
+ const abertos=d.full.filter(fullAberto),recolhidos=d.full.filter(f=>!fullAberto(f));
+ $('full').innerHTML=d.full.length?abertos.map(f=>{const cls=f.atrasado?'atraso':(f.minutos_ate_prazo!=null&&f.minutos_ate_prazo<=120&&!f.concluido?'alerta':'ok');
   return '<div class="env"><div><div class="tt"><span class="canal '+esc(f.canal)+'">'+esc(NOMES[f.canal]||f.canal)+'</span>#'+esc(f.numero)+'</div><div class="sub">'+esc(f.conta||'')+' · '+f.unidades_total+' un. · pronto até '+esc((f.prazo||'').slice(11,16)||'pendente')+'</div>'+
   '<div class="barra f"><div style="width:'+f.percentual+'%"></div></div><div class="sub">'+f.unidades_prontas+' de '+f.unidades_total+' prontas ('+f.percentual+'%)</div></div>'+
   '<div class="sub" style="font-size:18px;color:#cbd5e1">'+f.produtos.map(x=>esc(x.sku)+'<br>Estoque: <b>'+esc(x.estoquista||'—')+'</b> · Embalagem: <b>'+esc(x.embalador||'—')+'</b><div style="margin-top:6px">'+['T','E','OK'].map(t=>'<span class="chip '+(x.etapas[t]?'on':'')+'">'+t+'</span>').join('')+'</div>').join('<hr>')+'</div>'+
-  '<div class="meta '+cls+'" style="text-align:right">'+(f.status==='fila'?'na fila<br><span style="font-size:18px">aguardando início</span>':f.concluido?'✔ pronto':(f.atrasado?'atrasado '+fmtMin(-f.minutos_ate_prazo):'faltam '+fmtMin(f.minutos_ate_prazo)))+'</div></div>'}).join(''):'<div class="vazio" style="padding-left:0">Nenhum envio Full neste dia</div>';
+  '<div class="meta '+cls+'" style="text-align:right">'+(f.status==='fila'?'na fila<br><span style="font-size:18px">aguardando início</span>':f.concluido?'✔ pronto':(f.atrasado?'atrasado '+fmtMin(-f.minutos_ate_prazo):'faltam '+fmtMin(f.minutos_ate_prazo)))+'</div></div>'}).join('')+(recolhidos.length?'<div class="fullc">'+recolhidos.map(fullRecolhido).join('')+'</div>':''):'<div class="vazio" style="padding-left:0">Nenhum envio Full neste dia</div>';
  tick();
 }
 $('modo').onchange=()=>{$('dia').dataset.auto='1';if(!DIA_FIXO)$('dia').value=$('modo').value==='real'?hojeIso():iso(amanha);carregar()};

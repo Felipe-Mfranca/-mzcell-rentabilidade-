@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from datetime import date, datetime, timedelta
 
-from marketplaces.expedicao import amazon_dba, bipagem, bling_checkout, cancelamentos as cancelamentos_mod, cortes as cortes_mod, dia as dia_mod, marcas, ml, simulacao, snapshot
+from marketplaces.expedicao import amazon_dba, bipagem, bling_checkout, cancelamentos as cancelamentos_mod, composicao, cortes as cortes_mod, dia as dia_mod, marcas, ml, simulacao, snapshot
 
 router = APIRouter(prefix="/expedicao", tags=["expedicao"])
 PAGINA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pagina.html")
@@ -52,7 +52,7 @@ def galpao(contas: str = None, atualizar: bool = False):
         raise HTTPException(status_code=400, detail="conta inválida")
     res = ml.mapa(lista, forcar=atualizar)
     linhas, erros_bling = bling_checkout.enriquecer(res["linhas"])
-    return dict(res, linhas=linhas, erros_bling=erros_bling)
+    return dict(res, linhas=composicao.anexar(linhas), erros_bling=erros_bling)
 
 
 @router.get("/bipar", response_class=HTMLResponse)
@@ -148,6 +148,7 @@ def dia(simular: bool = False, dia: str = None, hora: str = None, atualizar: boo
         except ImportError:
             full = []
     saida = dia_mod.montar(linhas, marc, full, agora, alvo, cortes_mod.carregar())
+    saida.pop("sem_checkout", None)     # rota aberta para a TV: sem dados de pedido, só os totais
     saida["modo"] = "simulacao" if simular else "real"
     if not simular:
         saida["erros"] = res.get("erros", {})

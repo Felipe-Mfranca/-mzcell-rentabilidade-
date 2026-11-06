@@ -1,6 +1,6 @@
 """Testes do painel do dia da Expedição e da simulação (dados fictícios, sem rede)."""
 import unittest
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from marketplaces.expedicao import dia as d
 from marketplaces.expedicao import simulacao as s
@@ -50,8 +50,39 @@ class TestSemCheckout(unittest.TestCase):
         p = d.montar([self.linha(1, 12, status="ready_to_ship", substatus="printed")], {}, [], em(13), DIA)
         self.assertEqual(len(p["sem_checkout"]), 1)
 
+    def test_resumo_da_tv_so_tem_totais(self):
+        linhas = [self.linha(1, 12), self.linha(2, 15), self.linha(3, 15, canal="Coleta", conta="meli02"), self.linha(4, 15, bling_checkout=True)]
+        r = d.montar(linhas, {}, [], em(13), DIA)["sem_checkout_resumo"]
+        self.assertEqual(r, [{"canal": "Flex", "conta": "meli01", "pedidos": 2, "atrasados": 1},
+                             {"canal": "Coleta", "conta": "meli02", "pedidos": 1, "atrasados": 0}])
+
     def test_tudo_com_checkout_lista_vazia(self):
         self.assertEqual(d.montar([self.linha(1, 12, bling_checkout=True)], {}, [], em(13), DIA)["sem_checkout"], [])
+
+
+class TestFullNoMonitor(unittest.TestCase):
+    def full(self, numero, **extra):
+        return dict({"chave": numero, "canal": "meli", "numero": numero, "conta": "meli01", "coleta": DIA.isoformat(), "prazo": em(17).isoformat(),
+                     "produtos": [{"sku": "A", "unidades": 1, "etapas": {}}]}, **extra)
+
+    def numeros(self, *envios):
+        return [f["numero"] for f in d.montar([], {}, list(envios), em(13), DIA)["full"]]
+
+    def test_concluido_so_no_dia_em_que_terminou(self):
+        ontem = (DIA - timedelta(days=1)).isoformat()
+        self.assertEqual(self.numeros(self.full("hoje", concluido_em=DIA.isoformat() + "T10:00:00-03:00"),
+                                      self.full("ontem", concluido_em=ontem + "T16:00:00-03:00")), ["hoje"])
+
+    def test_iniciado_e_nao_concluido_aparece_mesmo_de_outro_dia(self):
+        antigo = (DIA - timedelta(days=3)).isoformat()
+        self.assertEqual(self.numeros(self.full("velho", coleta=antigo, prazo=antigo + "T17:00:00-03:00", status="montagem")), ["velho"])
+
+    def test_fila_so_do_dia_ou_vencida(self):
+        depois = (DIA + timedelta(days=3)).isoformat()
+        antes = (DIA - timedelta(days=1)).isoformat()
+        self.assertEqual(self.numeros(self.full("futuro", coleta=depois, prazo=depois + "T17:00:00-03:00", status="fila"),
+                                      self.full("vencido", coleta=antes, prazo=antes + "T17:00:00-03:00", status="fila"),
+                                      self.full("do_dia", status="fila")), ["vencido", "do_dia"])
 
 
 class TestSimulacao(unittest.TestCase):

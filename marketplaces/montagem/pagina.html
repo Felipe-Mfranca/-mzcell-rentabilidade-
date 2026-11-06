@@ -113,10 +113,18 @@ function cartao(e,pos,nfila){const r=e.resumo,k=esc(e.chave),fila=e.status==='fi
   '<td><input value="'+esc(p.embalador)+'" style="width:120px" onchange="resp(\''+k+'\','+i+',\'embalador\',this.value)"></td>'+
   '<td>'+(fila?'<span class="mut">aguardando início</span>':['T','E','OK'].map(t=>{const m=p.etapas[t];return '<span class="chip '+(m?'on':'')+'" title="'+(m?esc(m.por)+' ('+esc(m.papel)+') '+esc(m.em):'marcar')+'" onclick="marca(\''+k+'\','+i+',\''+t+'\','+(m?1:0)+')">'+t+'</span>'}).join(''))+
   '<div class="mut">'+['T','E','OK'].filter(t=>p.etapas[t]).map(t=>t+': '+esc(p.etapas[t].por)+' '+esc(p.etapas[t].em.slice(11,16))).join(' · ')+'</div></td></tr>').join('')+'</table></div>'}
-async function carregar(){const d=await api('/montagem/dados');
- const fila=d.envios.filter(e=>e.status==='fila'),mont=d.envios.filter(e=>e.status!=='fila');
- $('lista').innerHTML='<h2 style="margin:18px 0 8px">Fila — aguardando início ('+fila.length+')</h2>'+(fila.map((e,i)=>cartao(e,i+1,fila.length)).join('')||'<div class="card mut">Fila vazia.</div>')+
-  '<h2 style="margin:18px 0 8px">Em montagem</h2>'+(mont.map(e=>cartao(e)).join('')||'<div class="card mut">Nenhum Full em montagem.</div>');
+let abaFull='andamento',ultimos=null;const abertosFim=new Set();
+function trocaAba(a){abaFull=a;desenhar()}
+function linhaFim(e){const c=e.concluido_em||'',k=esc(e.chave);
+ return '<details class="card" '+(abertosFim.has(e.chave)?'open ':'')+'ontoggle="this.open?abertosFim.add(this.dataset.k):abertosFim.delete(this.dataset.k)" data-k="'+k+'"><summary style="cursor:pointer"><span class="badge '+esc(e.canal)+'">'+esc(NOMES[e.canal]||e.canal)+'</span> <b>Envio #'+esc(e.numero)+'</b> · '+esc(e.conta||'?')+' · '+e.resumo.unidades_total+' un. · <span style="color:#166534">✔ concluído '+esc(c.slice(8,10)+'/'+c.slice(5,7)+' '+c.slice(11,16))+'</span></summary><div style="margin-top:10px">'+cartao(e)+'</div></details>'}
+function desenhar(){if(!ultimos)return;
+ const fila=ultimos.filter(e=>e.status==='fila'),fim=ultimos.filter(e=>e.status!=='fila'&&e.concluido_em),mont=ultimos.filter(e=>e.status!=='fila'&&!e.concluido_em);
+ const bt=(a,txt)=>'<button class="'+(abaFull===a?'':'sec')+'" type="button" onclick="trocaAba(\''+a+'\')">'+txt+'</button> ';
+ $('lista').innerHTML='<p style="margin:18px 0 8px">'+bt('andamento','Fila e em montagem ('+(fila.length+mont.length)+')')+bt('finalizados','Finalizados ('+fim.length+')')+'</p>'+(abaFull==='finalizados'?
+  '<h2 style="margin:18px 0 8px">Finalizados — histórico</h2>'+(fim.map(linhaFim).join('')||'<div class="card mut">Nenhum Full finalizado.</div>'):
+  '<h2 style="margin:18px 0 8px">Fila — aguardando início ('+fila.length+')</h2>'+(fila.map((e,i)=>cartao(e,i+1,fila.length)).join('')||'<div class="card mut">Fila vazia.</div>')+
+  '<h2 style="margin:18px 0 8px">Em montagem</h2>'+(mont.map(e=>cartao(e)).join('')||'<div class="card mut">Nenhum Full em montagem.</div>'))}
+async function carregar(){const d=await api('/montagem/dados');ultimos=d.envios;desenhar();
  carregarProd()}
 function hm(iso){return iso?iso.slice(11,16):'—'}
 function dur(min){if(min==null)return '—';const m=Math.round(min);return Math.floor(m/60)+'h'+String(m%60).padStart(2,'0')}

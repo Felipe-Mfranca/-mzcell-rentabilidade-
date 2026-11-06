@@ -94,6 +94,16 @@ def _sem_checkout(do_dia: list, herdados: list, marcas: dict, agora: datetime) -
     return saida
 
 
+def _resumo_sem_checkout(lista: list) -> list:
+    """Só totais, para a TV: a tela é aberta, a lista pedido a pedido fica na Expedição com login."""
+    g = {}
+    for x in lista:
+        t = g.setdefault((x["canal"], x["conta"]), {"canal": x["canal"], "conta": x["conta"], "pedidos": 0, "atrasados": 0})
+        t["pedidos"] += 1
+        t["atrasados"] += 1 if x["atrasado"] else 0
+    return sorted(g.values(), key=lambda t: (-t["pedidos"], t["canal"], t["conta"] or ""))
+
+
 def _full(envio: dict, agora: datetime) -> dict:
     prods = envio["produtos"]
     total = sum(p["unidades"] for p in prods)
@@ -109,6 +119,16 @@ def _full(envio: dict, agora: datetime) -> dict:
             "status": envio.get("status") or "montagem",      # "fila" = programado, o líder ainda não iniciou
             "produtos": [{"sku": p["sku"], "unidades": p["unidades"], "estoquista": p.get("estoquista", ""),
                           "embalador": p.get("embalador", ""), "etapas": {t: True for t in p["etapas"]}} for p in prods]}
+
+
+def _full_no_monitor(envio: dict, agora: datetime, dia) -> bool:
+    """Concluído: só no dia em que terminou. Iniciado e não concluído: sempre. Na fila: do dia ou com o prazo vencido."""
+    if envio.get("concluido_em"):
+        return str(envio["concluido_em"])[:10] == dia.isoformat()
+    if (envio.get("status") or "montagem") != "fila":
+        return True
+    prazo = _dt(envio.get("prazo"))
+    return (envio.get("coleta") or (envio.get("prazo") or "")[:10]) == dia.isoformat() or bool(prazo and (prazo.date() == dia or prazo < agora))
 
 
 def _hhmm_do_dia(dia, hhmm: str):
@@ -188,9 +208,7 @@ def montar(linhas: list, marcas: dict, full: list, agora: datetime, dia, platafo
     cartoes = []
     for canal in ORDEM:
         cartoes.append(_cartao(canal, [l for l in do_dia if nome_canal(l) == canal], marcas, agora))
-    envios_full = [_full(e, agora) for e in full
-                   if (e.get("coleta") or (e.get("prazo") or "")[:10]) == dia.isoformat()
-                   or ((_dt(e.get("prazo")) and _dt(e["prazo"]).date() == dia))]
+    envios_full = [_full(e, agora) for e in full if _full_no_monitor(e, agora, dia)]
     envios_full.sort(key=lambda f: (f["concluido"], f["prazo"] or ""))          # prontos no fim
     alertas = []
     for c in cartoes:
@@ -231,9 +249,10 @@ def montar(linhas: list, marcas: dict, full: list, agora: datetime, dia, platafo
     plat.sort(key=lambda x: (x["corte"], x["canal"]))
     tot = sum(c["pedidos"] for c in cartoes)
     feitos = sum(c["checkout"] for c in cartoes)
+    sem_checkout = _sem_checkout(do_dia, herdados, marcas, agora)
     return {"dia": dia.isoformat(), "agora": agora.isoformat(timespec="seconds"), "cartoes": cartoes, "cortes": cortes, "cortes_plataformas": plat, "full": envios_full,
             "modulos": _modulos(do_dia, marcas, agora, dia, plataformas),
-            "alertas": alertas, "herdados": len(herdados), "sem_checkout": _sem_checkout(do_dia, herdados, marcas, agora),
+            "alertas": alertas, "herdados": len(herdados), "sem_checkout": sem_checkout, "sem_checkout_resumo": _resumo_sem_checkout(sem_checkout),
             "geral": {"pedidos": tot, "checkout": feitos, "pendentes": tot - feitos, "percentual": round(100 * feitos / tot, 1) if tot else 100.0,
                       "atrasados": sum(c["atrasados"] for c in cartoes) + len(herdados),
                       "full_envios": len(envios_full), "full_unidades": sum(f["unidades_total"] for f in envios_full),
