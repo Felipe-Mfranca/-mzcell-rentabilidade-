@@ -154,3 +154,5 @@ sac_devolucoes_cache.json.tmp
 # Token da API do TMS da J3
 j3_config.json
 shopee_expedicao.json
+
+rebot_cache.json

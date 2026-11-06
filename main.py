@@ -608,22 +608,19 @@ def pivo_analisar(conta: str):
 
 
 @app.get("/rebot/{conta}")
-async def rebot_verificar(conta: str):
-    """Oportunidades de rebot de UMA conta, no mesmo formato do e-mail. Só leitura (nunca escreve no ML)."""
+async def rebot_verificar(conta: str, salvo: bool = False):
+    """Oportunidades de rebot de UMA conta, no mesmo formato do e-mail. Só leitura (nunca escreve no ML).
+    salvo=true devolve o resultado da carga do servidor; sem resultado salvo, consulta o ML."""
     if conta not in ("meli01", "meli02", "meli03"):
         raise HTTPException(status_code=404, detail="conta desconhecida")
-    agenda = _modulo("rebot_agenda")
-    rv = _modulo("rebot_visual")
-    quando = datetime.now().strftime("%d/%m %H:%M")
+    carga = _modulo("carga_servidor")
+    guardado = carga.rebot_salvo(conta) if salvo else None
+    if guardado:
+        return guardado
     try:
-        ops, baixa = await asyncio.to_thread(agenda.analisar_conta, conta, True)
+        return await asyncio.to_thread(carga.rebot_montar, conta)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"{conta}: {type(e).__name__}: {str(e)[:120]}")
-    avisadas = set(agenda._json(agenda.ESTADO, {"avisadas": []}).get("avisadas", []))
-    for o in ops:
-        o["repetida"] = o["chave"] in avisadas
-    return {"conta": conta, "quando": quando, "total": len(ops), "total_baixa": len(baixa),
-            "texto": rv.texto(ops, {}, 0, quando, [conta], baixa), "html": rv.html(ops, {}, 0, quando, [conta], baixa)}
 
 
 @app.get("/pivo/{conta}")

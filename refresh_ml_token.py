@@ -59,13 +59,14 @@ async def loop_refresh():
 
 
 async def loop_sync_diario():
-    """Loop que roda sync completo uma vez por dia às 6h BRT (9h UTC)."""
+    """Sync completo às 6h BRT. No servidor ("carga_noturna" aberto), também às 22h e, depois dele, PIVO, rebot e Amazon."""
     from sync_service import sincronizar_conta_func
+    from modulos_liberados import liberado
+    import carga_servidor
     while True:
         now = datetime.utcnow()
-        target = now.replace(hour=9, minute=0, second=0, microsecond=0)
-        if target <= now:
-            target += timedelta(days=1)
+        servidor = liberado("carga_noturna")
+        target = carga_servidor.proxima_carga(now, carga_servidor.HORAS_BRT if servidor else (6,))
         await asyncio.sleep((target - now).total_seconds())
         config = load_config()
         for conta, dados in config["contas"].items():
@@ -77,6 +78,8 @@ async def loop_sync_diario():
                 log(f"[sync-diario] {conta}: {resultado.get('total_atualizados', 0)} produtos atualizados")
             except Exception as e:
                 log(f"[sync-diario] ERRO {conta}: {e}")
+        if servidor:
+            await carga_servidor.rodar_extras(log)
 
 
 if __name__ == "__main__":

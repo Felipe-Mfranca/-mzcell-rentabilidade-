@@ -324,7 +324,7 @@ def iniciar(conta: str, ml, produtos_path: str = None) -> dict:
 
 # ─── renovação automática: só onde "pivo_auto" estiver aberto (modulos_locais.json do servidor) ──
 CONTAS = ("meli01", "meli02", "meli03")
-AUTO_HORA = 6           # a partir desta hora a análise do dia pode começar
+AUTO_HORA = 8           # reserva da carga das 6h (carga_servidor): se a do dia não saiu, a análise começa a partir desta hora
 AUTO_ESPERA_SEG = 600
 AUTO_TENTATIVAS = 2     # falhou? tenta de novo uma vez no dia, sem insistir em cima de um erro
 _tentativas = {}
