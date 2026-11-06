@@ -27,7 +27,7 @@ class TestModulos(unittest.TestCase):
         r = d.montar([], {}, [], em(9), DIA, cortes.carregar())
         self.assertEqual([m["id"] for m in r["modulos"]],
                          ["flex", "coleta", "places_meli02", "places_meli03", "dba", "shopee_xpress", "shopee_direta"])
-        self.assertEqual([m["id"] for m in r["modalidades"]], ["flex", "coleta", "places", "dba", "shopee_xpress", "shopee_direta"])
+        self.assertEqual([m["id"] for m in r["modalidades"]], ["flex", "places", "coleta", "dba", "shopee_xpress", "shopee_direta"])
         self.assertEqual(r["modalidades"][-1]["nome"], "Shopee Entrega Direta")
 
     def test_places_separa_por_conta_com_corte_proprio(self):

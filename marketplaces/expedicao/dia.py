@@ -216,14 +216,9 @@ def _modulos(do_dia: list, marcas: dict, agora: datetime, dia, plataformas: list
 
 def _modalidades(modulos: list, do_dia: list, marcas: dict, agora: datetime, dia) -> list:
     """Cartões da Expedição com login, um por modalidade: iguais aos da TV, com Places somando as contas."""
-    saida = []
-    for m in modulos:
-        if m["id"].startswith("places_"):
-            if not any(x["id"] == "places" for x in saida):
-                saida.append(_modulo("places", "Places", [l for l in do_dia if l.get("canal") == "Agência"], marcas, agora, dia))
-        else:
-            saida.append(dict(m, nome=m["nome"].replace(" (Flex)", "")))
-    return saida
+    por_id = {m["id"]: dict(m, nome=m["nome"].replace(" (Flex)", "")) for m in modulos}
+    por_id["places"] = _modulo("places", "Places", [l for l in do_dia if l.get("canal") == "Agência"], marcas, agora, dia)
+    return [por_id[i] for i in ("flex", "places", "coleta", "dba", "shopee_xpress", "shopee_direta")]
 
 
 def montar(linhas: list, marcas: dict, full: list, agora: datetime, dia, plataformas: list = None) -> dict:
