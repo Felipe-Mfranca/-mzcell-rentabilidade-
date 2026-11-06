@@ -846,6 +846,12 @@ def cmv_composicao(sku: str):
     return _modulo("cmv_composicao").composicao(sku)
 
 
+@app.get("/cmv/referencia/{conta}/{sku:path}")
+def cmv_referencia(conta: str, sku: str):
+    """SKU em que se ajusta o CMV de um anúncio da Amazon: o irmão do Bling, se houver."""
+    return _modulo("cmv_composicao").referencia(conta, sku)
+
+
 @app.post("/cmv/sku")
 def cmv_salvar_sku(request: Request, payload: dict):
     """Página CMV e modal do produto: grava o CMV de um componente/produto simples e recalcula os kits e clones que o usam."""

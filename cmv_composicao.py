@@ -78,6 +78,48 @@ def cmv_calculado(sku: str, kits: dict, itens: dict, _visitados=()):
     return round(total, 4)
 
 
+def _no_bling() -> set:
+    """SKUs que os Blings conhecem pelo catálogo do balanço: físicos com saldo e kits/clones."""
+    from marketplaces.balanco import catalogo
+    skus = set()
+    for d in (catalogo.ler().get("blings") or {}).values():
+        skus |= {_chave(s) for s in (d.get("skus") or {})} | {_chave(s) for s in (d.get("kits") or {})}
+    return skus
+
+
+def irmaos_no_bling(mapa: dict, sku: str, no_bling: set = None) -> list:
+    """SKUs do mesmo ASIN que estão no Bling, para um SKU da Amazon que não está. `mapa`: a conta em amazon_asin_skus.json."""
+    no_bling = _no_bling() if no_bling is None else no_bling
+    if _chave(sku) in no_bling:
+        return []
+    asin = (mapa.get("sku_asin") or {}).get(sku)
+    return [i for i in (mapa.get("asin_skus") or {}).get(asin, []) if i != sku and _chave(i) in no_bling] if asin else []
+
+
+def valor_sku(sku: str, base: dict = None):
+    """CMV do SKU: o da base; sem valor na base, a soma da composição (kit/clone)."""
+    s = _chave(sku)
+    itens = (base if base is not None else cmv_base.carregar()).get("itens", {})
+    valor = (itens.get(s) or {}).get("cmv")
+    if valor is not None:
+        return valor
+    kits = _catalogo()["kits"]
+    return cmv_calculado(s, kits, itens) if _comp_unica(kits, s)[0] is not None else None
+
+
+def referencia(conta: str, sku: str) -> dict:
+    """Onde se ajusta o CMV de um SKU da Amazon: o irmão do Bling (decisão do usuário, 06/11/2026), ou o próprio SKU se não houver."""
+    import json
+    try:
+        with open(cmv_base.ASIN_PATH, encoding="utf-8") as f:
+            mapa = json.load(f).get(conta) or {}
+    except (FileNotFoundError, ValueError):
+        mapa = {}
+    irmaos = irmaos_no_bling(mapa, sku)
+    irmao = next((i for i in irmaos if valor_sku(i) is not None), irmaos[0] if irmaos else None)
+    return {"sku": _chave(irmao or sku), "irmao": _chave(irmao) if irmao else None}
+
+
 def composicao(sku: str) -> dict:
     """Componentes do SKU nos Blings, com o CMV de cada um. Tipo: simples, clone (1 componente × 1) ou kit."""
     sku = _chave(sku)
@@ -278,7 +320,7 @@ def lista() -> dict:
         for s, x in (dados.get("kits") or {}).items():
             if _chave(s) in DIRETO_NO_PRODUTO:   # fora de kits, mas precisa aparecer para receber o valor
                 nomes.setdefault(_chave(s), x.get("nome") or "")
-    contas = {}
+    contas, irmaos = {}, {}
     try:
         import produtos_store
         for p in produtos_store.ler().values():
@@ -291,21 +333,29 @@ def lista() -> dict:
         pass
     try:
         import json
+        no_bling = _no_bling()
         with open(cmv_base.ASIN_PATH, encoding="utf-8") as f:
             for conta, m in json.load(f).items():
                 for s in m.get("sku_asin") or {}:
                     contas.setdefault(_chave(s), {}).setdefault(conta, 0)
                     contas[_chave(s)][conta] += 1
+                    ir = irmaos_no_bling(m, s, no_bling)
+                    if ir:
+                        irmaos.setdefault(_chave(s), _chave(next((i for i in ir if valor_sku(i) is not None), ir[0])))
     except (FileNotFoundError, ValueError, AttributeError):
         pass
     linhas = []
     for s in sorted(set(nomes) | set(contas) | set(itens) | set(kits)):
         x = itens.get(s) or {}
-        comp, diverge = _comp_unica(kits, s)
+        ref = irmaos.get(s) or s        # SKU da Amazon fora do Bling segue o irmão do mesmo ASIN: tipo, composição e valor
+        comp, diverge = _comp_unica(kits, ref)
         tipo = "simples" if comp is None else ("clone" if len(comp) == 1 and comp[0][1] == 1 else "kit")
-        soma = cmv_calculado(s, kits, itens) if comp is not None else None
-        status = "ok" if x.get("cmv") is not None else ("a_preencher" if soma is not None else "sem_cmv")
-        linhas.append({"sku": s, "descricao": x.get("descricao") or nomes.get(s, ""), "tipo": tipo, "cmv": x.get("cmv"), "soma": soma,
+        soma = cmv_calculado(ref, kits, itens) if comp is not None else None
+        cmv = (itens.get(ref) or {}).get("cmv")
+        if cmv is None and soma is None:
+            cmv = x.get("cmv")
+        status = "ok" if cmv is not None else ("a_preencher" if soma is not None else "sem_cmv")
+        linhas.append({"sku": s, "descricao": x.get("descricao") or nomes.get(s, ""), "tipo": tipo, "cmv": cmv, "soma": soma, "irmao": irmaos.get(s),
                        "diverge": diverge, "status": status, "contas": contas.get(s, {}),
                        "atualizado_em": x.get("atualizado_em") or "", "autor": x.get("autor") or "", "origem": x.get("aba") or ""})
     return {"linhas": linhas, "catalogo_em": cat["gerado_em"], "catalogo_erros": cat.get("erros") or {}}

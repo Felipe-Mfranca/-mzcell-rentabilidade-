@@ -154,6 +154,23 @@ def propagar_ml() -> dict:
             resultado[conta] = aplicar_ml(conta, True)
         except Exception as e:
             resultado[conta] = {"erro": str(e)[:120]}
+    resultado.update(propagar_amazon())
+    return resultado
+
+
+def propagar_amazon() -> dict:
+    """Grava o CMV em amazon_custos.json para os SKUs do mapa de ASIN, como propagar_ml faz nos anúncios (imposto fica como está)."""
+    try:
+        with open(ASIN_PATH, encoding="utf-8") as f:
+            mapa = json.load(f)
+    except (FileNotFoundError, ValueError):
+        return {}
+    resultado = {}
+    for conta, m in mapa.items():
+        try:
+            resultado[conta] = aplicar_amazon(conta, None, True, skus=list(m.get("sku_asin") or {}))
+        except Exception as e:
+            resultado[conta] = {"erro": str(e)[:120]}
     return resultado
 
 
@@ -301,14 +318,21 @@ def salvar_asin(conta: str, linhas: list):
 
 
 def cmv_amazon(conta: str, sku: str, base: dict = None):
-    """CMV do SKU da Amazon: o próprio SKU na base; se não tiver, o de outro SKU vinculado ao mesmo ASIN (regra do usuário)."""
-    direto = cmv_de(sku, base)
-    if direto is not None:
-        return direto, "sku"
+    """CMV do SKU da Amazon. O irmão do mesmo ASIN que está no Bling manda (regra do usuário, 06/11/2026); sem valor nele, vale o
+    próprio SKU na base e, por último, qualquer outro SKU do mesmo ASIN."""
+    import cmv_composicao
+    base = base if base is not None else carregar()
     try:
         m = json.load(open(ASIN_PATH, encoding="utf-8")).get(conta, {})
     except (FileNotFoundError, ValueError):
-        return None, None
+        m = {}
+    for irmao in cmv_composicao.irmaos_no_bling(m, sku):
+        v = cmv_composicao.valor_sku(irmao, base)
+        if v is not None:
+            return v, f"asin:{irmao}"
+    direto = cmv_de(sku, base)
+    if direto is not None:
+        return direto, "sku"
     asin = m.get("sku_asin", {}).get(sku)
     for irmao in m.get("asin_skus", {}).get(asin, []) if asin else []:
         if irmao != sku:

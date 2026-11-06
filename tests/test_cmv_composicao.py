@@ -1,4 +1,5 @@
 """CMV amarrado às composições do Bling (kits e clones) — sem rede, base em arquivo temporário."""
+import json
 import os
 import tempfile
 import unittest
@@ -147,6 +148,43 @@ class TestComposicao(unittest.TestCase):
         self.assertEqual(d["NOVO"]["status"], "sem_cmv")
         self.assertEqual((d["KIT-FACA6"]["status"], d["KIT-FACA6"]["soma"]), ("a_preencher", 30.0))
         self.assertEqual((d["KIT-FACA-9"]["status"], d["KIT-FACA-9"]["soma"], d["KIT-FACA-9"]["cmv"]), ("ok", None, 99.0))
+
+    def _mapa_fba(self):
+        caminho = os.path.join(self.tmp, "asin.json")
+        with open(caminho, "w", encoding="utf-8") as f:
+            json.dump({"amazon01": {"sku_asin": {"FACA-FBA": "B1", "FACA": "B1", "SO-FBA": "B2", "KIT-FBA": "B3", "KIT-FACA6": "B3"},
+                                    "asin_skus": {"B1": ["FACA-FBA", "FACA"], "B2": ["SO-FBA"], "B3": ["KIT-FBA", "KIT-FACA6"]}}}, f)
+        cat = {"blings": {"bling01": {"skus": {"FACA": {"nome": "Faca"}}, "kits": {"KIT-FACA6": {}}}}}
+        return [mock.patch.object(cmv_base, "ASIN_PATH", caminho), mock.patch("marketplaces.balanco.catalogo.ler", lambda: cat)]
+
+    def test_irmao_do_bling_manda_no_cmv_da_amazon(self):
+        cmv_base.salvar({k: {"sku": k, "cmv": v} for k, v in {"FACA": 5.0, "FACA-FBA": 1.0, "SO-FBA": 7.0, "KIT-FBA": 2.0}.items()})
+        ps = self._mapa_fba()
+        for p in ps:
+            p.start(); self.addCleanup(p.stop)
+        self.assertEqual(cmv_base.cmv_amazon("amazon01", "FACA-FBA"), (5.0, "asin:FACA"))        # o valor próprio perde para o irmão
+        self.assertEqual(cmv_base.cmv_amazon("amazon01", "KIT-FBA"), (30.0, "asin:KIT-FACA6"))    # irmão kit: vale a soma
+        self.assertEqual(cmv_base.cmv_amazon("amazon01", "SO-FBA"), (7.0, "sku"))                 # sem irmão no Bling, segue o próprio
+        self.assertEqual(cmv_base.cmv_amazon("amazon01", "FACA"), (5.0, "sku"))
+        self.assertEqual(cc.referencia("amazon01", "FACA-FBA"), {"sku": "FACA", "irmao": "FACA"})
+        self.assertEqual(cc.referencia("amazon01", "SO-FBA"), {"sku": "SO-FBA", "irmao": None})
+
+    def test_irmao_sem_valor_mantem_o_valor_proprio(self):
+        cmv_base.salvar({"FACA-FBA": {"sku": "FACA-FBA", "cmv": 1.0}})
+        ps = self._mapa_fba()
+        for p in ps:
+            p.start(); self.addCleanup(p.stop)
+        self.assertEqual(cmv_base.cmv_amazon("amazon01", "FACA-FBA"), (1.0, "sku"))
+
+    def test_pagina_mostra_o_fba_pelo_irmao(self):
+        cmv_base.salvar({k: {"sku": k, "cmv": v} for k, v in {"FACA": 5.0, "FACA-FBA": 1.0}.items()})
+        ps = self._mapa_fba() + [mock.patch("produtos_store.ler", lambda: {})]
+        for p in ps:
+            p.start(); self.addCleanup(p.stop)
+        d = {x["sku"]: x for x in cc.lista()["linhas"]}
+        self.assertEqual((d["FACA-FBA"]["irmao"], d["FACA-FBA"]["cmv"], d["FACA-FBA"]["status"]), ("FACA", 5.0, "ok"))
+        self.assertEqual((d["KIT-FBA"]["irmao"], d["KIT-FBA"]["tipo"], d["KIT-FBA"]["soma"], d["KIT-FBA"]["status"]), ("KIT-FACA6", "kit", 30.0, "a_preencher"))
+        self.assertIsNone(d["FACA"]["irmao"])
 
     def test_validar_blings_aponta_diferencas(self):
         cat = {"gerado_em": "x", "erros": {}, "blings": {
