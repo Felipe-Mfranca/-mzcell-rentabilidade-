@@ -47,6 +47,15 @@ def _lado(max_size: str):
         return 0, 0
 
 
+def considerar(item: dict) -> bool:
+    """Entra na conta do PIVO: anúncio ativo ou pausado só por falta de estoque (volta a vender ao repor). Pausado pelo
+    vendedor (mesmo sem estoque), encerrado ou em revisão não entra. Sem status (análise antiga): entra até a próxima análise."""
+    status = item.get("status")
+    if not status or status == "active":
+        return True
+    return status == "paused" and list(item.get("sub_status") or []) == ["out_of_stock"]
+
+
 def avaliar(item: dict, descricao: str, promocoes: list, ads_status, clip_manual=None) -> dict:
     """Função pura: devolve {'checks': [...], 'pontos': n, 'total': 6, 'passa': bool, 'atencao': [...]}."""
     checks = []
@@ -92,7 +101,7 @@ def avaliar(item: dict, descricao: str, promocoes: list, ads_status, clip_manual
     grupos = [grupo("P", "Palavras-chave indexadas", ["P", "D"]), grupo("I", "Imagens", ["I"]),
               grupo("V", "Vídeo (clip)", ["V"]), grupo("O", "Otimização: promoção e ADS", ["PROMO", "ADS"])]
     pontos = sum(1 for g in grupos if g["ok"] is True)
-    return {"checks": checks, "grupos": grupos, "pontos": pontos, "total": len(grupos), "passa": pontos == len(grupos),
+    return {"checks": checks, "grupos": grupos, "pontos": pontos, "total": len(grupos), "passa": pontos == len(grupos), "considerar": considerar(item),
             "atencao": [c["nome"] + ": " + c["detalhe"] for c in checks if c["ok"] is not True]}
 
 
@@ -137,8 +146,9 @@ def resultado(conta: str) -> dict:
     for mlb, v in itens.items():                              # clip marcado à mão vale para todos; depois, quem marcou e quando
         _aplicar_clip(v, manual.get(mlb))
         _anexar_clip(v, manual.get(mlb))
-    fora = sum(1 for v in itens.values() if not v["passa"])
-    return {"conta": conta, "estado": estado(conta), "total": len(itens), "fora_do_pivo": fora, "itens": itens,
+    contam = [v for v in itens.values() if v.get("considerar", True)]
+    fora = sum(1 for v in contam if not v["passa"])
+    return {"conta": conta, "estado": estado(conta), "total": len(contam), "fora_do_pivo": fora, "nao_considerados": len(itens) - len(contam), "itens": itens,
             "gerado_em": gerado or None}
 
 
@@ -254,7 +264,7 @@ def _analisar(conta: str, ml, mlbs: list):
         itens = {}
         _estado[conta].update(etapa="lendo anúncios")
         for i in range(0, len(mlbs), 20):
-            st, b = ml.get("/items", ids=",".join(mlbs[i:i + 20]), attributes="id,title,pictures,video_id,status,catalog_product_id")
+            st, b = ml.get("/items", ids=",".join(mlbs[i:i + 20]), attributes="id,title,pictures,video_id,status,sub_status,catalog_product_id")
             for e in b or []:
                 if e.get("code") == 200:
                     itens[e["body"]["id"]] = e["body"]
@@ -274,7 +284,7 @@ def _analisar(conta: str, ml, mlbs: list):
                 if ads == "hold" and it.get("catalog_product_id"):
                     ads = "catalogo"      # orgânico do catálogo: a campanha atua pelo anúncio vencedor
             slim = {"title": it.get("title"), "pictures": [{"max_size": p.get("max_size")} for p in it.get("pictures") or []],
-                    "video_id": it.get("video_id")}
+                    "video_id": it.get("video_id"), "status": it.get("status"), "sub_status": it.get("sub_status") or []}
             clip = (manual.get(mlb) or {}).get("clip")
             r = avaliar(slim, desc, promos, ads, clip)
             r["_entrada"] = {"item": slim, "descricao_n": len(desc.strip()), "promocoes": promos, "ads": ads}

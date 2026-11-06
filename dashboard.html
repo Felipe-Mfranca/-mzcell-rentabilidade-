@@ -3549,7 +3549,7 @@ async function pivoCarregar(conta) {
       const quando = d.gerado_em ? new Date(d.gerado_em) : null;
       const vencida = !quando || (Date.now() - quando) > 24 * 3600 * 1000;
       const data = quando ? ` · análise de ${quando.toLocaleDateString('pt-BR')} ${quando.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}` : '';
-      st.textContent = d.estado?.rodando ? `PIVO: ${d.estado.etapa}…` : (d.total ? `PIVO: ${d.fora_do_pivo} de ${d.total} fora do padrão${data}${vencida ? ' · vencida, analisar de novo' : ''}` : 'PIVO: não analisado');
+      st.textContent = d.estado?.rodando ? `PIVO: ${d.estado.etapa}…` : (d.total ? `PIVO: ${d.fora_do_pivo} de ${d.total} fora do padrão${d.nao_considerados ? ` · ${d.nao_considerados} pausados por outro motivo ou encerrados não contam` : ''}${data}${vencida ? ' · vencida, analisar de novo' : ''}` : 'PIVO: não analisado');
       st.style.color = !d.estado?.rodando && d.total && vencida ? 'var(--gold)' : '';
     }
     if (d.estado?.rodando) setTimeout(() => pivoCarregar(conta), 6000);
@@ -3595,11 +3595,13 @@ async function pivoAnalisar(conta) {
   try { await fetch(`${API}/pivo/${conta}/analisar`, {method:'POST'}); toast('Análise PIVO iniciada: leva alguns minutos'); } catch(e) { toast('Erro ao iniciar o PIVO', 'error'); return; }
   setTimeout(() => pivoCarregar(conta), 3000);
 }
+const PIVO_NAO_CONTA = 'Não conta no PIVO: pausado por outro motivo que não o estoque, encerrado ou em revisão';
 function renderPivoCel(conta, mlb) {
   const it = _pivo[conta]?.itens?.[mlb];
   if (!it || !it.grupos) return '<span class="sac-mut">—</span>';
-  const tip = it.passa ? 'Passa no PIVO' : 'Atenção: ' + it.atencao.join(' | ');
-  return `<span title="${sacEsc(tip)}">${it.grupos.map(g => `<span class="pivo-l mini ${g.ok === true ? 'on-' + g.id : ''}">${g.id}</span>`).join('')}</span>`;
+  const naoConta = it.considerar === false;
+  const tip = naoConta ? PIVO_NAO_CONTA : (it.passa ? 'Passa no PIVO' : 'Atenção: ' + it.atencao.join(' | '));
+  return `<span title="${sacEsc(tip)}"${naoConta ? ' style="opacity:.35"' : ''}>${it.grupos.map(g => `<span class="pivo-l mini ${g.ok === true ? 'on-' + g.id : ''}">${g.id}</span>`).join('')}</span>`;
 }
 function pivoAtualizarCelulas(conta) {
   document.querySelectorAll(`#tab-${conta} td[data-pivo]`).forEach(td => { td.innerHTML = renderPivoCel(conta, td.dataset.pivo); });
@@ -3615,8 +3617,9 @@ function mostrarPivoModal(conta, mlb) {
     return `<span class="pivo-l lg ${g.ok === true ? 'on-' + g.id : ''}${g.id==='V' ? ' clicavel' : ''}"${clique} title="${sacEsc(g.nome + '\n' + partes + dica)}">${g.id}</span>`;
   }).join('');
   const faltam = it.grupos.filter(g => g.ok !== true).map(g => g.nome.split(':')[0]);
-  box.innerHTML = `<span class="mx-pivo" title="${sacEsc(it.passa ? 'Passa no PIVO' : 'Atenção: ' + it.atencao.join('\n'))}"><span class="t">PIVO</span>${letras}
-    <span class="n ${it.passa ? 'ok' : 'atencao'}">${it.passa ? 'completo' : 'atenção · ' + it.pontos + '/' + it.total}</span></span>`;
+  const naoConta = it.considerar === false;
+  box.innerHTML = `<span class="mx-pivo" title="${sacEsc(naoConta ? PIVO_NAO_CONTA : (it.passa ? 'Passa no PIVO' : 'Atenção: ' + it.atencao.join('\n')))}"><span class="t">PIVO</span>${letras}
+    <span class="n ${it.passa || naoConta ? 'ok' : 'atencao'}"${naoConta ? ' style="opacity:.6"' : ''}>${naoConta ? 'não conta' : (it.passa ? 'completo' : 'atenção · ' + it.pontos + '/' + it.total)}</span></span>`;
 }
 async function pivoAlternarClip(conta, mlb) {
   const it = _pivo[conta]?.itens?.[mlb]; if (!it) return;
@@ -3624,7 +3627,7 @@ async function pivoAlternarClip(conta, mlb) {
   const prox = v.ok === true ? false : (v.ok === false ? null : true);   // não confirmado → tem clip → sem clip → não confirmado
   try {
     const r = await (await fetch(`${API}/pivo/${conta}/${mlb}/clip`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tem_clip: prox, autor: user?.login || '', autor_nome: user?.nome || ''})})).json();
-    if (r.item) { _pivo[conta].itens[mlb] = r.item; _pivo[conta].fora_do_pivo = Object.values(_pivo[conta].itens).filter(x => !x.passa).length; }
+    if (r.item) { _pivo[conta].itens[mlb] = r.item; _pivo[conta].fora_do_pivo = Object.values(_pivo[conta].itens).filter(x => x.considerar !== false && !x.passa).length; }
     else await pivoCarregar(conta);   // sem item de retorno: relê o PIVO inteiro
     mostrarPivoModal(conta, mlb); pivoAtualizarCelulas(conta);
     toast(prox === true ? 'Clip confirmado' : prox === false ? 'Marcado sem clip' : 'Marcação de clip removida');

@@ -116,6 +116,33 @@ class Cache(unittest.TestCase):
             self.assertEqual(pivo_ml.resultado("meli01")["fora_do_pivo"], 1)
 
 
+class ContaNoPivo(unittest.TestCase):
+    def test_so_ativo_ou_pausado_apenas_por_estoque(self):
+        casos = [("active", [], True), ("paused", ["out_of_stock"], True), ("paused", ["paused_by_seller"], False),
+                 ("paused", ["out_of_stock", "paused_by_seller"], False), ("closed", ["deleted"], False),
+                 ("closed", [], False), ("under_review", ["forbidden"], False), (None, [], True)]
+        for status, sub, espera in casos:
+            self.assertEqual(pivo_ml.considerar({"status": status, "sub_status": sub}), espera, (status, sub))
+
+    def test_resultado_tira_da_conta_e_marcar_clip_mantem(self):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        cache, manual = os.path.join(d.name, "c.json"), os.path.join(d.name, "m.json")
+
+        def anuncio(status, sub):
+            e = {"item": dict(BOM, video_id=None, status=status, sub_status=sub), "descricao_n": 200, "promocoes": PROMO, "ads": "active"}
+            return dict(pivo_ml.avaliar(e["item"], "x" * 200, PROMO, "active"), _entrada=e)
+        with open(cache, "w") as f:
+            json.dump({"meli01": {"MLB1": anuncio("paused", ["out_of_stock"]), "MLB2": anuncio("paused", ["paused_by_seller"]),
+                                  "MLB3": anuncio("closed", ["deleted"]), "_meta": {"gerado_em": "x"}}}, f)
+        with mock.patch.object(pivo_ml, "CACHE_PATH", cache), mock.patch.object(pivo_ml, "MANUAL_PATH", manual), mock.patch.object(pivo_ml, "REMOTO_PATH", cache + ".r"):
+            r = pivo_ml.resultado("meli01")
+            self.assertEqual((r["total"], r["fora_do_pivo"], r["nao_considerados"]), (1, 1, 2))
+            self.assertEqual(len(r["itens"]), 3)
+            self.assertFalse(pivo_ml.marcar_clip("meli01", "MLB2", True)["considerar"])
+            self.assertEqual(pivo_ml.resultado("meli01")["fora_do_pivo"], 1)
+
+
 class AgendaDiaria(unittest.TestCase):
     AGORA = __import__("datetime").datetime(2026, 11, 6, 9, 0)
 
