@@ -53,6 +53,7 @@
 <div class="semchk" id="semchk"></div>
 <div class="mods" id="mods"></div>
 <div class="full"><h2 id="fulltit">Montagem do Full no dia</h2><div id="full"></div></div>
+<div class="full" id="boxcoleta" style="display:none"><h2>Fulls a serem coletados no dia</h2><div id="coleta" class="fullc"></div></div>
 <script>
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $=id=>document.getElementById(id);
@@ -135,6 +136,8 @@ async function carregar(){
   '<div class="barra f"><div style="width:'+f.percentual+'%"></div></div><div class="sub">'+f.unidades_prontas+' de '+f.unidades_total+' prontas ('+f.percentual+'%)</div></div>'+
   '<div class="sub" style="font-size:18px;color:#cbd5e1">'+f.produtos.map(x=>esc(x.sku)+'<br>Estoque: <b>'+esc(x.estoquista||'—')+'</b> · Embalagem: <b>'+esc(x.embalador||'—')+'</b><div style="margin-top:6px">'+['T','EG','E','OK'].map(t=>'<span class="chip '+(x.etapas[t]?'on':'')+'">'+t+'</span>').join('')+'</div>').join('<hr>')+'</div>'+
   '<div class="meta '+cls+'" style="text-align:right">'+(f.status==='fila'?'na fila<br><span style="font-size:18px">aguardando início</span>':f.concluido?'✔ pronto':(f.atrasado?'atrasado '+fmtMin(-f.minutos_ate_prazo):'faltam '+fmtMin(f.minutos_ate_prazo)))+'</div></div>'}).join('')+(recolhidos.length?'<div class="fullc">'+recolhidos.map(fullRecolhido).join('')+'</div>':''):'<div class="vazio" style="padding-left:0">Nenhum envio Full neste dia</div>';
+ const col=d.full_coleta||[];$('boxcoleta').style.display=col.length?'':'none';
+ $('coleta').innerHTML=col.map(f=>'<div><span class="canal '+esc(f.canal)+'">'+esc(NOMES[f.canal]||f.canal)+'</span> #'+esc(f.numero)+' · '+esc(contaTv(f.conta)||'conta não informada')+' · '+(f.pronto?'<span class="ok">✔ pronto</span>':'em montagem')+'</div>').join('');
  tick();
 }
 $('modo').onchange=()=>{$('dia').dataset.auto='1';if(!DIA_FIXO)$('dia').value=$('modo').value==='real'?hojeIso():iso(amanha);carregar()};

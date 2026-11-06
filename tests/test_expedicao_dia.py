@@ -68,6 +68,14 @@ class TestFullNoMonitor(unittest.TestCase):
     def numeros(self, *envios):
         return [f["numero"] for f in d.montar([], {}, list(envios), em(13), DIA)["full"]]
 
+    def test_coleta_do_dia_lista_mesmo_pronto_de_ontem(self):
+        ontem = (DIA - timedelta(days=1)).isoformat()
+        p = d.montar([], {}, [self.full("pronto", concluido_em=ontem + "T16:00:00-03:00"), self.full("aberto", status="montagem"),
+                              self.full("outro_dia", coleta=(DIA + timedelta(days=1)).isoformat())], em(13), DIA)
+        self.assertEqual(p["full_coleta"], [{"canal": "meli", "numero": "aberto", "conta": "meli01", "pronto": False},
+                                            {"canal": "meli", "numero": "pronto", "conta": "meli01", "pronto": True}])
+        self.assertNotIn("pronto", [f["numero"] for f in p["full"]])       # some da montagem, segue na coleta
+
     def test_concluido_so_no_dia_em_que_terminou(self):
         ontem = (DIA - timedelta(days=1)).isoformat()
         self.assertEqual(self.numeros(self.full("hoje", concluido_em=DIA.isoformat() + "T10:00:00-03:00"),

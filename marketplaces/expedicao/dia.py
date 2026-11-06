@@ -131,6 +131,13 @@ def _full_no_monitor(envio: dict, agora: datetime, dia) -> bool:
     return (envio.get("coleta") or (envio.get("prazo") or "")[:10]) == dia.isoformat() or bool(prazo and (prazo.date() == dia or prazo < agora))
 
 
+def _full_coleta(full: list, dia) -> list:
+    """Fulls com a coleta marcada para o dia, prontos ou não: é o que o motorista vem buscar."""
+    return sorted(({"canal": e.get("canal"), "numero": e.get("numero"), "conta": e.get("conta"), "pronto": bool(e.get("concluido_em"))}
+                   for e in full if e.get("coleta") == dia.isoformat()),
+                  key=lambda x: (str(x["canal"]), str(x["conta"]), str(x["numero"])))
+
+
 def _hhmm_do_dia(dia, hhmm: str):
     hh, mm = str(hhmm).split(":")
     return datetime(dia.year, dia.month, dia.day, int(hh), int(mm), tzinfo=BRT)
@@ -269,7 +276,7 @@ def montar(linhas: list, marcas: dict, full: list, agora: datetime, dia, platafo
     feitos = sum(c["checkout"] for c in cartoes)
     sem_checkout = _sem_checkout(do_dia, herdados, marcas, agora)
     modulos = _modulos(do_dia, marcas, agora, dia, plataformas)
-    return {"dia": dia.isoformat(), "agora": agora.isoformat(timespec="seconds"), "cartoes": cartoes, "cortes": cortes, "cortes_plataformas": plat, "full": envios_full,
+    return {"dia": dia.isoformat(), "agora": agora.isoformat(timespec="seconds"), "cartoes": cartoes, "cortes": cortes, "cortes_plataformas": plat, "full": envios_full, "full_coleta": _full_coleta(full, dia),
             "modulos": modulos, "modalidades": _modalidades(modulos, do_dia, marcas, agora, dia),
             "alertas": alertas, "herdados": len(herdados), "sem_checkout": sem_checkout, "sem_checkout_resumo": _resumo_sem_checkout(sem_checkout),
             "geral": {"pedidos": tot, "checkout": feitos, "pendentes": tot - feitos, "percentual": round(100 * feitos / tot, 1) if tot else 100.0,
