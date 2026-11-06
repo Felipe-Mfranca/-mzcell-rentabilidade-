@@ -30,6 +30,12 @@ class SalvarPosicao(unittest.TestCase):
         self.assertEqual((salvo["pagina"], salvo["posicao"], salvo["keyword"]), (3, 139, "relogio"))
         self.env.assert_called_once()
 
+    def test_amazon_salva_por_sku_mesmo_com_barra(self):
+        r = self.c.post("/posicoes/amazon02/SKU%2FA-1", json={"pagina": 2, "posicao": 120})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(self.c.get("/posicoes/amazon02").json()["posicoes"]["SKU/A-1"]["posicao"], 120)
+        self.assertEqual(self.env.call_args.args[1], "amazon02|SKU/A-1")
+
     def test_limites_recusam_com_mensagem(self):
         for k in ({"pagina": 1, "posicao": 0}, {"pagina": 1, "posicao": 10000}, {"pagina": 1000, "posicao": 1}, {"pagina": 1, "posicao": -1}):
             r = self.salvar(**k)

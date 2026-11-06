@@ -1044,6 +1044,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
     </div>
     <div class="mx-avisos" id="amz-avisos"><span id="amz-aviso-full"></span><span id="amz-aviso-bling"></span><span id="amz-pivo"></span></div>
     <div class="mx-tags" id="amz-tags"></div>
+    <div class="mx-pos2" id="amz-pos" style="margin:0 0 10px"></div>
     <div class="mx-strip-wrap">
       <div class="mx-strip-cap">Últimos 30 dias (fixo)</div>
       <div class="mx-strip" id="amz-strip"></div>
@@ -1715,6 +1716,19 @@ function amzAcompanhar(conta) {
 let _amz = null;
 function amzFechar() { document.getElementById('modal-amz').classList.remove('open'); _amz = null; _mapa = null; }
 document.getElementById('modal-amz').addEventListener('click', function(e){ if (e.target === this) amzFechar(); });
+// Posição do anúncio na Amazon: mesma gravação do Mercado Livre, por conta e SKU
+async function amzPosCarregar(conta, sku) {
+  const box = document.getElementById('amz-pos');
+  box.innerHTML = '';
+  let pos = {};
+  try { pos = ((await (await fetch(`${API}/posicoes/${conta}`)).json()).posicoes || {})[sku] || {}; } catch (e) {}
+  if (!_amz || _amz.conta !== conta || _amz.sku !== sku) return;
+  box.innerHTML = `<span>Posição do anúncio: <b id="amzpos-txt" style="color:var(--text)">${pos.posicao ? `p${pos.pagina||1} #${pos.posicao}` : 'Sem registro'}</b></span>
+    <input type="number" id="amzpos-pag" value="${pos.pagina||1}" min="1" max="999" style="width:52px" title="Página"/>
+    <input type="number" id="amzpos-num" value="${pos.posicao||''}" min="1" max="9999" style="width:64px" placeholder="Posição" title="Posição"/>
+    <input type="text" id="amzpos-kw" value="${sacEsc(pos.keyword||'')}" placeholder="Palavra-chave" style="flex:1;min-width:0"/>
+    <button class="btn-sm" onclick="salvarPosicao(_amz.sku,_amz.conta,'amzpos')">Salvar</button>`;
+}
 async function amzAbrir(conta, sku) {
   _amz = {conta, sku, dias: 7, d: null};
   document.getElementById('amz-title').textContent = sku;
@@ -1726,6 +1740,7 @@ async function amzAbrir(conta, sku) {
   document.getElementById('modal-amz').classList.add('open');
   if (_tags[conta]) mostrarTagsModal(conta, sku, 'amz-tags'); else tagsCarregar(conta);
   document.getElementById('amz-pivo').innerHTML = ''; amzPivoModal(conta, sku);
+  amzPosCarregar(conta, sku);
   amzModalPeriodo(7, document.getElementById('amzp-7'));
 }
 function amzModalPeriodo(dias, btn) {
@@ -3985,16 +4000,16 @@ function closeModal() {
 document.getElementById('modal-prod').addEventListener('click', function(e){if(e.target===this)closeModal();});
 
 // ── POSIÇÃO DO ANÚNCIO (digitada pelo analista; salva no servidor) ─────────────
-function salvarPosicao(mlb, conta) {
-  const pag = parseInt(document.getElementById('pos-pag').value)||1;
-  const pos = parseInt(document.getElementById('pos-num').value)||0;
-  const kw  = document.getElementById('pos-kw').value.trim();
+function salvarPosicao(mlb, conta, pre = 'pos') {
+  const pag = parseInt(document.getElementById(pre + '-pag').value)||1;
+  const pos = parseInt(document.getElementById(pre + '-num').value)||0;
+  const kw  = document.getElementById(pre + '-kw').value.trim();
   if(!pos){toast('Informe a posição','error');return;}
-  fetch(`${API}/posicoes/${conta}/${mlb}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({pagina:pag, posicao:pos, keyword:kw, autor: user?.login || ''})})
+  fetch(`${API}/posicoes/${conta}/${encodeURIComponent(mlb)}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({pagina:pag, posicao:pos, keyword:kw, autor: user?.login || ''})})
     .then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.detail || r.status); return d; })
     .then(d => {
       _posCache[mlb] = d.posicao;
-      const t = document.getElementById('pos-txt'); if (t) t.textContent = `p${pag} #${pos}`;
+      const t = document.getElementById(pre + '-txt'); if (t) t.textContent = `p${pag} #${pos}`;
       atualizarBadgesPosicao();
       toast(`Posição salva: página ${pag}, #${pos}`);
     })

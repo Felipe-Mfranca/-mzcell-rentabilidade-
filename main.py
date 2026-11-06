@@ -1575,7 +1575,7 @@ async def listar_posicoes(conta: str):
     """Posição de cada anúncio na busca do ML (digitada pelo analista), compartilhada entre usuários."""
     return {"success": True, "posicoes": _load_posicoes().get(conta, {})}
 
-@app.post("/posicoes/{conta}/{mlb}")
+@app.post("/posicoes/{conta}/{mlb:path}")   # path: na Amazon a chave é o SKU, que pode ter barra
 async def salvar_posicao_anuncio(conta: str, mlb: str, payload: dict):
     from datetime import datetime as _dt
     try:
