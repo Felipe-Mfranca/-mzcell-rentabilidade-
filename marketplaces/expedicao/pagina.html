@@ -218,8 +218,9 @@
     el("erros").innerHTML = Object.keys(dados.erros || {}).map(function (c) { return "<div class='erro'>❌ " + esc(c) + ": " + esc(dados.erros[c]) + " (conta não carregada)</div>"; }).join("");
     el("erros").innerHTML += Object.keys(dados.errosBling || {}).map(function (c) { return "<div class='erro'>⚠ " + esc(dados.errosBling[c]) + " (sem a situação do Bling; valem só as marcas do galpão)</div>"; }).join("");
     var html = "";
-    Object.keys(porCanal).sort().forEach(function (k) {
-      var ls = porCanal[k].sort(function (a, b) { return (a.meta || "9") < (b.meta || "9") ? -1 : 1; });
+    Object.keys(porCanal).forEach(function (k) { porCanal[k].sort(ordemCorte); });
+    Object.keys(porCanal).sort(function (a, b) { return ordemCorte(porCanal[a][0], porCanal[b][0]) || (a < b ? -1 : 1); }).forEach(function (k) {
+      var ls = porCanal[k];
       html += "<h2>" + esc(k) + " <small>· " + ls.length + " envio(s)</small></h2>";
       ls.forEach(function (l) {
         var f = l._f;
@@ -253,9 +254,9 @@
     var listaPedidos = html || "<p class='meta'>" + (aba === "hoje" ? "Nenhum envio para hoje." : "Nenhum envio para os próximos dias.") + "</p>";
     var semChk = [];
     Object.keys(porCanal).forEach(function (k) { semChk = semChk.concat(porCanal[k]); });
-    semChk.sort(function (a, b) { return (a.meta || "9") < (b.meta || "9") ? -1 : 1; });
+    semChk.sort(ordemCorte);
     var conteudo = vista === 'pedidos' ? listaPedidos
-      : (aba === 'hoje' ? semCheckoutHtml(semChk) : "") + alertaAtraso + (vista === 'geral' ? montagemHtml(paraMontar) : montagemContasHtml(paraMontar));
+      : (aba === 'hoje' ? semCheckoutHtml(semChk) : "") + alertaAtraso + (vista === 'geral' ? montagemPorCorteHtml(paraMontar) : montagemContasHtml(paraMontar));
     var prontos = abertas.filter(function (l) { return emAberto(l) && checkoutEf(l); });
     el("aba-prontos").textContent = "Prontos para o envio (" + prontos.length + ")";
     el("lista").innerHTML = aba === "prontos" ? prontosHtml(prontos) : abasVista + conteudo;
@@ -284,6 +285,25 @@
       });
     });
     return h;
+  }
+  // Flex primeiro (sai de manhã e à tarde); os demais pelo horário de corte da plataforma
+  function ordemCorte(a, b) {
+    return (a.canal === "Flex" ? 0 : 1) - (b.canal === "Flex" ? 0 : 1) || ((a.meta || "9") < (b.meta || "9") ? -1 : ((a.meta || "9") > (b.meta || "9") ? 1 : 0));
+  }
+  function montagemPorCorteHtml(ls) {
+    var g = {};
+    ls.forEach(function (l) {
+      var k = l.canal === "Flex" ? "Flex" : l.canal + "|" + l.conta + "|" + (l.meta || "").slice(0, 16);
+      (g[k] = g[k] || []).push(l);
+    });
+    var grupos = Object.keys(g).map(function (k) { return g[k].sort(ordemCorte); }).sort(function (a, b) {
+      return ordemCorte(a[0], b[0]) || (a[0].canal + a[0].conta < b[0].canal + b[0].conta ? -1 : 1);
+    });
+    if (!grupos.length) return montagemHtml([]);
+    return grupos.map(function (ls2) {
+      var l = ls2[0], hora = (l.meta || "").slice(11, 16);
+      return montagemHtml(ls2, l.canal === "Flex" ? "Flex" : (l.canal === "Agência" ? "Places" : l.canal) + " · " + l.conta + (hora ? " · corte " + hora : " · sem horário"));
+    }).join("");
   }
   // Um pacote é uma etiqueta (envio): compra de carrinho vira vários pedidos no mesmo envio, um produto em cada.
   function pacotesDe(ls) {
@@ -379,7 +399,7 @@
     var grupos = {};
     base.forEach(function (l) {
       var hora = (l.meta || "").slice(11, 16);
-      var k = (l.canal === "Flex" ? "0" : "1") + "|" + l.canal + "|" + hora + "|" + l.conta;
+      var k = l.canal === "Flex" ? "0|Flex|" + hora + "|" + l.conta : "1|" + hora + "|" + l.canal + "|" + l.conta;   // Flex primeiro, os demais pelo corte
       var g = grupos[k] = grupos[k] || { canal: l.canal, conta: l.conta, hora: hora, linhas: [] };
       g.linhas.push(l);
     });
@@ -394,7 +414,7 @@
         });
       });
       var lista = Object.keys(prod).map(function (c) { return prod[c]; }).sort(function (a, b) { return b.un - a.un; });
-      var titulo = (g.canal === "Flex" ? "Flex" : "Places · " + g.canal) + " · " + g.conta.toUpperCase() + (g.hora ? " · horário " + g.hora : "");
+      var titulo = (g.canal === "Flex" ? "Flex" : "Places · " + g.canal) + " · " + g.conta.toUpperCase() + (g.hora ? (g.canal === "Flex" ? " · horário " : " · corte ") + g.hora : "");
       var cor = { meli01: "#1d4ed8", meli02: "#15803d", meli03: "#c2410c" }[g.conta] || "#111";
       return "<h2 style='color:" + cor + "'>" + esc(titulo) + "</h2><p>" + plural(g.linhas.length, "pedido", "pedidos") + " · " + plural(total, "unidade", "unidades") + "</p>" +
         "<table><tr><th>Produto</th><th>SKU</th><th>Montar</th><th>Estoque</th><th>Fica</th></tr>" +

@@ -45,12 +45,20 @@ def _gravar_disco():
         pass
 
 
+def _shopee_liberada() -> bool:
+    try:
+        from modulos_liberados import liberado
+        return liberado("shopee_expedicao")
+    except ImportError:
+        return False
+
+
 def montar() -> dict:
     """Leitura completa (lenta). Devolve {linhas, erros}."""
     res = ml.mapa(None, forcar=True)
     linhas, erros_bling = bling_checkout.enriquecer(res["linhas"])
     linhas_dba, erros_dba = amazon_dba.linhas()
-    linhas_shopee, erros_shopee = shopee_bling.linhas()
+    linhas_shopee, erros_shopee = shopee_bling.linhas() if _shopee_liberada() else ([], {})
     erros = dict(res.get("erros", {}), **erros_dba, **erros_shopee)
     for c, e in (erros_bling or {}).items():
         erros.setdefault(f"bling:{c}", e)

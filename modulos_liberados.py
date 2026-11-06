@@ -18,6 +18,7 @@ LIBERADOS = {
     "financeiro": False,
     "magalu": False,      # integração Magalu (em implantação)
     "paineis": False,     # painéis de TV por área e gestão geral da diretoria
+    "shopee_expedicao": False,   # pedidos da Shopee pelo Bling nos cartões da Expedição: só abrir depois de validar os números
 }
 
 # Abertura POR MÁQUINA: o arquivo modulos_locais.json (fora do git e do instalador), por exemplo

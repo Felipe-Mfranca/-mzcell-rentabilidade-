@@ -64,5 +64,29 @@ class TestSnapshot(unittest.TestCase):
         self.assertEqual(s["dados"]["linhas"], [{"envio": "7"}])
 
 
+class TestShopeeDesligada(unittest.TestCase):
+    def rodar(self, liberada):
+        from unittest import mock
+        from marketplaces.expedicao import snapshot as sn
+        with mock.patch.object(sn.ml, "mapa", lambda *a, **k: {"linhas": [], "erros": {}}), mock.patch.object(sn.bling_checkout, "enriquecer", lambda l: (l, {})), \
+                mock.patch.object(sn.amazon_dba, "linhas", lambda: ([], {})), mock.patch.object(sn, "_shopee_liberada", lambda: liberada), \
+                mock.patch.object(sn.shopee_bling, "linhas", return_value=([{"conta": "shopee"}], {})) as sh:
+            return sn.montar(), sh
+
+    def test_fechada_nao_le_o_bling_nem_conta_pedido(self):
+        r, sh = self.rodar(False)
+        sh.assert_not_called()
+        self.assertEqual(r["linhas"], [])
+
+    def test_aberta_entra_no_painel(self):
+        r, sh = self.rodar(True)
+        sh.assert_called_once()
+        self.assertEqual(r["linhas"], [{"conta": "shopee"}])
+
+    def test_sai_fechada_por_padrao(self):
+        import modulos_liberados
+        self.assertFalse(modulos_liberados.LIBERADOS["shopee_expedicao"])
+
+
 if __name__ == "__main__":
     unittest.main()
