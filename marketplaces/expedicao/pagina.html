@@ -449,11 +449,11 @@
     if (l.pacote && String(l.pacote) !== String(l.pedido)) return "pacote " + esc(l.pacote) + " <span class='meta'>· pedido " + esc(l.pedido) + "</span>";
     return "pedido " + esc(l.pedido);
   }
-  // Um cartão por modalidade: mesma conta do monitor da TV (inclui Amazon DBA e Shopee, que esta tela não lista)
+  // Um cartão por modalidade, com plataforma, pendentes e com checkout (inclui Amazon DBA e Shopee, que esta tela não lista)
   function carregarModalidades() {
     fetch("/expedicao/dia").then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
-      if (!d || !d.modulos) return;
-      el("kpis-mod").innerHTML = d.modulos.map(function (m) {
+      if (!d || !d.modalidades) return;
+      el("kpis-mod").innerHTML = d.modalidades.map(function (m) {
         var contas = (m.por_conta || []).length > 1 ? m.por_conta.map(function (c) { return esc(c.conta) + ": " + c.pendentes + " pend. · " + c.feitos + " com checkout"; }).join("<br>") : "";
         return "<div class='kpi'><h3>" + esc(m.nome) + (m.plataforma ? " <small class='meta'>· " + esc(m.plataforma) + "</small>" : "") + "</h3>" + (m.sem_dados ? "<span class='meta'>sem leitura agora</span>" :
           "<div class='n" + (m.pendentes ? " vm" : "") + "'><span>Pendentes</span><b>" + (m.pendentes || 0) + "</b></div><div class='n'><span>Com checkout</span><b>" + (m.prontos || 0) + "</b></div>" + (contas ? "<div class='meta'>" + contas + "</div>" : "")) + "</div>";

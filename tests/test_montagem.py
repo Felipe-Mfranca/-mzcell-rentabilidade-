@@ -144,22 +144,33 @@ class TestArmazenamento(unittest.TestCase):
         with self.assertRaises(arm.ErroMontagem):
             self._criar("outro")
 
-    def test_etiqueta_gerada_e_informativa(self):
+    def test_etiquetado_exige_etiqueta_gerada(self):
         e = self._criar()
         k = e["chave"]
-        env = arm.marcar(k, 0, "EG", "Ana", "estoquista")
-        self.assertIn("EG", env["produtos"][0]["etapas"])
+        with self.assertRaises(arm.ErroMontagem) as c:
+            arm.marcar(k, 0, "E", "Ana", "estoquista")
+        self.assertEqual(c.exception.status, 409)
+        arm.marcar(k, 0, "EG", "Ana", "estoquista")
+        self.assertIn("E", arm.marcar(k, 0, "E", "Ana", "estoquista")["produtos"][0]["etapas"])
+
+    def test_tirar_eg_derruba_e_e_ok(self):
+        e = self._criar()
+        k = e["chave"]
+        for t in ("T", "EG", "E", "OK"):
+            arm.marcar(k, 0, t, "Ana", "estoquista")
+        etapas = arm.desmarcar(k, 0, "EG")["produtos"][0]["etapas"]
+        self.assertEqual(set(etapas), {"T"})
+
+    def test_e_marcado_antes_da_regra_marca_eg_depois_e_conclui(self):
+        e = self._criar()
+        k = e["chave"]
+        dados = arm._ler()
+        dados["envios"][k]["produtos"][0]["etapas"] = {t: {"por": "Ana", "papel": "estoquista", "em": arm.agora()} for t in ("T", "E")}
+        arm._gravar(dados)
         with self.assertRaises(arm.ErroMontagem):
-            arm.marcar(k, 0, "OK", "Ana", "estoquista")              # EG não substitui T e E
-        arm.marcar(k, 0, "T", "Ana", "estoquista")
-        arm.marcar(k, 0, "E", "Ana", "estoquista")
-        arm.marcar(k, 0, "OK", "Ana", "estoquista")
-        env = arm.desmarcar(k, 0, "EG")
-        self.assertIn("OK", env["produtos"][0]["etapas"])            # tirar a EG não desfaz o OK
-        env = arm.marcar(k, 1, "T", "Caio", "estoquista")
-        arm.marcar(k, 1, "E", "Caio", "estoquista")
-        env = arm.marcar(k, 1, "OK", "Caio", "estoquista")           # sem EG também conclui
-        self.assertTrue(env["concluido_em"])
+            arm.marcar(k, 0, "OK", "Ana", "estoquista")
+        arm.marcar(k, 0, "EG", "Ana", "estoquista")
+        self.assertIn("OK", arm.marcar(k, 0, "OK", "Ana", "estoquista")["produtos"][0]["etapas"])
 
     def test_ok_exige_t_e_e(self):
         e = self._criar()
@@ -167,6 +178,7 @@ class TestArmazenamento(unittest.TestCase):
             arm.marcar(e["chave"], 0, "OK", "Ana", "estoquista")
         self.assertEqual(c.exception.status, 409)
         arm.marcar(e["chave"], 0, "T", "Ana", "estoquista")
+        arm.marcar(e["chave"], 0, "EG", "Ana", "estoquista")
         arm.marcar(e["chave"], 0, "E", "Ana", "estoquista")
         arm.marcar(e["chave"], 0, "OK", "Ana", "estoquista")
 
@@ -183,7 +195,7 @@ class TestArmazenamento(unittest.TestCase):
         e = self._criar()
         k = e["chave"]
         for i, quem in ((0, "Ana"), (1, "Caio")):
-            for t in ("T", "E", "OK"):
+            for t in ("T", "EG", "E", "OK"):
                 env = arm.marcar(k, i, t, quem, "estoquista")
         self.assertIsNotNone(env["concluido_em"])
         env = arm.desmarcar(k, 1, "T")                              # tirar T derruba o OK e reabre o envio
@@ -193,26 +205,26 @@ class TestArmazenamento(unittest.TestCase):
     def test_resumo_e_tv_sem_produtividade(self):
         e = self._criar()
         k = e["chave"]
-        for t in ("T", "E", "OK"):
+        for t in ("T", "EG", "E", "OK"):
             arm.marcar(k, 0, t, "Ana", "estoquista")
         env = arm.listar()[0]
         self.assertEqual(arm.resumo(env)["unidades_prontas"], 30)
         tv = arm.para_tv(env)
-        self.assertEqual(tv["produtos"][0]["etapas"], {"T": True, "E": True, "OK": True})
+        self.assertEqual(tv["produtos"][0]["etapas"], {"T": True, "EG": True, "E": True, "OK": True})
         self.assertNotIn("criado_por", tv)
         self.assertNotIn("por", str(tv["produtos"][0]["etapas"]))
 
     def test_produtividade(self):
         e = self._criar()
         k = e["chave"]
-        for t in ("T", "E", "OK"):
+        for t in ("T", "EG", "E", "OK"):
             arm.marcar(k, 0, t, "Ana", "estoquista")
         p = arm.produtividade()["pessoas"]
         self.assertEqual(p[0]["pessoa"], "Ana")
-        self.assertEqual(p[0]["marcas"], 3)
+        self.assertEqual(p[0]["marcas"], 4)
         hoje = arm.agora()[:10]
         d = arm.produtividade(hoje)
-        self.assertEqual(d["pessoas"][0]["marcas"], 3)
+        self.assertEqual(d["pessoas"][0]["marcas"], 4)
         self.assertEqual(d["fulls"][0]["iniciado_por"], "Chefe")
         self.assertEqual(arm.produtividade("2000-01-01"), {"dia": "2000-01-01", "pessoas": [], "fulls": []})
 
@@ -220,7 +232,7 @@ class TestArmazenamento(unittest.TestCase):
         a = self._criar(numero="A")
         self._criar(numero="B")
         for i, quem in ((0, "Ana"), (1, "Caio")):
-            for t in ("T", "E", "OK"):
+            for t in ("T", "EG", "E", "OK"):
                 arm.marcar(a["chave"], i, t, quem, "estoquista")
         self.assertEqual([e["numero"] for e in arm.listar()], ["B", "A"])
 

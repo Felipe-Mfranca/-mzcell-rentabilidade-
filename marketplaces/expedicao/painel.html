@@ -25,7 +25,6 @@
 .cd{font-size:50px;font-weight:800;line-height:1.05;font-variant-numeric:tabular-nums}
 .cd.ok{color:#86efac}.cd.alerta{color:#fcd34d}.cd.critico{color:#fb923c}.cd.atraso{color:#fca5a5}
 .pronto{font-size:34px;font-weight:800;color:#86efac;margin:6px 0}.semped{font-size:26px;font-weight:700;color:#64748b;margin:14px 0}
-.plat{font-size:15px;letter-spacing:1px;color:#94a3b8;margin-top:-4px}
 .nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px}
 .nums div{background:#0f172a;border-radius:10px;padding:6px 8px;text-align:center}.nums b{display:block;font-size:40px;line-height:1.05;font-variant-numeric:tabular-nums}
 .nums span{font-size:13px;letter-spacing:1px;color:#94a3b8}.nums .pend b{color:#fcd34d}.nums .pend.zero b{color:#86efac}.nums .ok b{color:#86efac}
@@ -83,7 +82,7 @@ setInterval(tick,1000);
 function tipo(id){return id.startsWith('places')?'places':(id.startsWith('shopee')?'shopee':id)}
 function cartao(m){
  const marcos=m.marcos||[],p=m.principal!=null?marcos[m.principal]:null;
- let h='<div class="mod '+tipo(m.id)+'"><h2><span>'+esc(m.nome)+'</span><small>'+(m.sem_dados?'sem leitura da Shopee':(m.pedidos?m.unidades+' un.':''))+'</small></h2>'+(m.plataforma?'<div class="plat">'+esc(m.plataforma)+'</div>':'');
+ let h='<div class="mod '+tipo(m.id)+'"><h2><span>'+esc(m.nome)+'</span><small>'+(m.sem_dados?'sem leitura da Shopee':(m.pedidos?m.unidades+' un.':''))+'</small></h2>';
  const concluido=!m.sem_dados&&m.pedidos>0&&m.pendentes===0;
  if(!m.sem_dados&&!m.pedidos){h+='<div class="semped">sem pedidos hoje</div>'}
  else if(p){
@@ -92,10 +91,9 @@ function cartao(m){
  }
  if(m.sem_dados){h+='<div class="nota">Nenhum pedido da Shopee lido do Bling agora.</div>'}
  else if(m.pedidos){
-  h+='<div class="nums"><div><b>'+m.pedidos+'</b><span>TOTAL</span></div><div class="ok"><b>'+m.prontos+'</b><span>COM CHECKOUT</span></div>'+
+  h+='<div class="nums"><div><b>'+m.pedidos+'</b><span>SAEM</span></div><div class="ok"><b>'+m.prontos+'</b><span>PRONTOS</span></div>'+
      '<div class="pend'+(m.pendentes?'':' zero')+'"><b>'+m.pendentes+'</b><span>PENDENTES</span></div></div>'+
      '<div class="barra"><div style="width:'+m.percentual+'%"></div></div>';
-  if((m.por_conta||[]).length>1)h+='<div class="nota">'+m.por_conta.map(c=>esc(contaTv(c.conta))+': <b>'+c.pendentes+'</b> pend. · <b>'+c.feitos+'</b> com checkout').join('<br>')+'</div>';
   if(m.no_ponto!=null)h+='<div class="nota">No ponto de coleta: <b>'+m.no_ponto+' / '+m.pedidos+'</b></div>';
  }
  // outros horários do mesmo módulo: só os que ainda têm pendência (o DBA mostra as duas etapas, etiqueta e ponto)

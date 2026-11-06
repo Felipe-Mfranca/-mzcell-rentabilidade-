@@ -20,7 +20,7 @@ from datetime import date, datetime, timedelta
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CAMINHO = os.path.join(BASE_DIR, "montagem_envios.json")
-TAGS = ("T", "EG", "E", "OK")   # transferido, etiqueta gerada, etiquetado, pronto; EG é informativa: o OK segue exigindo T e E
+TAGS = ("T", "EG", "E", "OK")   # transferido, etiqueta gerada, etiquetado, pronto; E exige EG e o OK exige as três
 HORA_PRONTO = "17:00"                    # "pronto até" sugerido: dia útil anterior à coleta, neste horário
 CANAIS = ("meli", "amazon", "shopee")   # Full do Mercado Livre, FBA da Amazon e Fulfillment da Shopee: mesma fila
 _trava = threading.Lock()
@@ -151,8 +151,10 @@ def marcar(frete: str, idx: int, tag: str, por: str, papel: str = "estoquista") 
             raise ErroMontagem("Este Full ainda está na fila. O líder precisa clicar em Iniciar antes das marcas.", 409)
         if papel == "estoquista" and str(por).strip().lower() != (prod.get("estoquista") or "").strip().lower():
             raise ErroMontagem("Este produto é de outro estoquista. Peça ao líder ou ao responsável para marcar.", 403)
-        if tag == "OK" and not ("T" in prod["etapas"] and "E" in prod["etapas"]):
-            raise ErroMontagem("OK exige as marcas T (estoque transferido) e E (etiquetado) antes.", 409)
+        if tag == "E" and "EG" not in prod["etapas"]:
+            raise ErroMontagem("E (etiquetado) exige a marca EG (etiqueta gerada) antes.", 409)
+        if tag == "OK" and not all(t in prod["etapas"] for t in ("T", "EG", "E")):
+            raise ErroMontagem("OK exige as marcas T (estoque transferido), EG (etiqueta gerada) e E (etiquetado) antes.", 409)
         if tag not in prod["etapas"]:
             prod["etapas"][tag] = {"por": str(por).strip(), "papel": papel, "em": agora()}
         _fechar_se_completo(envio)
@@ -166,8 +168,10 @@ def desmarcar(frete: str, idx: int, tag: str) -> dict:
         dados = _ler()
         envio, prod = _achar(dados, frete, idx)
         prod["etapas"].pop(tag, None)
-        if tag in ("T", "E"):
-            prod["etapas"].pop("OK", None)  # sem T ou E, o OK perde o sentido
+        if tag == "EG":
+            prod["etapas"].pop("E", None)   # sem etiqueta gerada, o etiquetado perde o sentido
+        if tag in ("T", "EG", "E"):
+            prod["etapas"].pop("OK", None)  # sem uma delas, o OK perde o sentido
         _fechar_se_completo(envio)
         _gravar(dados)
         return envio
