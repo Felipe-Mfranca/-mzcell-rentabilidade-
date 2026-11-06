@@ -165,7 +165,7 @@ class TestCortesPlataformas(unittest.TestCase):
         self.assertEqual(mapa[("DBA", "Impressão das etiquetas")], "11:00")
         self.assertEqual(mapa[("DBA", "Entrega no ponto de coleta")], "14:00")
         self.assertEqual(mapa[("Entrega Direta", "Corte do dia")], "12:00")
-        self.assertEqual(mapa[("Shopee Xpress", "Corte do dia")], "12:00")
+        self.assertEqual(mapa[("Shopee Xpress", "Corte do dia")], "13:00")
 
     def test_montar_com_plataformas(self):
         from marketplaces.expedicao import cortes
@@ -173,7 +173,7 @@ class TestCortesPlataformas(unittest.TestCase):
         por = {(c["canal"], c["etapa"]): c["minutos"] for c in r["cortes_plataformas"]}
         self.assertEqual(por[("DBA", "Impressão das etiquetas")], 30)
         self.assertEqual(por[("DBA", "Entrega no ponto de coleta")], 210)
-        self.assertEqual(por[("Shopee Xpress", "Corte do dia")], 90)
+        self.assertEqual(por[("Shopee Xpress", "Corte do dia")], 150)
 
     def test_arquivo_invalido_usa_padrao(self):
         import os, tempfile

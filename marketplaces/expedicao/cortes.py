@@ -7,7 +7,7 @@ definidas pelo Zicri em 03/11/2026 e conferíveis nos painéis das plataformas (
 
   DBA (Amazon)               11:00  impressão das etiquetas  ·  14:00  entrega no ponto de coleta
   Shopee Entrega Direta      12:00
-  Shopee Xpress              12:00
+  Shopee Xpress              13:00
 
 Para ajustar sem mexer no código, crie cortes_plataformas.json (fora do git) na raiz, com a lista completa no mesmo formato:
   [{"plataforma": "Amazon", "canal": "DBA", "etapa": "Impressão das etiquetas", "corte": "11:00"}, ...]
@@ -23,7 +23,7 @@ PADRAO = [
     {"plataforma": "Amazon", "canal": "DBA", "etapa": "Impressão das etiquetas", "corte": "11:00"},
     {"plataforma": "Amazon", "canal": "DBA", "etapa": "Entrega no ponto de coleta", "corte": "14:00"},
     {"plataforma": "Shopee", "canal": "Entrega Direta", "etapa": "Corte do dia", "corte": "12:00"},
-    {"plataforma": "Shopee", "canal": "Shopee Xpress", "etapa": "Corte do dia", "corte": "12:00"},
+    {"plataforma": "Shopee", "canal": "Shopee Xpress", "etapa": "Corte do dia", "corte": "13:00"},
 ]
 
 

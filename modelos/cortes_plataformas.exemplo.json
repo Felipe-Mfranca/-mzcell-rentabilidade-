@@ -2,5 +2,5 @@
   {"plataforma": "Amazon", "canal": "DBA", "etapa": "Impressão das etiquetas", "corte": "11:00"},
   {"plataforma": "Amazon", "canal": "DBA", "etapa": "Entrega no ponto de coleta", "corte": "14:00"},
   {"plataforma": "Shopee", "canal": "Entrega Direta", "etapa": "Corte do dia", "corte": "12:00"},
-  {"plataforma": "Shopee", "canal": "Shopee Xpress", "etapa": "Corte do dia", "corte": "12:00"}
+  {"plataforma": "Shopee", "canal": "Shopee Xpress", "etapa": "Corte do dia", "corte": "13:00"}
 ]

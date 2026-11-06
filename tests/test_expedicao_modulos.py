@@ -72,10 +72,10 @@ class TestModulos(unittest.TestCase):
 
     def test_shopee_sem_dados_mas_com_horario_de_corte(self):
         m = mods([])
-        for k in ("shopee_xpress", "shopee_direta"):
+        for k, corte in (("shopee_xpress", "13:00"), ("shopee_direta", "12:00")):
             self.assertTrue(m[k]["sem_dados"])
             self.assertIsNone(m[k]["pedidos"])
-            self.assertEqual(m[k]["marcos"][0]["hhmm"], "12:00")
+            self.assertEqual(m[k]["marcos"][0]["hhmm"], corte)
             self.assertIsNotNone(m[k]["principal"])
 
     def test_shopee_lida_do_bling_separa_por_modalidade(self):
@@ -91,7 +91,7 @@ class TestModulos(unittest.TestCase):
         self.assertEqual((m["shopee_direta"]["sem_dados"], m["shopee_direta"]["pedidos"]), (False, 0))
 
     def test_shopee_zera_depois_do_corte(self):
-        antes, depois = mods([], agora=em(11)), mods([], agora=em(12, 30))
+        antes, depois = mods([], agora=em(11)), mods([], agora=em(13, 30))
         for k in ("shopee_xpress", "shopee_direta"):
             self.assertIsNone(antes[k]["marcos"][0]["pendentes"])            # antes do corte: contagem regressiva
             self.assertEqual(depois[k]["marcos"][0]["pendentes"], 0)         # depois: zerado, não atrasado

@@ -24,7 +24,7 @@
 .hora{font-size:76px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-1px}
 .cd{font-size:50px;font-weight:800;line-height:1.05;font-variant-numeric:tabular-nums}
 .cd.ok{color:#86efac}.cd.alerta{color:#fcd34d}.cd.critico{color:#fb923c}.cd.atraso{color:#fca5a5}
-.pronto{font-size:34px;font-weight:800;color:#86efac;margin:6px 0}.semped{font-size:26px;font-weight:700;color:#64748b;margin:14px 0}
+.pronto{font-size:34px;font-weight:800;color:#86efac;margin:6px 0}.tagok{display:inline-block;margin:0 0 6px;padding:3px 12px;border-radius:999px;background:#14532d;color:#86efac;font-size:16px;font-weight:800}.semped{font-size:26px;font-weight:700;color:#64748b;margin:14px 0}
 .nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px}
 .nums div{background:#0f172a;border-radius:10px;padding:6px 8px;text-align:center}.nums b{display:block;font-size:40px;line-height:1.05;font-variant-numeric:tabular-nums}
 .nums span{font-size:13px;letter-spacing:1px;color:#94a3b8}.nums .pend b{color:#fcd34d}.nums .pend.zero b{color:#86efac}.nums .ok b{color:#86efac}
@@ -77,6 +77,8 @@ function tick(){
  const a=agoraMs();
  $('relogio').textContent=new Date(a).toLocaleTimeString('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',second:'2-digit'});
  document.querySelectorAll('[data-iso]').forEach(e=>{const ms=Date.parse(e.dataset.iso)-a;
+  // nada pendente: segue a contagem em verde e, ao chegar o corte, vira "tudo pronto" (nunca "atrasado")
+  if(e.dataset.fim){if(ms>=0){e.textContent=fmtCd(ms);return}if(e.nextElementSibling)e.nextElementSibling.remove();e.removeAttribute('data-iso');e.className='pronto';e.textContent='✔ TUDO PRONTO';return}
   e.textContent=ms<0?'ATRASADO '+fmtCd(-ms):fmtCd(ms);if(e.classList.contains('cd'))e.className='cd '+classeCd(ms)})}
 setInterval(tick,1000);
 // ── cartões por módulo ──
@@ -88,7 +90,7 @@ function cartao(m){
  if(!m.sem_dados&&!m.pedidos){h+='<div class="semped">sem pedidos hoje</div>'}
  else if(p){
   h+='<div class="rot">'+esc(p.rotulo==='Corte'?'ENTREGAR ATÉ':p.rotulo.toUpperCase())+'</div><div class="hora">'+esc(p.hhmm)+'</div>';
-  h+=concluido?'<div class="pronto">✔ TUDO PRONTO</div>':(m.sem_dados&&p.pendentes===0?'<div class="pronto">✔ CORTE ENCERRADO · 0 pendentes</div>':'<div class="cd ok" data-iso="'+esc(p.iso)+'">--:--:--</div>');
+  h+=concluido?(agoraMs()>=Date.parse(p.iso)?'<div class="pronto">✔ TUDO PRONTO</div>':'<div class="cd ok" data-fim="1" data-iso="'+esc(p.iso)+'">--:--:--</div><div class="tagok">✔ OK · nada pendente</div>'):(m.sem_dados&&p.pendentes===0?'<div class="pronto">✔ CORTE ENCERRADO · 0 pendentes</div>':'<div class="cd ok" data-iso="'+esc(p.iso)+'">--:--:--</div>');
  }
  if(m.sem_dados){h+='<div class="nota">Nenhum pedido da Shopee lido do Bling agora.</div>'}
  else if(m.pedidos){
