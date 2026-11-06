@@ -116,5 +116,48 @@ class Cache(unittest.TestCase):
             self.assertEqual(pivo_ml.resultado("meli01")["fora_do_pivo"], 1)
 
 
+class AgendaDiaria(unittest.TestCase):
+    AGORA = __import__("datetime").datetime(2026, 11, 6, 9, 0)
+
+    def setUp(self):
+        d = tempfile.TemporaryDirectory(); self.addCleanup(d.cleanup)
+        self.cache = os.path.join(d.name, "c.json")
+        for alvo, nome, v in ((pivo_ml, "CACHE_PATH", self.cache), (pivo_ml, "_estado", {}), (pivo_ml, "_tentativas", {})):
+            p = mock.patch.object(alvo, nome, v); p.start(); self.addCleanup(p.stop)
+
+    def gravar(self, **datas):
+        with open(self.cache, "w", encoding="utf-8") as f:
+            json.dump({c: {"_meta": {"gerado_em": v}} for c, v in datas.items()}, f)
+
+    def test_uma_conta_por_vez_ate_todas_terem_a_de_hoje(self):
+        self.gravar(meli01="2026-11-06T06:10:00", meli02="2026-10-22T10:00:00")
+        self.assertEqual(pivo_ml.proxima_conta(self.AGORA), "meli02")
+        self.gravar(meli01="2026-11-06T06:10:00", meli02="2026-11-06T06:30:00")
+        self.assertEqual(pivo_ml.proxima_conta(self.AGORA), "meli03")
+        self.gravar(meli01="2026-11-06T06:10:00", meli02="2026-11-06T06:30:00", meli03="2026-11-06T07:00:00")
+        self.assertIsNone(pivo_ml.proxima_conta(self.AGORA))
+
+    def test_nao_comeca_antes_da_hora_nem_com_outra_rodando(self):
+        self.assertIsNone(pivo_ml.proxima_conta(self.AGORA.replace(hour=5)))
+        pivo_ml._estado["meli02"] = {"rodando": True}
+        self.assertIsNone(pivo_ml.proxima_conta(self.AGORA))
+
+    def test_falha_nao_insiste_o_dia_todo(self):
+        self.gravar(meli02="2026-11-06T06:30:00", meli03="2026-11-06T07:00:00")
+        pivo_ml._tentativas[("meli01", "2026-11-06")] = pivo_ml.AUTO_TENTATIVAS
+        self.assertIsNone(pivo_ml.proxima_conta(self.AGORA))
+
+    def test_leitura_que_falha_nao_apaga_o_ultimo_resultado(self):
+        self.gravar(meli01="2026-11-05T06:10:00")
+        ml = mock.Mock()
+        ml.get.return_value = (200, [])
+        pivo_ml._estado["meli01"] = {"rodando": True}
+        pivo_ml._analisar("meli01", ml, ["MLB1"])
+        with open(self.cache, encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["meli01"]["_meta"]["gerado_em"], "2026-11-05T06:10:00")
+        self.assertEqual(pivo_ml._estado["meli01"]["etapa"], "falhou")
+        self.assertFalse(pivo_ml._estado["meli01"]["rodando"])
+
+
 if __name__ == "__main__":
     unittest.main()

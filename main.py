@@ -239,6 +239,13 @@ async def startup():
             print("[startup] Sincronização com a planilha compartilhada ligada")
     except Exception as e:
         print(f"[startup] Aviso planilha compartilhada: {e}")
+    try:
+        from modulos_liberados import liberado
+        if liberado("pivo_auto"):
+            _modulo("pivo_ml").iniciar_agenda()
+            print("[startup] PIVO: renovação automática diária ligada")
+    except Exception as e:
+        print(f"[startup] Aviso PIVO automático: {e}")
 
 
 # ─── HELPERS ─────────────────────────────────────────────────────────────────

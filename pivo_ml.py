@@ -20,6 +20,7 @@ no .gitignore. A análise de uma conta roda em segundo plano (centenas de chamad
 import json
 import os
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
@@ -285,6 +286,8 @@ def _analisar(conta: str, ml, mlbs: list):
             for mlb, r in ex.map(um, mlbs):
                 if r:
                     out[mlb] = r
+        if not out:      # a leitura falhou inteira: não troca o último resultado bom por um vazio
+            raise RuntimeError("nenhum anúncio analisado")
         out["_meta"] = {"gerado_em": datetime.now().isoformat(timespec="seconds")}
         cache = _ler(CACHE_PATH)
         cache[conta] = out
@@ -307,3 +310,44 @@ def iniciar(conta: str, ml, produtos_path: str = None) -> dict:
         _estado[conta] = {"rodando": True, "etapa": "iniciando", "erro": None}
         threading.Thread(target=_analisar, args=(conta, ml, mlbs), daemon=True).start()
     return estado(conta)
+
+
+# ─── renovação automática: só onde "pivo_auto" estiver aberto (modulos_locais.json do servidor) ──
+CONTAS = ("meli01", "meli02", "meli03")
+AUTO_HORA = 6           # a partir desta hora a análise do dia pode começar
+AUTO_ESPERA_SEG = 600
+AUTO_TENTATIVAS = 2     # falhou? tenta de novo uma vez no dia, sem insistir em cima de um erro
+_tentativas = {}
+
+
+def proxima_conta(agora: datetime):
+    """A próxima conta sem análise de hoje, uma por vez. None se está cedo, se alguma roda ou se todas já foram."""
+    if agora.hour < AUTO_HORA or any(_estado.get(c, {}).get("rodando") for c in CONTAS):
+        return None
+    hoje = agora.date().isoformat()
+    cache = _ler(CACHE_PATH)
+    for c in CONTAS:
+        feita = ((cache.get(c) or {}).get("_meta") or {}).get("gerado_em") or ""
+        if feita[:10] != hoje and _tentativas.get((c, hoje), 0) < AUTO_TENTATIVAS:
+            return c
+    return None
+
+
+def iniciar_agenda():
+    """Thread de fundo: renova a análise das três contas uma vez por dia. Só leitura no ML; marcações de clip são preservadas."""
+    from reposicao_full import ML
+
+    def laco():
+        while True:
+            try:
+                agora = datetime.now()
+                c = proxima_conta(agora)
+                if c:
+                    chave = (c, agora.date().isoformat())
+                    _tentativas[chave] = _tentativas.get(chave, 0) + 1
+                    iniciar(c, ML(c))
+            except Exception as e:
+                print(f"[pivo] renovação automática: {type(e).__name__}: {str(e)[:150]}")
+            time.sleep(AUTO_ESPERA_SEG)
+
+    threading.Thread(target=laco, daemon=True, name="pivo-agenda").start()

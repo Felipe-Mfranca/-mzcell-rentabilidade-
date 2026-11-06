@@ -3545,7 +3545,7 @@ async function pivoCarregar(conta) {
     _pivo[conta] = d; pivoAtualizarCelulas(conta);
     const st = document.getElementById(`pivo-st-${conta}`);
     if (st) {
-      // a análise do PIVO não se renova sozinha: mostra a data e avisa quando passa de 24h
+      // o servidor renova a análise do PIVO uma vez por dia: mostra a data e avisa quando passa de 24h
       const quando = d.gerado_em ? new Date(d.gerado_em) : null;
       const vencida = !quando || (Date.now() - quando) > 24 * 3600 * 1000;
       const data = quando ? ` · análise de ${quando.toLocaleDateString('pt-BR')} ${quando.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}` : '';
