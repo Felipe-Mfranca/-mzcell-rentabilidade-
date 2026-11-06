@@ -9,7 +9,7 @@ GET    /montagem/produtividade?dia=        gestão: marcas e tempos por pessoa e
 POST   /montagem/pdf                       lê o PDF do Full do Meli e devolve a prévia (não grava)
                                            (Amazon e Shopee entram à mão: canal + número + produtos)
 POST   /montagem/envios                    cria o envio com conta, coleta, prazo e responsáveis
-POST   /montagem/envios/{frete}/produtos/{i}/marcar     {tag: T|E|OK, por, papel: estoquista|lider}
+POST   /montagem/envios/{frete}/produtos/{i}/marcar     {tag: T|EG|E|OK, por, papel: estoquista|lider}
 DELETE /montagem/envios/{frete}/produtos/{i}/marcar/{tag}
 POST   /montagem/envios/{frete}/produtos/{i}/responsaveis   {estoquista, embalador}
 POST   /montagem/envios/{frete}/prazo      {prazo, coleta}

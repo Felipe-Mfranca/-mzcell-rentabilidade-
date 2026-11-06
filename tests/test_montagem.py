@@ -144,6 +144,23 @@ class TestArmazenamento(unittest.TestCase):
         with self.assertRaises(arm.ErroMontagem):
             self._criar("outro")
 
+    def test_etiqueta_gerada_e_informativa(self):
+        e = self._criar()
+        k = e["chave"]
+        env = arm.marcar(k, 0, "EG", "Ana", "estoquista")
+        self.assertIn("EG", env["produtos"][0]["etapas"])
+        with self.assertRaises(arm.ErroMontagem):
+            arm.marcar(k, 0, "OK", "Ana", "estoquista")              # EG não substitui T e E
+        arm.marcar(k, 0, "T", "Ana", "estoquista")
+        arm.marcar(k, 0, "E", "Ana", "estoquista")
+        arm.marcar(k, 0, "OK", "Ana", "estoquista")
+        env = arm.desmarcar(k, 0, "EG")
+        self.assertIn("OK", env["produtos"][0]["etapas"])            # tirar a EG não desfaz o OK
+        env = arm.marcar(k, 1, "T", "Caio", "estoquista")
+        arm.marcar(k, 1, "E", "Caio", "estoquista")
+        env = arm.marcar(k, 1, "OK", "Caio", "estoquista")           # sem EG também conclui
+        self.assertTrue(env["concluido_em"])
+
     def test_ok_exige_t_e_e(self):
         e = self._criar()
         with self.assertRaises(arm.ErroMontagem) as c:

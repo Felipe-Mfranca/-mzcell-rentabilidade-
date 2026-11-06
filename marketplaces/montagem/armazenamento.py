@@ -20,7 +20,7 @@ from datetime import date, datetime, timedelta
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CAMINHO = os.path.join(BASE_DIR, "montagem_envios.json")
-TAGS = ("T", "E", "OK")
+TAGS = ("T", "EG", "E", "OK")   # transferido, etiqueta gerada, etiquetado, pronto; EG é informativa: o OK segue exigindo T e E
 HORA_PRONTO = "17:00"                    # "pronto até" sugerido: dia útil anterior à coleta, neste horário
 CANAIS = ("meli", "amazon", "shopee")   # Full do Mercado Livre, FBA da Amazon e Fulfillment da Shopee: mesma fila
 _trava = threading.Lock()
@@ -139,7 +139,7 @@ def marcar(frete: str, idx: int, tag: str, por: str, papel: str = "estoquista") 
     tag = tag.upper()
     papel = (papel or "").lower()
     if tag not in TAGS:
-        raise ErroMontagem("Tag inválida. Use T, E ou OK.")
+        raise ErroMontagem("Tag inválida. Use T, EG, E ou OK.")
     if papel not in PAPEIS:
         raise ErroMontagem("Só o estoquista do produto ou o líder marcam as etapas.")
     if not str(por).strip():

@@ -32,7 +32,7 @@ function desenhar(){const c=document.getElementById('c');
   '<div class="barra"><div style="width:'+r.percentual+'%"></div></div><div class="pct">'+r.unidades_prontas+' de '+r.unidades_total+' unidades prontas ('+r.percentual+'%)</div>'+
   '<table>'+e.produtos.map(p=>'<tr><td>'+esc(p.sku)+' <span class="tit">· '+p.unidades+' un.</span></td>'+
    '<td class="resp">Estoque: <b>'+esc(p.estoquista||'—')+'</b><br>Embalagem: <b>'+esc(p.embalador||'—')+'</b></td>'+
-   '<td>'+['T','E','OK'].map(t=>'<span class="chip '+(p.etapas[t]?'on':'')+'">'+t+'</span>').join('')+'</td></tr>').join('')+'</table></div>'}).join('')}
+   '<td>'+['T','EG','E','OK'].map(t=>'<span class="chip '+(p.etapas[t]?'on':'')+'">'+t+'</span>').join('')+'</td></tr>').join('')+'</table></div>'}).join('')}
 async function carregar(){try{const d=await (await fetch('/montagem/tv/dados')).json();dados=d.envios;desvio=new Date(d.agora)-Date.now();desenhar()}catch(e){}}
 carregar();setInterval(carregar,15000);setInterval(desenhar,1000);
 setInterval(()=>{document.getElementById('rel').textContent=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})},1000);

@@ -107,12 +107,12 @@ function cartao(e,pos,nfila){const r=e.resumo,k=esc(e.chave),fila=e.status==='fi
   '<button class="perigo" onclick="remover(\''+k+'\')">Excluir</button></div>'+
   (fila?(e.falta&&e.falta.length?'<div class="aviso">Falta programar: '+e.falta.map(esc).join(', ')+'</div>':'<div class="aviso" style="background:#dcfce7;color:#166534">✔ Programado — aguardando o líder iniciar</div>'):'')+
   '<div class="barra"><div style="width:'+r.percentual+'%"></div></div><div class="mut">'+r.unidades_prontas+' de '+r.unidades_total+' un. prontas ('+r.percentual+'%)</div>'+
-  '<table><tr><th>Produto</th><th>Unid.</th><th>Estoquista</th><th>Embalador</th><th>Etapas (T · E · OK)</th></tr>'+e.produtos.map((p,i)=>
+  '<table><tr><th>Produto</th><th>Unid.</th><th>Estoquista</th><th>Embalador</th><th>Etapas (T · EG · E · OK)</th></tr>'+e.produtos.map((p,i)=>
   '<tr><td>'+esc(p.sku)+'<div class="mut">'+esc(p.titulo)+'</div></td><td>'+p.unidades+'</td>'+
   '<td><input value="'+esc(p.estoquista)+'" style="width:120px" onchange="resp(\''+k+'\','+i+',\'estoquista\',this.value)"></td>'+
   '<td><input value="'+esc(p.embalador)+'" style="width:120px" onchange="resp(\''+k+'\','+i+',\'embalador\',this.value)"></td>'+
-  '<td>'+(fila?'<span class="mut">aguardando início</span>':['T','E','OK'].map(t=>{const m=p.etapas[t];return '<span class="chip '+(m?'on':'')+'" title="'+(m?esc(m.por)+' ('+esc(m.papel)+') '+esc(m.em):'marcar')+'" onclick="marca(\''+k+'\','+i+',\''+t+'\','+(m?1:0)+')">'+t+'</span>'}).join(''))+
-  '<div class="mut">'+['T','E','OK'].filter(t=>p.etapas[t]).map(t=>t+': '+esc(p.etapas[t].por)+' '+esc(p.etapas[t].em.slice(11,16))).join(' · ')+'</div></td></tr>').join('')+'</table></div>'}
+  '<td>'+(fila?'<span class="mut">aguardando início</span>':['T','EG','E','OK'].map(t=>{const m=p.etapas[t];return '<span class="chip '+(m?'on':'')+'" title="'+(m?esc(m.por)+' ('+esc(m.papel)+') '+esc(m.em):'marcar')+'" onclick="marca(\''+k+'\','+i+',\''+t+'\','+(m?1:0)+')">'+t+'</span>'}).join(''))+
+  '<div class="mut">'+['T','EG','E','OK'].filter(t=>p.etapas[t]).map(t=>t+': '+esc(p.etapas[t].por)+' '+esc(p.etapas[t].em.slice(11,16))).join(' · ')+'</div></td></tr>').join('')+'</table></div>'}
 let abaFull='andamento',ultimos=null;const abertosFim=new Set();
 function trocaAba(a){abaFull=a;desenhar()}
 function linhaFim(e){const c=e.concluido_em||'',k=esc(e.chave);
