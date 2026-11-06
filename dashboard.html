@@ -3061,8 +3061,8 @@ function renderModalContent(mlb, conta) {
         <section class="mx-card2"><h4>Dados de ADS${adsBotao()}</h4><div id="ads-tab">${adsTabela()}</div></section>
         <section class="mx-card2"><h4>Dados de vendas</h4>${mxTabela(colsVendas, A, B, rotA, rotB, null, [{o: P3, rot: rotC}, {o: P4, rot: rotD}])}
           <div class="mx-pos2"><span>Posição do anúncio: <b id="pos-txt" style="color:var(--text)">${posTxt}</b></span>
-            <input type="number" id="pos-pag" value="${pos.pagina||1}" min="1" max="99" style="width:44px" title="Página"/>
-            <input type="number" id="pos-num" value="${pos.posicao||''}" min="1" max="99" style="width:56px" placeholder="Posição" title="Posição"/>
+            <input type="number" id="pos-pag" value="${pos.pagina||1}" min="1" max="999" style="width:52px" title="Página"/>
+            <input type="number" id="pos-num" value="${pos.posicao||''}" min="1" max="9999" style="width:64px" placeholder="Posição" title="Posição"/>
             <input type="text" id="pos-kw" value="${(pos.keyword||'').replace(/"/g,'&quot;')}" placeholder="Palavra-chave" style="flex:1;min-width:0"/>
             <button class="btn-sm" onclick="salvarPosicao('${mlb}','${conta}')">Salvar</button></div>
           <div class="mx-pos2" id="radar-linha" style="display:none"></div>
@@ -3991,14 +3991,14 @@ function salvarPosicao(mlb, conta) {
   const kw  = document.getElementById('pos-kw').value.trim();
   if(!pos){toast('Informe a posição','error');return;}
   fetch(`${API}/posicoes/${conta}/${mlb}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({pagina:pag, posicao:pos, keyword:kw, autor: user?.login || ''})})
-    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.detail || r.status); return d; })
     .then(d => {
       _posCache[mlb] = d.posicao;
       const t = document.getElementById('pos-txt'); if (t) t.textContent = `p${pag} #${pos}`;
       atualizarBadgesPosicao();
       toast(`Posição salva: página ${pag}, #${pos}`);
     })
-    .catch(() => toast('Erro ao salvar a posição', 'error'));
+    .catch(e => toast('Posição não salva: ' + e.message, 'error'));
 }
 
 // ── CONFIG ────────────────────────────────────────────────────────────────
