@@ -140,7 +140,7 @@ def _marco(rotulo, quando, pedidos, pendentes):
     return {"rotulo": rotulo, "hhmm": quando.strftime("%H:%M"), "iso": quando.isoformat(), "pedidos": pedidos, "pendentes": pendentes}
 
 
-def _modulo(mid, nome, linhas, marcas, agora, dia, etapas=None, sem_dados=False):
+def _modulo(mid, nome, linhas, marcas, agora, dia, etapas=None, sem_dados=False, plataforma="Mercado Livre"):
     """Cartão do monitor: quantos saem, quantos já estão prontos, quantos faltam e o(s) horário(s) de entrega no local.
     `etapas`: [(rótulo, 'HH:MM', conta_pendentes)] quando o horário vem da operação (DBA, Shopee) e não do prazo de cada pedido."""
     n = len(linhas)
@@ -174,7 +174,12 @@ def _modulo(mid, nome, linhas, marcas, agora, dia, etapas=None, sem_dados=False)
     if principal is None and marcos:
         principal = len(marcos) - 1
     atrasados = sum(1 for m in marcos if (m["pendentes"] or 0) > 0 and _dt(m["iso"]) < agora)
-    return {"id": mid, "nome": nome, "sem_dados": sem_dados, "pedidos": None if sem_dados else n,
+    por_conta = {}
+    for l in linhas:
+        c = por_conta.setdefault(l.get("conta"), {"conta": l.get("conta"), "pendentes": 0, "feitos": 0})
+        c["feitos" if estado(l, marcas)[1] else "pendentes"] += 1
+    return {"id": mid, "nome": nome, "plataforma": plataforma, "por_conta": sorted(por_conta.values(), key=lambda c: str(c["conta"])),
+            "sem_dados": sem_dados, "pedidos": None if sem_dados else n,
             "unidades": None if sem_dados else sum(l.get("unidades") or 0 for l in linhas),
             "prontos": None if sem_dados else prontos, "pendentes": None if sem_dados else n - prontos,
             "percentual": None if sem_dados else (round(100 * prontos / n, 1) if n else 100.0),
@@ -183,21 +188,19 @@ def _modulo(mid, nome, linhas, marcas, agora, dia, etapas=None, sem_dados=False)
 
 
 def _modulos(do_dia: list, marcas: dict, agora: datetime, dia, plataformas: list) -> list:
-    """Cartões por módulo: Flex, Coleta, Places por conta (cada conta tem corte próprio), Amazon DBA e Shopee."""
+    """Um cartão por modalidade: Flex, Coleta, Places (todas as contas), Amazon DBA, Shopee Xpress e Shopee Entrega Direta."""
     plat = plataformas or []
     mods = [_modulo("flex", "Flex", [l for l in do_dia if l.get("canal") == "Flex"], marcas, agora, dia),
             _modulo("coleta", "Coleta", [l for l in do_dia if l.get("canal") == "Coleta"], marcas, agora, dia)]
-    places = [l for l in do_dia if l.get("canal") == "Agência"]
-    contas = ["meli02", "meli03"] + sorted({l["conta"] for l in places} - {"meli02", "meli03"})
-    for c in contas:
-        mods.append(_modulo(f"places_{c}", f"Places Meli {c[-1].lstrip('0') or c}", [l for l in places if l["conta"] == c], marcas, agora, dia))
+    mods.append(_modulo("places", "Places", [l for l in do_dia if l.get("canal") == "Agência"], marcas, agora, dia))
     dba = [l for l in do_dia if l.get("canal") == "DBA"]
     etapas = [(c.get("etapa", ""), c["corte"], "ponto" if "ponto" in str(c.get("etapa", "")).lower() else "etiqueta")
               for c in plat if c.get("canal") == "DBA"]
-    mods.append(_modulo("dba", "Amazon DBA", dba, marcas, agora, dia, etapas or None))
-    for mid, nome, canal in (("shopee_xpress", "Shopee Xpress", "Shopee Xpress"), ("shopee_direta", "Shopee Entrega Direta (Flex)", "Entrega Direta")):
+    mods.append(_modulo("dba", "Amazon DBA", dba, marcas, agora, dia, etapas or None, plataforma="Amazon"))
+    shopee = [l for l in do_dia if l.get("conta") == "shopee"]
+    for mid, nome, canal in (("shopee_xpress", "Shopee Xpress", "Shopee Xpress"), ("shopee_direta", "Shopee Entrega Direta", "Entrega Direta")):
         et = [(c.get("etapa", "Corte do dia"), c["corte"], "corte") for c in plat if c.get("plataforma") == "Shopee" and c.get("canal") == canal]
-        mods.append(_modulo(mid, nome, [], marcas, agora, dia, et, sem_dados=True))
+        mods.append(_modulo(mid, nome, [l for l in shopee if l.get("canal") == canal], marcas, agora, dia, et, sem_dados=not shopee, plataforma="Shopee"))
     return mods
 
 

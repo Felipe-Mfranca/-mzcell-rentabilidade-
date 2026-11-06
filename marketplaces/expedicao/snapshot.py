@@ -2,7 +2,7 @@
 marketplaces/expedicao/snapshot.py — Instantâneo dos pedidos reais para o painel (Monitor TV)
 MZ App
 
-Montar os pedidos reais (Mercado Livre das 3 contas + situação no Bling + Amazon DBA) leva dezenas de segundos.
+Montar os pedidos reais (Mercado Livre das 3 contas + situação no Bling + Amazon DBA + Shopee pelo Bling) leva dezenas de segundos.
 A tela do painel não pode esperar isso a cada abertura: este módulo guarda o último resultado, devolve na hora e
 renova em segundo plano (a cada ATUALIZA_SEG). Só a primeira carga depois de ligar o servidor demora; para evitar
 até isso, o último instantâneo é gravado em disco (expedicao_snapshot.json, fora do git) e reaproveitado.
@@ -15,7 +15,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 
-from marketplaces.expedicao import amazon_dba, bling_checkout, ml
+from marketplaces.expedicao import amazon_dba, bling_checkout, ml, shopee_bling
 
 BRT = timezone(timedelta(hours=-3))
 ATUALIZA_SEG = 30            # idade a partir da qual uma abertura da tela dispara nova leitura
@@ -50,10 +50,11 @@ def montar() -> dict:
     res = ml.mapa(None, forcar=True)
     linhas, erros_bling = bling_checkout.enriquecer(res["linhas"])
     linhas_dba, erros_dba = amazon_dba.linhas()
-    erros = dict(res.get("erros", {}), **erros_dba)
+    linhas_shopee, erros_shopee = shopee_bling.linhas()
+    erros = dict(res.get("erros", {}), **erros_dba, **erros_shopee)
     for c, e in (erros_bling or {}).items():
         erros.setdefault(f"bling:{c}", e)
-    return {"linhas": linhas + linhas_dba, "erros": erros}
+    return {"linhas": linhas + linhas_dba + linhas_shopee, "erros": erros}
 
 
 def _atualizar(leitor=None):
