@@ -37,10 +37,10 @@ class SalvarPosicao(unittest.TestCase):
         self.assertEqual(self.env.call_args.args[1], "amazon02|SKU/A-1")
 
     def test_limites_recusam_com_mensagem(self):
-        for k in ({"pagina": 1, "posicao": 0}, {"pagina": 1, "posicao": 10000}, {"pagina": 1000, "posicao": 1}, {"pagina": 1, "posicao": -1}):
+        for k in ({"pagina": 1, "posicao": 0}, {"pagina": 1, "posicao": 1000000}, {"pagina": 100000, "posicao": 1}, {"pagina": 1, "posicao": -1}):
             r = self.salvar(**k)
             self.assertEqual(r.status_code, 400, k)
-            self.assertIn("posição entre 1 e 9999", r.json()["detail"])
+            self.assertIn("posição entre 1 e 999999", r.json()["detail"])
         self.assertFalse(os.path.exists(self.arq))
         self.env.assert_not_called()
 

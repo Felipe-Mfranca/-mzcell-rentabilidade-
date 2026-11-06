@@ -1724,8 +1724,8 @@ async function amzPosCarregar(conta, sku) {
   try { pos = ((await (await fetch(`${API}/posicoes/${conta}`)).json()).posicoes || {})[sku] || {}; } catch (e) {}
   if (!_amz || _amz.conta !== conta || _amz.sku !== sku) return;
   box.innerHTML = `<span>Posição do anúncio: <b id="amzpos-txt" style="color:var(--text)">${pos.posicao ? `p${pos.pagina||1} #${pos.posicao}` : 'Sem registro'}</b></span>
-    <input type="number" id="amzpos-pag" value="${pos.pagina||1}" min="1" max="999" style="width:52px" title="Página"/>
-    <input type="number" id="amzpos-num" value="${pos.posicao||''}" min="1" max="9999" style="width:64px" placeholder="Posição" title="Posição"/>
+    <input type="number" id="amzpos-pag" value="${pos.pagina||1}" min="1" max="99999" style="width:72px" title="Página"/>
+    <input type="number" id="amzpos-num" value="${pos.posicao||''}" min="1" max="999999" style="width:84px" placeholder="Posição" title="Posição"/>
     <input type="text" id="amzpos-kw" value="${sacEsc(pos.keyword||'')}" placeholder="Palavra-chave" style="flex:1;min-width:0"/>
     <button class="btn-sm" onclick="salvarPosicao(_amz.sku,_amz.conta,'amzpos')">Salvar</button>`;
 }
@@ -3076,8 +3076,8 @@ function renderModalContent(mlb, conta) {
         <section class="mx-card2"><h4>Dados de ADS${adsBotao()}</h4><div id="ads-tab">${adsTabela()}</div></section>
         <section class="mx-card2"><h4>Dados de vendas</h4>${mxTabela(colsVendas, A, B, rotA, rotB, null, [{o: P3, rot: rotC}, {o: P4, rot: rotD}])}
           <div class="mx-pos2"><span>Posição do anúncio: <b id="pos-txt" style="color:var(--text)">${posTxt}</b></span>
-            <input type="number" id="pos-pag" value="${pos.pagina||1}" min="1" max="999" style="width:52px" title="Página"/>
-            <input type="number" id="pos-num" value="${pos.posicao||''}" min="1" max="9999" style="width:64px" placeholder="Posição" title="Posição"/>
+            <input type="number" id="pos-pag" value="${pos.pagina||1}" min="1" max="99999" style="width:72px" title="Página"/>
+            <input type="number" id="pos-num" value="${pos.posicao||''}" min="1" max="999999" style="width:84px" placeholder="Posição" title="Posição"/>
             <input type="text" id="pos-kw" value="${(pos.keyword||'').replace(/"/g,'&quot;')}" placeholder="Palavra-chave" style="flex:1;min-width:0"/>
             <button class="btn-sm" onclick="salvarPosicao('${mlb}','${conta}')">Salvar</button></div>
           <div class="mx-pos2" id="radar-linha" style="display:none"></div>

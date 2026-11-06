@@ -1589,8 +1589,8 @@ async def salvar_posicao_anuncio(conta: str, mlb: str, payload: dict):
         pagina, posicao = int(payload.get("pagina") or 1), int(payload.get("posicao") or 0)
     except (TypeError, ValueError):
         raise HTTPException(status_code=400, detail="pagina e posicao devem ser números")
-    if not (1 <= pagina <= 999 and 1 <= posicao <= 9999):
-        raise HTTPException(status_code=400, detail="página deve estar entre 1 e 999 e posição entre 1 e 9999")
+    if not (1 <= pagina <= 99999 and 1 <= posicao <= 999999):
+        raise HTTPException(status_code=400, detail="página deve estar entre 1 e 99999 e posição entre 1 e 999999")
     with _POSICOES_TRAVA:
         db = _load_posicoes()
         atual = db.setdefault(conta, {}).get(mlb, {})
