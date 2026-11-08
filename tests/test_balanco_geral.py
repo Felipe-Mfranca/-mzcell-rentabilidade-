@@ -6,10 +6,10 @@ from marketplaces.balanco import geral
 
 
 class TestBalancoGeral(unittest.TestCase):
-    def _montar(self, saldos=None, erro=None, cat=None):
+    def _montar(self, saldos=None, erro=None, cat=None, tipo="geral"):
         ler = mock.Mock(side_effect=erro) if erro else mock.Mock(return_value={"saldos": saldos or {}})
         with mock.patch("marketplaces.bling.estoque.saldos", ler), mock.patch("marketplaces.balanco.catalogo.ler", lambda: cat or {}):
-            return geral.montar("bling02")
+            return geral.montar("bling02", tipo)
 
     def test_lista_tem_os_de_fora_e_nao_repete_sku(self):
         skus = [x[1] for x in geral.LISTA]
@@ -21,7 +21,7 @@ class TestBalancoGeral(unittest.TestCase):
     def test_saldo_do_bling_pedido_e_zerado_continua_na_folha(self):
         r = self._montar({"GAR-DESF-PRETO": 971, "GANCHO-TRANSPARENTE": -8})
         d = {x["sku"]: x for x in r["linhas"]}
-        self.assertEqual(len(r["linhas"]), 48)
+        self.assertEqual(len(r["linhas"]), 38)                       # 48 da lista menos os 10 sazonais
         self.assertEqual(d["GAR-DESF-PRETO"]["estoque"], 971)
         self.assertEqual(d["GANCHO-TRANSPARENTE"]["estoque"], -8)
         self.assertIsNone(d["FRUT-ARAMBRC"]["estoque"])
@@ -32,6 +32,18 @@ class TestBalancoGeral(unittest.TestCase):
         d = {x["sku"]: x for x in self._montar(cat=cat)["linhas"]}
         self.assertEqual(d["NOVO-X"]["categoria"], "Teste")
         self.assertNotIn("OUTRO", d)
+
+    def test_sazonais_saem_do_geral_e_formam_o_proprio_relatorio(self):
+        cat = {"blings": {"bling01": {"skus": {"ARV-X": {"nome": "Arvore de Natal 1,8m", "categoria": ""}, "LACO-1": {"nome": "Laço", "categoria": "Enfeites para Árvores"},
+                                               "TORN-1": {"nome": "Torneira", "categoria": "Torneira"}}}}}
+        saz = {x["sku"] for x in self._montar(cat=cat, tipo="sazonal")["linhas"]}
+        self.assertTrue({"ARV-X", "LACO-1", "KIT130ESTQ", "CAPAHALLO-ESTQ", "KIT-ESCOLAR-MENINA"} <= saz)
+        self.assertNotIn("TORN-1", saz)
+        self.assertNotIn("GAR-DESF-PRETO", saz)
+        geral_ = {x["sku"] for x in self._montar(cat=cat)["linhas"]}
+        self.assertFalse(geral_ & saz)
+        with self.assertRaises(ValueError):
+            geral.montar("bling01", "outro")
 
     def test_falha_de_leitura_vira_erro_e_nao_zero(self):
         r = self._montar(erro=RuntimeError("401"))

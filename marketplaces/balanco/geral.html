@@ -24,10 +24,13 @@
 </style>
 </head>
 <body>
-<h1>Relatório de Balanço Geral - Visão de Produto</h1>
+<h1 id="titulo">Relatório de Balanço Geral - Visão de Produto</h1>
 <div class="sub" id="sub">Carregando…</div>
 
 <div class="barra nao-imprime">
+  <button data-t="geral" onclick="trocarTipo('geral')">Geral</button>
+  <button data-t="sazonal" onclick="trocarTipo('sazonal')">Sazonais</button>
+  <span style="width:12px"></span>
   <button data-b="bling01" onclick="abrir('bling01')">Bling 1 (Techseller)</button>
   <button data-b="bling02" onclick="abrir('bling02')">Bling 2 (Seller Info)</button>
   <button data-b="bling03" onclick="abrir('bling03')">Bling 3 (Mizi)</button>
@@ -40,15 +43,19 @@
 
 <script>
 var NOMES = {bling01: "Bling 1 (Techseller)", bling02: "Bling 2 (Seller Info)", bling03: "Bling 3 (Mizi)"};
-var dados = null;
+var dados = null, tipo = new URLSearchParams(location.search).get("tipo") === "sazonal" ? "sazonal" : "geral", blingAtual = "bling01";
+function trocarTipo(t) { tipo = t; abrir(blingAtual); }
 function esc(t) { return String(t == null ? "" : t).replace(/[&<>"]/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]; }); }
 function num(v) { return Number(v).toLocaleString("pt-BR", {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
 
 function abrir(b) {
+  blingAtual = b;
   document.querySelectorAll("button[data-b]").forEach(function (x) { x.classList.toggle("ativo", x.dataset.b === b); });
+  document.querySelectorAll("button[data-t]").forEach(function (x) { x.classList.toggle("ativo", x.dataset.t === tipo); });
+  document.getElementById("titulo").textContent = tipo === "sazonal" ? "Relatório de Balanço de Sazonais - Visão de Produto" : "Relatório de Balanço Geral - Visão de Produto";
   document.getElementById("sub").textContent = "Carregando…";
   document.getElementById("tabela").innerHTML = "";
-  fetch("/balanco/geral/dados?bling=" + b).then(function (r) {
+  fetch("/balanco/geral/dados?bling=" + b + "&tipo=" + tipo).then(function (r) {
     return r.json().then(function (d) { if (!r.ok) throw new Error(d.detail || r.status); return d; });
   }).then(function (d) { dados = d; desenhar(); }).catch(function (e) { document.getElementById("sub").textContent = "Erro: " + e.message; });
 }
@@ -57,7 +64,7 @@ function desenhar() {
   var semZero = document.getElementById("sem-zero").checked;
   var ls = dados.linhas.filter(function (x) { return !semZero || x.estoque; });
   document.getElementById("aviso").innerHTML = dados.erro ? '<div class="erro">Não foi possível ler o saldo deste Bling: ' + esc(dados.erro) + '. Não use esta folha para o balanço.</div>' : "";
-  document.getElementById("sub").textContent = NOMES[dados.bling] + " · depósito Geral · gerado em " + new Date().toLocaleString("pt-BR") + " · " + ls.length + " produto(s) · " + num(dados.total) + " un.";
+  document.getElementById("sub").textContent = (dados.tipo === "sazonal" ? "Sazonais · " : "") + NOMES[dados.bling] + " · depósito Geral · gerado em " + new Date().toLocaleString("pt-BR") + " · " + ls.length + " produto(s) · " + num(dados.total) + " un.";
   document.getElementById("tabela").innerHTML = "<table><thead><tr><th>Descrição - Categoria do produto</th><th>Código (SKU)</th><th>Descrição</th><th>Estoque físico</th><th>Balanço</th></tr></thead><tbody>" +
     ls.map(function (x) {
       var est = dados.erro ? "—" : '<span class="' + (x.estoque < 0 ? "neg" : "") + '">' + num(x.estoque || 0) + "</span>";

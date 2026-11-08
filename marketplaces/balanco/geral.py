@@ -6,9 +6,12 @@ Mesmo formato do relatório do Bling 1 (categoria, SKU, descrição, estoque fí
 qualquer um dos três Blings. A lista fixa é a do relatório de 06/11/2026 mais os produtos "ESTOQUE" que estavam de fora,
 a pedido do usuário: fica fixa porque o catálogo só guarda quem tem saldo, e zerado também entra no relatório.
 Produto novo com ESTOQUE no nome entra sozinho quando aparecer no catálogo.
+
+Dois relatórios (pedido de 08/11/2026): "geral" sem os sazonais, e "sazonal" com todo SKU sazonal dos Blings (pela categoria ou
+pelo nome, lista.classe). O catálogo só guarda SKU com saldo: sazonal zerado em todos os Blings não aparece na folha de sazonais.
 """
 
-from marketplaces.balanco import catalogo
+from marketplaces.balanco import catalogo, lista
 from marketplaces.bling import estoque
 
 LISTA = [
@@ -64,21 +67,37 @@ LISTA = [
 ]
 
 
-def montar(bling: str) -> dict:
+def sazonal(categoria: str, nome: str) -> bool:
+    return lista.classe(categoria) == "sazonal" or lista.classe(nome) == "sazonal"
+
+
+def montar(bling: str, tipo: str = "geral") -> dict:
     """Linhas do relatório de um Bling. Leitura de saldo que falha vira erro na tela: nunca aparece como estoque zero."""
     if bling not in estoque.BLINGS:
         raise ValueError("Bling desconhecido")
+    if tipo not in ("geral", "sazonal"):
+        raise ValueError("Relatório desconhecido")
     cat = catalogo.ler()
-    linhas = {sku: {"categoria": c, "sku": sku, "descricao": d} for c, sku, d in LISTA}
+    todos = {sku: {"categoria": c, "sku": sku, "descricao": d} for c, sku, d in LISTA}
+    estoque_no_nome = set(todos)
     for dados in (cat.get("blings") or {}).values():
         for sku, x in (dados.get("skus") or {}).items():
             chave = sku.strip().upper()
-            if "ESTOQUE" in (x.get("nome") or "").upper() and chave not in linhas:
-                linhas[chave] = {"categoria": x.get("categoria") or "Sem categoria", "sku": chave, "descricao": x.get("nome") or ""}
+            atual = todos.setdefault(chave, {"categoria": "", "sku": chave, "descricao": x.get("nome") or ""})
+            if not atual["categoria"] and x.get("categoria"):
+                atual["categoria"] = x["categoria"]
+            if "ESTOQUE" in (x.get("nome") or "").upper():
+                estoque_no_nome.add(chave)
+    for x in todos.values():
+        x["categoria"] = x["categoria"] or "Sem categoria"
+    if tipo == "sazonal":
+        linhas = {k: x for k, x in todos.items() if sazonal(x["categoria"], x["descricao"])}
+    else:
+        linhas = {k: todos[k] for k in estoque_no_nome if not sazonal(todos[k]["categoria"], todos[k]["descricao"])}
     try:
         saldos, erro = {k.strip().upper(): v for k, v in estoque.saldos(bling)["saldos"].items()}, None
     except Exception as e:
         saldos, erro = {}, str(e)[:200]
     saida = [dict(x, estoque=saldos.get(k)) for k, x in linhas.items()]
     saida.sort(key=lambda x: (x["categoria"].lower(), x["sku"]))
-    return {"bling": bling, "erro": erro, "linhas": saida, "total": sum(x["estoque"] or 0 for x in saida)}
+    return {"bling": bling, "tipo": tipo, "erro": erro, "linhas": saida, "total": sum(x["estoque"] or 0 for x in saida)}

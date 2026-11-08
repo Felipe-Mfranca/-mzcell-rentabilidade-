@@ -39,9 +39,9 @@ def pagina_geral():
 
 
 @router.get("/geral/dados")
-def dados_geral(bling: str = "bling01"):
+def dados_geral(bling: str = "bling01", tipo: str = "geral"):
     try:
-        return geral.montar(bling)
+        return geral.montar(bling, tipo)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

@@ -13,7 +13,8 @@ from marketplaces.bling import estoque
 
 # Trechos (sem acento, minúsculos) de categorias sazonais. A categoria "Artigos Sazonais" e as filhas dela também contam.
 # Lista inicial: o usuário confirma e ajusta.
-SAZONAIS = ["sazonal", "natal", "pisca", "guirlanda", "decoracao", "fantasia", "mascara", "bal", "bandeirinha", "halloween", "escolar"]
+SAZONAIS = ["sazonal", "natal", "pisca", "guirlanda", "decoracao", "fantasia", "mascara", "bal", "bandeirinha", "halloween", "escolar",
+            "junina", "enfeites para arvore"]   # 08/11: laços de Natal e roupas de festa junina estavam como recorrentes
 
 
 def _norm(t: str) -> str:
