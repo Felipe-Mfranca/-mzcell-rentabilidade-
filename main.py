@@ -626,6 +626,32 @@ def pivo_analisar(conta: str):
     return pivo_ml.iniciar(conta, ML(conta))
 
 
+@app.get("/carga/estado")
+def carga_estado():
+    """Carga automática do servidor: ligada? rodando? dados em dia? (a tela desliga os botões manuais quando está em dia)"""
+    return _modulo("carga_servidor").estado()
+
+
+@app.post("/carga/executar")
+async def carga_executar(request: Request, autor: str = ""):
+    """Carga completa no servidor (Meli, PIVO, rebot, Amazon), pedida pela tela quando a automática falhou. Vale para todos."""
+    carga = _modulo("carga_servidor")
+    est = carga.estado()
+    if not est.get("ativo"):
+        raise HTTPException(status_code=400, detail="A carga automática só existe no servidor")
+    if est.get("rodando"):
+        return est
+    try:
+        from marketplaces import acesso_rede
+        quem = acesso_rede.login_da_sessao(request.cookies.get(acesso_rede.COOKIE)) or str(autor or "")[:40]
+    except ImportError:
+        quem = str(autor or "")[:40]
+    asyncio.create_task(carga.executar_completa(log_atividade, f"manual por {quem or 'usuário'}"))
+    log_atividade(f"[carga-servidor] carga manual pedida por {quem or 'usuário'}")
+    await asyncio.sleep(0.2)
+    return carga.estado()
+
+
 @app.get("/rebot/{conta}")
 async def rebot_verificar(conta: str, salvo: bool = False):
     """Oportunidades de rebot de UMA conta, no mesmo formato do e-mail. Só leitura (nunca escreve no ML).

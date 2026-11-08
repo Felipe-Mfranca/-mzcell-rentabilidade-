@@ -5,12 +5,16 @@ MZ App
 Só leitura nas plataformas. Depois do sync do Meli (refresh_ml_token.loop_sync_diario), renova o que os usuários abrem ao
 logar: análise PIVO, oportunidades de rebot e painel da Amazon, uma conta por vez. Uma etapa que falha não derruba as outras.
 Só roda onde "carga_noturna" estiver aberto (modulos_locais.json do servidor); nas outras máquinas fica o sync das 6h de sempre.
+
+O resultado da última carga fica em carga_estado.json. Com a carga do dia em dia e sem erro, a tela desliga os botões de
+atualização manual; com erro, avisa que os dados podem estar desatualizados e oferece uma carga completa, que roda no servidor
+e vale para todos (executar_completa). Expedição e SAC não dependem disto: leem em tempo real.
 """
 
 import asyncio
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 HORAS_BRT = (6, 22)          # em Brasília (UTC-3)
 BRT_OFFSET = 3
@@ -20,6 +24,9 @@ LIMITE_AMAZON_SEG = 2700
 CONTAS_ML = ("meli01", "meli02", "meli03")
 CONTAS_AMAZON = ("amazon01", "amazon02")
 REBOT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rebot_cache.json")
+ESTADO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "carga_estado.json")
+BRT = timezone(timedelta(hours=-3))
+_rodando = {"desde": None, "origem": None}
 
 
 def proxima_carga(agora_utc: datetime, horas_brt=HORAS_BRT) -> datetime:
@@ -108,3 +115,77 @@ async def rodar_extras(log) -> dict:
             resultado[chave] = f"{type(e).__name__}: {str(e)[:150]}"
         log(f"[carga-servidor] {chave}: {resultado[chave]}")
     return resultado
+
+
+async def sync_meli(log) -> dict:
+    """Sync completo das contas do Meli ativas. {"meli conta": "ok" ou o erro}."""
+    from ml_api import load_config
+    from sync_service import sincronizar_conta_func
+    res = {}
+    for conta, dados in load_config()["contas"].items():
+        if not dados.get("ativo") or not dados.get("access_token"):
+            continue
+        log(f"[sync-diario] Iniciando sync {conta}")
+        try:
+            r = await sincronizar_conta_func(conta)
+            if r.get("success") is False:
+                raise RuntimeError(r.get("error") or "falhou")
+            res[f"meli {conta}"] = "ok"
+            log(f"[sync-diario] {conta}: {r.get('total_atualizados', 0)} produtos atualizados")
+        except Exception as e:
+            res[f"meli {conta}"] = f"{type(e).__name__}: {str(e)[:150]}"
+            log(f"[sync-diario] ERRO {conta}: {e}")
+    return res
+
+
+def _agora_brt() -> datetime:
+    return datetime.now(BRT).replace(tzinfo=None)
+
+
+def _gravar_estado(dados: dict):
+    with open(ESTADO_PATH, "w", encoding="utf-8") as f:
+        json.dump(dados, f, ensure_ascii=False)
+
+
+async def executar_completa(log, origem: str) -> dict:
+    """Meli, PIVO, rebot e Amazon; grava o resultado para a tela saber se os dados estão em dia. Uma por vez."""
+    if _rodando["desde"]:
+        return {}
+    _rodando.update(desde=_agora_brt().isoformat(timespec="seconds"), origem=origem)
+    inicio = _rodando["desde"]
+    try:
+        etapas = await sync_meli(log)
+        etapas.update(await rodar_extras(log))
+    except Exception as e:
+        etapas = {"carga": f"{type(e).__name__}: {str(e)[:150]}"}
+    finally:
+        _rodando.update(desde=None, origem=None)
+    erros = {k: v for k, v in etapas.items() if v != "ok"}
+    ultima = {"inicio": inicio, "fim": _agora_brt().isoformat(timespec="seconds"), "origem": origem, "ok": not erros, "erros": erros, "etapas": len(etapas)}
+    _gravar_estado({"ultima": ultima})
+    log(f"[carga-servidor] carga {'completa' if not erros else 'COM ERRO'} ({origem}): {len(etapas) - len(erros)} de {len(etapas)} etapas ok")
+    return ultima
+
+
+def em_dia(ultima: dict, agora: datetime) -> bool:
+    """Dados em dia = a carga mais recente terminou sem erro e é a das 6h de hoje ou mais nova
+    (antes das 6h30 ainda vale a das 22h de ontem)."""
+    if not ultima or not ultima.get("ok"):
+        return False
+    hoje6 = agora.replace(hour=6, minute=0, second=0, microsecond=0)
+    limite = hoje6 if agora >= hoje6 + timedelta(minutes=30) else hoje6 - timedelta(hours=8)
+    return datetime.fromisoformat(ultima["inicio"]) >= limite
+
+
+def estado() -> dict:
+    """O que a tela precisa: se a carga do servidor está ligada, se roda agora e se os dados estão em dia."""
+    from modulos_liberados import liberado
+    if not liberado("carga_noturna"):
+        return {"ativo": False}
+    try:
+        with open(ESTADO_PATH, encoding="utf-8") as f:
+            ultima = json.load(f).get("ultima")
+    except (FileNotFoundError, ValueError):
+        ultima = None
+    return {"ativo": True, "rodando": bool(_rodando["desde"]), "rodando_desde": _rodando["desde"], "rodando_origem": _rodando["origem"],
+            "ultima": ultima, "em_dia": em_dia(ultima, _agora_brt())}

@@ -51,6 +51,37 @@ class TestEtapas(unittest.TestCase):
             asyncio.run(cs._esperar(lambda: True, 30))
 
 
+class TestEmDia(unittest.TestCase):
+    def test_regra_da_carga_em_dia(self):
+        ok6 = {"ok": True, "inicio": "2026-11-09T06:00:00"}
+        ok22 = {"ok": True, "inicio": "2026-11-08T22:00:00"}
+        self.assertTrue(cs.em_dia(ok6, datetime(2026, 11, 9, 15, 0)))
+        self.assertTrue(cs.em_dia(ok22, datetime(2026, 11, 9, 6, 10)))       # 6h ainda rodando: vale a das 22h
+        self.assertFalse(cs.em_dia(ok22, datetime(2026, 11, 9, 9, 0)))        # a das 6h não rodou
+        self.assertFalse(cs.em_dia({"ok": False, "inicio": "2026-11-09T06:00:00"}, datetime(2026, 11, 9, 9, 0)))
+        self.assertTrue(cs.em_dia({"ok": True, "inicio": "2026-11-09T10:15:00"}, datetime(2026, 11, 9, 11, 0)))   # carga manual
+        self.assertFalse(cs.em_dia(None, datetime(2026, 11, 9, 9, 0)))
+
+    def test_carga_completa_grava_o_estado_e_nao_roda_duas_vezes(self):
+        async def meli(log):
+            return {"meli meli01": "ok"}
+
+        async def extras(log):
+            return {"pivo meli01": "ok", "amazon amazon02": "ErroAmazon: 503"}
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(cs, "ESTADO_PATH", os.path.join(d, "e.json")), \
+                mock.patch.object(cs, "sync_meli", meli), mock.patch.object(cs, "rodar_extras", extras), \
+                mock.patch("modulos_liberados.liberado", return_value=True):
+            u = asyncio.run(cs.executar_completa(lambda m: None, "manual por ana"))
+            self.assertEqual((u["ok"], list(u["erros"]), u["etapas"]), (False, ["amazon amazon02"], 3))
+            e = cs.estado()
+            self.assertEqual((e["ativo"], e["rodando"], e["em_dia"], e["ultima"]["origem"]), (True, False, False, "manual por ana"))
+            cs._rodando["desde"] = "x"
+            self.assertEqual(asyncio.run(cs.executar_completa(lambda m: None, "outra")), {})
+            cs._rodando["desde"] = None
+        with mock.patch("modulos_liberados.liberado", return_value=False):
+            self.assertEqual(cs.estado(), {"ativo": False})
+
+
 class TestRebotSalvo(unittest.TestCase):
     def test_grava_por_conta_sem_apagar_as_outras(self):
         with tempfile.TemporaryDirectory() as d, mock.patch.object(cs, "REBOT_PATH", os.path.join(d, "r.json")):

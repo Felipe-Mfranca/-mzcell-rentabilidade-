@@ -840,6 +840,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       </div>
     </div>
     <div id="bling-aviso" style="display:none"></div>
+    <div id="carga-aviso" style="display:none"></div>
     <div class="content">
       <div class="tab active" id="tab-meli01"><div id="painel-meli01"></div></div>
       <div class="tab" id="tab-meli02"><div id="painel-meli02"></div></div>
@@ -1567,13 +1568,14 @@ function amzAbrirAba(conta) {
             <button class="btn-sync-produto" onclick="amzCarregar('${conta}')" style="height:30px;padding:0 12px;font-size:11px">Buscar</button>
           </span>
         </div>
-        <button class="btn-sync-produto" style="margin-left:auto" onclick="amzAtualizar('${conta}')"><span id="amzi-${conta}">↻</span> Atualizar dados</button>
+        <button class="btn-sync-produto" style="margin-left:auto" id="amzb-${conta}" onclick="amzAtualizar('${conta}')"><span id="amzi-${conta}">↻</span> Atualizar dados</button>
         <span id="amzs-${conta}" class="sac-mut"></span>
       </div>
       <div class="kpis" id="amzk-${conta}"></div>
       <div class="table-card"><div id="amzt-${conta}"><div class="empty"><div class="empty-text">Carregando…</div></div></div></div>`;
   }
   amzCarregar(conta);
+  cargaAplicar();
 }
 function amzPeriodo(conta, dias, btn) {
   document.querySelectorAll(`#painel-${conta} .modal-preset`).forEach(b => b.classList.remove('active'));
@@ -2253,6 +2255,7 @@ function aplicarModulos() {
 
 function initApp() {
   if (temModulo('meli')) { renderPainel('meli01'); renderPainel('meli02'); renderPainel('meli03'); }
+  cargaCarregar(); setInterval(cargaCarregar, 5 * 60000);
   fetch(`${API}/sistema/versao`)
     .then(r=>r.json())
     .then(d=>{ const el=document.getElementById('logo-versao'); if(el&&d.versao) el.textContent='v'+d.versao; })
@@ -2389,6 +2392,46 @@ function iniciarPollSync(contas) {
 // ── SYNC ──────────────────────────────────────────────────────────────────
 // Sincroniza a conta no MESMO período que a tela mostra: o ADS e as vendas gravados ficam iguais ao modal
 const _autoSyncFeito = {};
+// Carga do servidor (22h e 6h). Em dia: botões de atualização manual desligados e nada de sync ao logar.
+// Com erro: aviso de dados possivelmente desatualizados e uma carga completa no servidor, que vale para todos.
+// App instalado (sem a carga): _carga.ativo é falso e tudo segue como antes. Expedição e SAC são em tempo real.
+let _carga = null;
+const CARGA_BOTOES = c => [`btn-sync-${c}`, `btn-pivo-${c}`, `amzb-${c}`];
+async function cargaCarregar() {
+  try { const r = await fetch(`${API}/carga/estado`); _carga = r.ok ? await r.json() : null; } catch (e) { _carga = null; }
+  cargaAplicar();
+}
+function cargaHora(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + ' ' + iso.slice(11, 16) : ''; }
+function cargaAplicar() {
+  const box = document.getElementById('carga-aviso');
+  const ativo = !!(_carga && _carga.ativo), travar = ativo && (_carga.em_dia || _carga.rodando);
+  const u = _carga?.ultima;
+  const dica = !ativo ? '' : _carga.rodando ? 'Carga do servidor em andamento' : `Dados carregados pelo servidor em ${cargaHora(u?.fim)}: atualização manual desligada`;
+  ['meli01', 'meli02', 'meli03', 'amazon01', 'amazon02'].forEach(c => CARGA_BOTOES(c).forEach(id => {
+    const b = document.getElementById(id); if (!b) return;
+    if (b.dataset.titulo === undefined) b.dataset.titulo = b.title || '';
+    b.disabled = travar; b.title = travar ? dica : b.dataset.titulo;
+  }));
+  if (!box) return;
+  if (!ativo || _carga.em_dia) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = '';
+  box.className = 'periodo-card';
+  box.style.cssText = 'margin:8px 24px 0;border-color:var(--gold);color:var(--gold);flex-wrap:wrap';
+  if (_carga.rodando) {
+    box.innerHTML = `<b>Carregando os dados no servidor</b> <span class="sac-mut">desde ${cargaHora(_carga.rodando_desde)} (${sacEsc(_carga.rodando_origem || '')}). Leva uns 20 minutos; quem entrar depois já recebe os dados novos.</span>`;
+    return;
+  }
+  const motivo = !u ? 'a carga automática ainda não rodou' : !u.ok ? `a carga de ${cargaHora(u.inicio)} teve erro em ${Object.keys(u.erros || {}).map(sacEsc).join(', ')}` : `a última carga foi em ${cargaHora(u.inicio)}`;
+  box.innerHTML = `<b>Os dados podem estar desatualizados:</b> <span>${motivo}.</span>
+    <button class="btn-sync-produto" style="margin-left:auto" onclick="cargaExecutar()">Atualizar dados para todos</button>`;
+}
+async function cargaExecutar() {
+  try {
+    const r = await fetch(`${API}/carga/executar?autor=${encodeURIComponent(user?.login || '')}`, {method: 'POST'});
+    const d = await r.json(); if (!r.ok) throw new Error(d.detail || r.status);
+    _carga = d; cargaAplicar(); toast('Carga iniciada no servidor: leva uns 20 minutos');
+  } catch (e) { toast('Erro ao iniciar a carga: ' + e.message, 'error'); }
+}
 async function syncConta(conta) {
   const btn = document.getElementById(`btn-sync-${conta}`);
   const hoje = new Date(), ateBase = hoje.toISOString().split('T')[0];
@@ -2484,7 +2527,7 @@ async function buscarPeriodo(conta) {
     renderKPIs(conta, data.kpis, prevDB[conta]?.kpis);
     renderTable(conta, data.produtos);
     // dados vencidos (mais de 24h): pede a sincronização na plataforma uma vez por carregamento da página
-    if ((data.kpis?.desatualizados || 0) > 0 && !_autoSyncFeito[conta]) {
+    if ((data.kpis?.desatualizados || 0) > 0 && !_autoSyncFeito[conta] && !(_carga && _carga.ativo)) {
       _autoSyncFeito[conta] = true;
       toast(`Atualizando ${data.kpis.desatualizados} anúncio(s) com dados vencidos…`);
       syncConta(conta);
@@ -3596,7 +3639,7 @@ async function verificarRebot(conta) {
   if (btn) btn.disabled = true;
   if (st) st.textContent = 'consultando o ML...';
   try {
-    const res = await fetch(`${API}/rebot/${conta}`);
+    const res = await fetch(`${API}/rebot/${conta}${_carga && _carga.ativo && _carga.em_dia ? '?salvo=true' : ''}`);
     const d = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(d.detail || `HTTP ${res.status}`);
     if (st) st.textContent = `${d.total} oportunidade(s) · ${d.quando}`;

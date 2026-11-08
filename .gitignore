@@ -160,3 +160,4 @@ atividades.db
 atividades.db-wal
 atividades.db-shm
 checkout_vistos.json
+carga_estado.json

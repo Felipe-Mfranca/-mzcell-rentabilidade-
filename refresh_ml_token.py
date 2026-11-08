@@ -60,26 +60,32 @@ async def loop_refresh():
 
 async def loop_sync_diario():
     """Sync completo às 6h BRT. No servidor ("carga_noturna" aberto), também às 22h e, depois dele, PIVO, rebot e Amazon."""
-    from sync_service import sincronizar_conta_func
-    from modulos_liberados import liberado
-    import carga_servidor
+    try:
+        from modulos_liberados import liberado
+        import carga_servidor
+    except ImportError:   # app instalado que ainda não recebeu os arquivos novos: segue o sync das 6h de antes
+        from sync_service import sincronizar_conta_func
+        while True:
+            now = datetime.utcnow()
+            target = now.replace(hour=9, minute=0, second=0, microsecond=0)
+            if target <= now:
+                target += timedelta(days=1)
+            await asyncio.sleep((target - now).total_seconds())
+            for conta, dados in load_config()["contas"].items():
+                if dados.get("ativo") and dados.get("access_token"):
+                    try:
+                        await sincronizar_conta_func(conta)
+                    except Exception as e:
+                        log(f"[sync-diario] ERRO {conta}: {e}")
     while True:
         now = datetime.utcnow()
         servidor = liberado("carga_noturna")
         target = carga_servidor.proxima_carga(now, carga_servidor.HORAS_BRT if servidor else (6,))
         await asyncio.sleep((target - now).total_seconds())
-        config = load_config()
-        for conta, dados in config["contas"].items():
-            if not dados.get("ativo") or not dados.get("access_token"):
-                continue
-            log(f"[sync-diario] Iniciando sync {conta}")
-            try:
-                resultado = await sincronizar_conta_func(conta)
-                log(f"[sync-diario] {conta}: {resultado.get('total_atualizados', 0)} produtos atualizados")
-            except Exception as e:
-                log(f"[sync-diario] ERRO {conta}: {e}")
         if servidor:
-            await carga_servidor.rodar_extras(log)
+            await carga_servidor.executar_completa(log, f"agenda {(target - timedelta(hours=3)).strftime('%Hh')}")
+        else:
+            await carga_servidor.sync_meli(log)
 
 
 if __name__ == "__main__":
