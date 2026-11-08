@@ -824,6 +824,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       <button class="nav-item" id="nav-cmv" style="display:none" onclick="switchTab('cmv',this)"><span class="icon">$</span> CMV</button>
       <div class="nav-section">Sistema</div>
       <button class="nav-item" id="nav-usuarios" style="display:none" onclick="switchTab('usuarios',this)"><span class="icon">☰</span> Usuários</button>
+      <button class="nav-item" id="nav-produtividade" style="display:none" onclick="switchTab('produtividade',this)"><span class="icon">◔</span> Produtividade</button>
       <button class="nav-item" onclick="switchTab('config',this)"><span class="icon">⚙</span> Configurações</button>
     </div>
     <div class="sidebar-bottom">
@@ -898,6 +899,18 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
         <details class="periodo-card" style="display:block"><summary style="cursor:pointer"><b>Validação entre os Blings</b> <span id="cmv-val-res" class="sac-mut"></span></summary><div id="cmv-val" style="margin-top:8px;font-size:12px"></div></details>
         <div id="cmv-pag-aj" style="display:none;margin-bottom:16px;border:1px solid var(--border2);border-radius:8px;padding:10px;font-size:12px"></div>
         <div id="cmv-pag-lista"></div>
+      </div>
+      <div class="tab" id="tab-produtividade">
+        <div class="periodo-card" style="flex-wrap:wrap">
+          <span class="periodo-label">Produtividade</span>
+          <input type="date" id="prod-de" class="modal-date"/> <span class="modal-date-sep">até</span> <input type="date" id="prod-ate" class="modal-date"/>
+          <select id="prod-area" class="modal-date" onchange="prodDesenhar()"><option value="">Todas as áreas</option></select>
+          <button class="btn-sm" onclick="prodCarregar()">Buscar</button>
+          <span id="prod-status" class="sac-mut"></span>
+        </div>
+        <div class="sac-mut" style="margin:0 24px 8px;font-size:11px">Conta só o que é gravado no app (salvar, marcar, bipar, ajustar). Checkout feito no Bling aparece como "equipe (Bling)", com a hora em que o servidor viu a mudança. Fora do horário = antes das 8h, depois das 18h ou no fim de semana. Compare pessoas da mesma função.</div>
+        <div id="prod-pessoas"></div>
+        <div id="prod-detalhe"></div>
       </div>
       <div class="tab" id="tab-usuarios">
         <div class="periodo-card" style="flex-wrap:wrap">
@@ -1388,11 +1401,12 @@ function switchTab(tab, btn) {
   document.getElementById(`tab-${tab}`).classList.add('active');
   btn.classList.add('active');
   contaAtiva = tab;
-  const titles = {meli01:'Meli01 — Rentabilidade',meli02:'Meli02 — Rentabilidade',meli03:'Meli03 — Rentabilidade',config:'Configurações',expedicao:'Expedição — Galpão',amazon01:'Amazon 01 — Rentabilidade',amazon02:'Amazon 02 — Rentabilidade',shopee:'Shopee',magalu:'Magalu — Em construção',sac:'SAC — Pendências e contestações',cmv:'CMV por SKU',usuarios:'Usuários e acessos'};
+  const titles = {produtividade:'Produtividade',meli01:'Meli01 — Rentabilidade',meli02:'Meli02 — Rentabilidade',meli03:'Meli03 — Rentabilidade',config:'Configurações',expedicao:'Expedição — Galpão',amazon01:'Amazon 01 — Rentabilidade',amazon02:'Amazon 02 — Rentabilidade',shopee:'Shopee',magalu:'Magalu — Em construção',sac:'SAC — Pendências e contestações',cmv:'CMV por SKU',usuarios:'Usuários e acessos'};
   document.getElementById('topbar-title').textContent = titles[tab] || tab;
   if(tab==='config'){ loadConfig(); cmvCarregarStatus(); }
   if(tab==='cmv') cmvPagCarregar();
   if(tab==='usuarios') usrCarregar();
+  if(tab==='produtividade') prodAbrir();
   if(tab==='amazon01'||tab==='amazon02') amzAbrirAba(tab);
   if(tab==='shopee') shopeeAbrirAba();
   if(tab==='expedicao'){ const f=document.getElementById('frame-expedicao'); if(!f.getAttribute('src')) f.setAttribute('src',`${API}/expedicao`); }
@@ -2234,6 +2248,8 @@ function aplicarModulos() {
   if (navCmv) navCmv.style.display = CMV_EDITAR_PERMITIDOS.includes((user?.login || '').toLowerCase()) ? '' : 'none';
   const navUsr = document.getElementById('nav-usuarios');
   if (navUsr) navUsr.style.display = USUARIOS_ADMIN.includes((user?.login || '').toLowerCase()) ? '' : 'none';
+  const navProd = document.getElementById('nav-produtividade');
+  if (navProd) navProd.style.display = PROD_VEEM.includes((user?.login || '').toLowerCase()) ? '' : 'none';
   document.querySelectorAll('.nav-item[data-mod], .nav-section[data-mod]').forEach(el => { el.style.display = temModulo(el.dataset.mod) ? '' : 'none'; });
   // seção "Módulos" e "Sistema": aparecem se algum item filho estiver visível
   document.querySelectorAll('.sidebar-nav .nav-section').forEach(sec => {
@@ -3189,6 +3205,76 @@ const CMV_EDITAR_PERMITIDOS = ['zicri', 'eduardo', 'michel'];   // igual a CMV_I
 let _cmvAlvo = 'cmv-aj', _cmvLista = [], _cmvAchados = [];
 // ── USUÁRIOS: só lista e grava pelo servidor; a senha nunca vem para a tela ──
 const USUARIOS_ADMIN = ['zicri', 'michel'];   // igual a ADMIN_USUARIOS em auth_service.py
+const PROD_VEEM = ['zicri', 'michel'];        // igual a VEEM em atividades.py (o servidor também barra os demais)
+
+// ── Produtividade: registro de atividades por pessoa (só Zicri e Michel) ──
+let _prod = {dias: [], pessoas: {}};
+function prodAbrir() {
+  const de = document.getElementById('prod-de'), ate = document.getElementById('prod-ate');
+  if (!de.value) { de.value = diaBRT(6); ate.value = diaBRT(0); }
+  prodCarregar();
+}
+async function prodCarregar() {
+  const st = document.getElementById('prod-status'), de = document.getElementById('prod-de').value, ate = document.getElementById('prod-ate').value;
+  st.textContent = 'Carregando…';
+  const q = `de=${de}&ate=${ate}&autor=${encodeURIComponent(user?.login || '')}`;
+  try {
+    const [r, ru] = await Promise.all([fetch(`${API}/atividades/resumo?${q}`), fetch(`${API}/usuarios`)]);
+    const d = await r.json(); if (!r.ok) throw new Error(d.detail || r.status);
+    const us = ru.ok ? (await ru.json()).usuarios || [] : [];
+    _prod.dias = d.dias;
+    _prod.pessoas = Object.fromEntries(us.map(u => [u.login, u]));
+    const areas = [...new Set(d.dias.map(x => prodArea(x.usuario)))].sort();
+    const sel = document.getElementById('prod-area'), atual = sel.value;
+    sel.innerHTML = '<option value="">Todas as áreas</option>' + areas.map(a => `<option ${a === atual ? 'selected' : ''}>${sacEsc(a)}</option>`).join('');
+    st.textContent = `${d.dias.length} dia(s)-pessoa no período`;
+    prodDesenhar();
+  } catch (e) { st.textContent = 'Erro: ' + e.message; }
+}
+function prodArea(login) {
+  const u = _prod.pessoas[login];
+  if (u) return u.area || u.cargo || 'Sem área';
+  return login === 'equipe (Bling)' ? 'Expedição' : 'Sem cadastro';
+}
+function prodNome(login) { const u = _prod.pessoas[login]; return u ? u.nome : login; }
+function prodDesenhar() {
+  const area = document.getElementById('prod-area').value;
+  const por = {};
+  _prod.dias.filter(x => !area || prodArea(x.usuario) === area).forEach(x => {
+    const p = por[x.usuario] = por[x.usuario] || {usuario: x.usuario, total: 0, dias: 0, fora: 0, acoes: {}, ini: [], fim: []};
+    p.total += x.total; p.dias += 1; p.fora += x.fora_horario;
+    p.ini.push(x.primeira.slice(11, 16)); p.fim.push(x.ultima.slice(11, 16));
+    Object.entries(x.acoes).forEach(([a, n]) => p.acoes[a] = (p.acoes[a] || 0) + n);
+  });
+  const med = l => { const s = [...l].sort(); return s.length ? s[Math.floor(s.length / 2)] : '—'; };
+  const ls = Object.values(por).sort((a, b) => prodArea(a.usuario).localeCompare(prodArea(b.usuario)) || b.total - a.total);
+  const linhas = ls.map(p => `<tr onclick="prodPessoa('${sacEsc(p.usuario)}')" style="cursor:pointer"><td style="text-align:left"><b>${sacEsc(prodNome(p.usuario))}</b><div class="sac-mut">${sacEsc(p.usuario)}</div></td>
+    <td>${sacEsc(prodArea(p.usuario))}</td><td>${fmtUn(p.total)}</td><td>${p.dias}</td><td>${(p.total / p.dias).toFixed(2).replace('.', ',')}</td>
+    <td>${med(p.ini)}</td><td>${med(p.fim)}</td><td>${p.fora ? `<span style="color:var(--gold)">${p.fora}</span>` : '0'}</td>
+    <td style="text-align:left;font-size:11px">${Object.entries(p.acoes).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([a, n]) => `${sacEsc(a)}: ${n}`).join(' · ')}</td></tr>`).join('');
+  document.getElementById('prod-pessoas').innerHTML = ls.length ? `<table class="tbl"><thead><tr><th>Pessoa</th><th>Área</th><th>Ações</th><th>Dias com ação</th><th>Média por dia</th><th>Início típico</th><th>Fim típico</th><th>Fora do horário</th><th>Principais ações</th></tr></thead><tbody>${linhas}</tbody></table>`
+    : '<div class="periodo-card"><span class="sac-mut">Nenhuma atividade registrada no período.</span></div>';
+  document.getElementById('prod-detalhe').innerHTML = '';
+}
+async function prodPessoa(login) {
+  const box = document.getElementById('prod-detalhe');
+  box.innerHTML = '<div class="periodo-card"><span class="sac-mut">Carregando…</span></div>';
+  const de = document.getElementById('prod-de').value, ate = document.getElementById('prod-ate').value;
+  try {
+    const r = await fetch(`${API}/atividades/eventos?de=${de}&ate=${ate}&usuario=${encodeURIComponent(login)}&autor=${encodeURIComponent(user?.login || '')}`);
+    const d = await r.json(); if (!r.ok) throw new Error(d.detail || r.status);
+    const dias = _prod.dias.filter(x => x.usuario === login);
+    const porDia = dias.map(x => `<tr><td>${x.dia.split('-').reverse().join('/')}</td><td>${x.total}</td><td>${x.primeira.slice(11, 16)}</td><td>${x.ultima.slice(11, 16)}</td><td>${x.fora_horario}</td>
+      <td style="text-align:left;font-size:11px">${Object.entries(x.acoes).sort((a, b) => b[1] - a[1]).map(([a, n]) => `${sacEsc(a)}: ${n}`).join(' · ')}</td></tr>`).join('');
+    const evs = d.eventos.slice(0, 300).map(e => `<tr><td>${e.ts.slice(8, 10)}/${e.ts.slice(5, 7)} ${e.ts.slice(11, 16)}</td><td>${sacEsc(e.area || '')}</td><td style="text-align:left">${sacEsc(e.acao || '')}${e.status >= 400 ? ' <span style="color:var(--red)">(erro)</span>' : ''}</td>
+      <td style="text-align:left">${sacEsc(e.objeto || '')}</td><td style="text-align:left;font-size:11px" class="sac-mut">${sacEsc(e.detalhe || '')}</td></tr>`).join('');
+    box.innerHTML = `<div class="periodo-card" style="display:block"><b>${sacEsc(prodNome(login))}</b> <span class="sac-mut">${sacEsc(prodArea(login))}</span>
+      <table class="tbl" style="margin-top:8px"><thead><tr><th>Dia</th><th>Ações</th><th>Primeira</th><th>Última</th><th>Fora do horário</th><th>Ações por tipo</th></tr></thead><tbody>${porDia}</tbody></table>
+      <div style="margin-top:10px"><b>Últimas ações</b> <span class="sac-mut">${d.eventos.length > 300 ? 'mostrando 300 de ' + d.eventos.length : d.eventos.length}</span></div>
+      <table class="tbl"><thead><tr><th>Quando</th><th>Área</th><th>Ação</th><th>Sobre</th><th>Detalhe</th></tr></thead><tbody>${evs}</tbody></table></div>`;
+    box.scrollIntoView({block: 'nearest'});
+  } catch (e) { box.innerHTML = `<div class="periodo-card"><span class="sac-mut">Erro: ${sacEsc(e.message)}</span></div>`; }
+}
 const USR_MODULOS = {expedicao: 'Expedição', sac: 'SAC', meli: 'Mercado Livre', amazon: 'Amazon', shopee: 'Shopee', magalu: 'Magalu'};
 let _usr = {usuarios: [], perfis: []};
 async function usrCarregar() {
