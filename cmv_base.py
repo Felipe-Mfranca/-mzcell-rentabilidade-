@@ -183,13 +183,36 @@ def publicar(itens: dict, autor: str = ""):
         pass
 
 
+def remover(skus, autor: str = "") -> list:
+    """Tira SKUs da base (ex.: linhas de teste) e avisa os outros computadores pelo banco compartilhado. Devolve os removidos."""
+    base = carregar()
+    itens = base.get("itens", {})
+    fora = [s for s in (str(x).strip().upper() for x in skus) if s in itens]
+    for s in fora:
+        del itens[s]
+    if fora:
+        salvar(itens, base.get("_arquivo", ""))
+        propagar_ml()
+    try:
+        import shared_store
+        for s in {str(x).strip() for x in skus} | set(fora):
+            shared_store.enviar_async("cmv", s, {}, autor, removido=True)
+    except Exception:
+        pass
+    return fora
+
+
 def aplicar_remoto(registros: list):
-    """Aplica CMVs vindos do banco compartilhado. Vale a data mais nova de cada SKU."""
+    """Aplica CMVs vindos do banco compartilhado. Vale a data mais nova de cada SKU; remoção mais nova apaga o SKU."""
     base = carregar()
     itens = base.get("itens", {})
     mudou = 0
     for r in registros:
         if r.get("removido"):
+            sku = str(r.get("chave") or "").strip().upper()
+            if sku in itens and (r.get("atualizado_em") or "") >= (itens[sku].get("atualizado_em") or ""):
+                del itens[sku]
+                mudou += 1
             continue
         try:
             sku = str(r["chave"]).strip().upper()

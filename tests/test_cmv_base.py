@@ -103,6 +103,21 @@ class Aplicacao(unittest.TestCase):
         self.assertEqual((c["kit-a"]["cmv_unit"], c["kit-a"]["imposto_pct"]), (49.0, 0.115))
 
 
+class Remocao(unittest.TestCase):
+    def test_remove_local_avisa_os_outros_e_aplica_remocao_mais_nova(self):
+        d = tempfile.mkdtemp()
+        with mock.patch.object(cmv_base, "PATH", os.path.join(d, "b.json")), mock.patch("shared_store.enviar_async") as env:
+            cmv_base.salvar({"KIT-A": {"sku": "KIT-A", "cmv": 49.0, "atualizado_em": ""}, "FACA": {"sku": "FACA", "cmv": 5.0, "atualizado_em": "2026-11-01"}})
+            self.assertEqual(cmv_base.remover(["kit-a", "x"], "zicri"), ["KIT-A"])
+            self.assertEqual(sorted(cmv_base.carregar()["itens"]), ["FACA"])
+            self.assertEqual(sorted(c.args[1] for c in env.call_args_list), ["KIT-A", "kit-a", "x"])
+            self.assertTrue(all(c.kwargs.get("removido") for c in env.call_args_list))
+            cmv_base.aplicar_remoto([{"chave": "FACA", "removido": True, "atualizado_em": "2026-10-01"}])   # remoção mais velha não apaga
+            self.assertIn("FACA", cmv_base.carregar()["itens"])
+            cmv_base.aplicar_remoto([{"chave": "faca", "removido": True, "atualizado_em": "2026-11-08T00:00:00"}])
+            self.assertNotIn("FACA", cmv_base.carregar()["itens"])
+
+
 class AmazonUsaABase(unittest.TestCase):
     def test_custos_com_base_completa_so_o_que_falta(self):
         from marketplaces.amazon import rentabilidade
