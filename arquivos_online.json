@@ -107,5 +107,11 @@
  "marketplaces/acesso_rede.py",
  "cmv_composicao.py",
  "marketplaces/expedicao/bipagem.py",
- "marketplaces/expedicao/bipar.html"
+ "marketplaces/expedicao/bipar.html",
+ "atividades.py",
+ "carga_servidor.py",
+ "marketplaces/balanco/geral.py",
+ "marketplaces/balanco/geral.html",
+ "marketplaces/expedicao/composicao.py",
+ "marketplaces/expedicao/shopee_bling.py"
 ]
