@@ -156,3 +156,7 @@ j3_config.json
 shopee_expedicao.json
 
 rebot_cache.json
+atividades.db
+atividades.db-wal
+atividades.db-shm
+checkout_vistos.json

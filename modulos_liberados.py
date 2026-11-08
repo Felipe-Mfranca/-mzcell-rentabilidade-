@@ -19,6 +19,7 @@ LIBERADOS = {
     "magalu": False,      # integração Magalu (em implantação)
     "paineis": False,     # painéis de TV por área e gestão geral da diretoria
     "pivo_auto": False,   # renova a análise PIVO sozinha uma vez por dia: abrir só no servidor (modulos_locais.json)
+    "atividades": False,      # hora do checkout do Bling no registro de atividades: abrir só no servidor (modulos_locais.json)
     "carga_noturna": False,   # carga das 22h e 6h com PIVO, rebot e Amazon: abrir só no servidor (modulos_locais.json)
     "shopee_expedicao": False,   # pedidos da Shopee pelo Bling nos cartões da Expedição: só abrir depois de validar os números
 }

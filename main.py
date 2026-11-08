@@ -93,6 +93,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Registro de atividades por usuário (tela de Produtividade): toda gravação feita pela tela vira um evento
+try:
+    import atividades
+    atividades.instalar(app)
+except ImportError as e:
+    print(f"[startup] Registro de atividades indisponível: {e}")
+
 # Servidor na rede interna: de outro PC, telas operacionais sem login; o app completo com login; credenciais só aqui
 try:
     from marketplaces import acesso_rede
@@ -246,6 +253,13 @@ async def startup():
             print("[startup] PIVO: renovação automática diária ligada")
     except Exception as e:
         print(f"[startup] Aviso PIVO automático: {e}")
+    try:
+        from modulos_liberados import liberado
+        if liberado("atividades"):
+            _modulo("atividades").iniciar_vigia()
+            print("[startup] Atividades: hora do checkout do Bling ligada")
+    except Exception as e:
+        print(f"[startup] Aviso atividades: {e}")
 
 
 # ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -280,7 +294,7 @@ async def serve_dashboard():
 # ─── AUTH ─────────────────────────────────────────────────────────────────────
 
 @app.post("/auth/login")
-async def login(payload: dict, response: Response):
+async def login(payload: dict, response: Response, request: Request):
     login_val = payload.get("login", "").strip().lower()
     senha     = payload.get("senha", "")
     u = auth_service.verificar_login(login_val, senha)
@@ -294,6 +308,11 @@ async def login(payload: dict, response: Response):
     if not u:
         raise HTTPException(status_code=401, detail="Login ou senha incorretos")
     log_atividade(f"Login: {u['nome']}")
+    try:
+        import atividades
+        atividades.registrar(u["login"], "Acesso", "Entrou no app", origem=request.client.host if request.client else "")
+    except ImportError:
+        pass
     # sessão para quem acessa o servidor de outro PC (trava de rede); app instalado sem a pasta marketplaces segue igual
     try:
         from marketplaces import acesso_rede
@@ -806,6 +825,32 @@ async def cmv_resumo():
 
 
 CMV_EDITAR_PERMITIDOS = CMV_IMPORTAR_PERMITIDOS   # quem ajusta o CMV pelo modal; liberar outros aqui
+
+
+def _quem_ve_atividades(request: Request, autor: str = "") -> str:
+    """Produtividade: só Zicri e Michel. De outro PC vale o dono da sessão; no próprio servidor, o login informado pela tela."""
+    import atividades
+    from marketplaces import acesso_rede
+    login = acesso_rede.login_da_sessao(request.cookies.get(acesso_rede.COOKIE))
+    if not login and (request.client.host if request.client else "") in acesso_rede.LOCAIS:
+        login = str(autor or "").strip().lower()
+    if not atividades.pode_ver(login):
+        raise HTTPException(status_code=403, detail="Produtividade: acesso só para Zicri e Michel")
+    return login
+
+
+@app.get("/atividades/resumo")
+def atividades_resumo(request: Request, de: str, ate: str, autor: str = ""):
+    """Por pessoa e por dia: total de ações, por tipo e área, primeira e última, e quantas foram fora do horário."""
+    _quem_ve_atividades(request, autor)
+    return {"de": de, "ate": ate, "dias": _modulo("atividades").resumo(de, ate)}
+
+
+@app.get("/atividades/eventos")
+def atividades_eventos(request: Request, de: str, ate: str, usuario: str = "", autor: str = ""):
+    """Eventos do período (mais novos primeiro, até 2.000), de todos ou de uma pessoa."""
+    _quem_ve_atividades(request, autor)
+    return {"eventos": _modulo("atividades").eventos(de, ate, usuario or None)}
 
 
 @app.get("/cmv/lista")
