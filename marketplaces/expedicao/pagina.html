@@ -170,7 +170,7 @@
     return "<details class='kpi' style='margin-bottom:10px'" + (aberto ? " open" : "") + " ontoggle='semChkAberto=this.open'><summary style='cursor:pointer'><b>Pedidos sem checkout (" + ls.length + ")</b></summary>" +
       ls.map(function (l) {
         var skus = l.itens.map(function (i) { return esc(i.qtd) + "× " + esc(i.sku || "sem SKU"); }).join(", ");
-        return "<div class='n'><span><b>" + esc(l.canal) + "</b> · " + esc(l.conta) + " · " + (l.bling_numero ? "Bling " + esc(l.bling_numero) + " (" + esc(l.bling_situacao || "") + ")" : "sem pedido no Bling") + " · " + numVenda(l) + " · " + skus + "</span><span>" + esc(l._f.txt) + "</span></div>";
+        return "<div class='n'><span><b>" + esc(l.canal) + "</b> · " + esc(l.conta) + " · " + blingDaConta(l.conta) + " " + (l.bling_numero ? "pedido " + esc(l.bling_numero) + " (" + esc(l.bling_situacao || "") + ")" : "sem pedido") + " · " + numVenda(l) + (l.envio ? " · etiqueta " + esc(l.envio) : "") + " · " + skus + "</span><span>" + esc(l._f.txt) + "</span></div>";
       }).join("") + "</details>";
   }
   function desenhar() {
@@ -465,6 +465,8 @@
     return true;
   }
   // Número que o ML mostra na tela de venda: o pacote quando existe; o pedido aparece ao lado.
+  // Bling da empresa de cada conta (igual a BLING_DA_CONTA em marketplaces/bling/estoque.py)
+  function blingDaConta(c) { return "Bling " + ({meli01: 1, amazon01: 1, shopee: 1, magalu: 1, meli02: 2, amazon02: 2, meli03: 3}[c] || "?"); }
   function numVenda(l) {
     if (l.pacote && String(l.pacote) !== String(l.pedido)) return "pacote " + esc(l.pacote) + " <span class='meta'>· pedido " + esc(l.pedido) + "</span>";
     return "pedido " + esc(l.pedido);
