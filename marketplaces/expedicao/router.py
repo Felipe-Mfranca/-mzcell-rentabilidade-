@@ -117,6 +117,17 @@ def painel():
 def dia(simular: bool = False, dia: str = None, hora: str = None, atualizar: bool = False):
     """Painel do dia. `simular=1` usa dados fictícios (nada real é lido nem gravado); `dia` AAAA-MM-DD (padrão: hoje;
     na simulação, amanhã) e `hora` HH:MM (só na simulação: o relógio simulado)."""
+    return _dia(simular, dia, hora, atualizar)
+
+
+@router.get("/sem-checkout")
+def sem_checkout():
+    """Pedido a pedido o que está sem checkout hoje (inclui a Shopee lida do Bling). Fora das telas abertas: pede login na rede."""
+    lista = _dia(False, None, None, False, so_lista=True)
+    return lista if isinstance(lista, list) else []
+
+
+def _dia(simular: bool, dia: str, hora: str, atualizar: bool, so_lista: bool = False):
     _painel_liberado()
     hoje = datetime.now(dia_mod.BRT)
     try:
@@ -148,6 +159,8 @@ def dia(simular: bool = False, dia: str = None, hora: str = None, atualizar: boo
         except ImportError:
             full = []
     saida = dia_mod.montar(linhas, marc, full, agora, alvo, cortes_mod.carregar())
+    if so_lista:
+        return saida["sem_checkout"]
     saida.pop("sem_checkout", None)     # rota aberta para a TV: sem dados de pedido, só os totais
     saida["modo"] = "simulacao" if simular else "real"
     if not simular:

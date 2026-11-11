@@ -480,8 +480,11 @@
         return "<div class='kpi'><h3>" + esc(m.nome) + (m.plataforma ? " <small class='meta'>· " + esc(m.plataforma) + "</small>" : "") + (m.fonte ? " <small class='meta'>· dados do " + esc(m.fonte) + "</small>" : "") + "</h3>" + (m.sem_dados ? "<span class='meta'>sem leitura agora</span>" :
           "<div class='n" + (m.pendentes ? " vm" : "") + "'><span>Pendentes</span><b>" + (m.pendentes || 0) + "</b></div><div class='n'><span>Com checkout</span><b>" + (m.prontos || 0) + "</b></div>") + "</div>";
       }).join("");
-      // Shopee: lida do Bling (não há leitura da Shopee); pedido a pedido o que está sem checkout
-      var shp = (d.sem_checkout || []).filter(function (x) { return x.fonte === "Bling"; });
+    }).catch(function () {});
+    // Shopee: lida do Bling (não há leitura da Shopee); pedido a pedido o que está sem checkout.
+    // A rota aberta da TV não traz a lista pedido a pedido; esta pede login.
+    fetch("/expedicao/sem-checkout").then(function (r) { return r.ok ? r.json() : []; }).then(function (lista) {
+      var shp = (lista || []).filter(function (x) { return x.fonte === "Bling"; });
       el("shopee-semchk").innerHTML = !shp.length ? "" :
         "<details class='kpi' style='margin-bottom:10px'><summary style='cursor:pointer'><b>Shopee sem checkout (" + shp.length + ")</b> <span class='meta'>· dados do Bling</span></summary>" +
         shp.map(function (x) {

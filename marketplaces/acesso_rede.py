@@ -18,7 +18,7 @@ from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 LOCAIS = {"127.0.0.1", "::1", "localhost", "testclient"}
 # sem login, de outro PC: só as telas de TV e o que elas carregam
-PERMITIDOS = ("/expedicao/tv", "/expedicao/painel", "/expedicao/dia", "/montagem/tv", "/montagem/tv-full", "/tv", "/static",
+PERMITIDOS = ("/expedicao/tv", "/expedicao/painel", "/expedicao/dia", "/expedicao/bipar", "/montagem/tv", "/montagem/tv-full", "/tv", "/static",
               "/sistema/versao", "/favicon")
 # abrir uma destas telas sem login leva ao login e, depois dele, de volta à tela
 GESTAO = ("/expedicao", "/montagem")
@@ -88,6 +88,7 @@ h1{font-size:22px}a{display:block;background:#fff;border:1px solid #ccc;border-r
 text-decoration:none;color:#166534;font-size:18px;font-weight:600}a small{display:block;color:#555;font-weight:400;font-size:14px}</style></head>
 <body><h1>MZ App — telas do galpão</h1>
 <a href="/expedicao/tv">Monitor da TV<small>Expedição do dia: cortes, quantidades e contagem regressiva</small></a>
+<a href="/expedicao/bipar">Bipar etiqueta<small>Etiqueta → pedido no Bling (1, 2 ou 3), etiqueta e apelido do cliente no ML</small></a>
 <a href="/expedicao">Expedição (galpão)<small>Abre com login. Pedidos do dia, prontos para o envio e cancelamentos</small></a>
 <a href="/montagem">Full — montagem de envios<small>Abre com login. Fila do estoquista, PDF de montagem, envios da Amazon</small></a>
 <a href="/" style="color:#333">App completo<small>Abre com login (usuário e senha do MZ App)</small></a></body></html>"""

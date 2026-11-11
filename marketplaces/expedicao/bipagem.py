@@ -81,6 +81,27 @@ def _envio_ml(codigo: str, contas=None) -> dict:
     return None
 
 
+def _cliente_ml(conta: str, numero_loja) -> dict:
+    """Apelido do comprador e número da etiqueta (envio) de um pedido ou pacote do ML. Vazio se não for do ML ou falhar."""
+    n = str(numero_loja or "")
+    if conta not in ml.CONTAS or not n.isdigit():
+        return {}
+    try:
+        cli = ml.ML(conta)
+        st, pedido = cli.get(f"/orders/{n}")
+        if st != 200:
+            st, pack = cli.get(f"/packs/{n}")
+            ordens = (pack or {}).get("orders") or [] if st == 200 else []
+            if not ordens:
+                return {}
+            st, pedido = cli.get(f"/orders/{ordens[0]['id']}")
+            if st != 200:
+                return {}
+        return {"apelido": (pedido.get("buyer") or {}).get("nickname"), "etiqueta": (pedido.get("shipping") or {}).get("id")}
+    except Exception:
+        return {}
+
+
 def buscar(codigo: str, conta: str = None) -> dict:
     """conta = meli01/02/03 restringe a busca àquela conta do ML e ao Bling dela (mais rápido); vazio = todas."""
     cod = normalizar(codigo)
@@ -104,6 +125,10 @@ def buscar(codigo: str, conta: str = None) -> dict:
     res = {"encontrado": bool(achado), "codigo": cod, "conta": conta, "envio_ml": envio, "erros_bling": erros}
     if achado:
         res.update(achado)
+        conta_ml = (envio or {}).get("conta") or next((c for c, b in bling_checkout.PARES.items() if b == achado["bling"]), None)
+        res.update(_cliente_ml(conta_ml, (envio or {}).get("pedido") or achado.get("numero_loja")))
+        if not res.get("etiqueta") and envio:
+            res["etiqueta"] = cod
     else:
         res["motivo"] = ("envio do ML encontrado, mas o pedido não está nos Blings (últimos dias)" if envio
                          else "nenhum pedido com esse código nos três Blings nem envio do ML")

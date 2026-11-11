@@ -14,9 +14,12 @@ class TestBipagem(unittest.TestCase):
             return 200, {"data": [p for k, p in PEDIDOS[b].items() if k in params["numerosLojas[]"]]}
         self.p = mock.patch.object(bipagem.bling, "get", falso_get)
         self.p.start()
+        self.cli = mock.patch.object(bipagem, "_cliente_ml", lambda conta, n: {"apelido": "COMPRADOR1", "etiqueta": 48431307475} if conta == "meli02" else {})
+        self.cli.start()
 
     def tearDown(self):
         self.p.stop()
+        self.cli.stop()
 
     def test_qr_do_flex_vira_o_envio(self):
         self.assertEqual(bipagem.normalizar('{"id":"48431307475","t":"lm"}'), "48431307475")
@@ -41,6 +44,22 @@ class TestBipagem(unittest.TestCase):
         with mock.patch.dict(ml._cache, {("x",): (0, {"linhas": [linha]})}, clear=True):
             r = bipagem.buscar("48431307475")
         self.assertEqual((r["bling"], r["numero"]), ("bling02", 11642))
+
+    def test_pedido_do_ml_traz_apelido_e_etiqueta(self):
+        r = bipagem.buscar("2000015869601391")
+        self.assertEqual((r["apelido"], r["etiqueta"]), ("COMPRADOR1", 48431307475))
+        self.assertNotIn("apelido", bipagem.buscar("SHOPEE123"))                  # Shopee no Bling 3: sem apelido do ML
+
+    def test_cliente_ml_pelo_pacote(self):
+        class Cli:
+            def get(self, path):
+                return {"/orders/200": (404, {}), "/packs/200": (200, {"orders": [{"id": 7}]}),
+                        "/orders/7": (200, {"buyer": {"nickname": "FULANO"}, "shipping": {"id": 999}})}[path]
+        self.cli.stop()
+        with mock.patch.object(bipagem.ml, "ML", lambda conta: Cli()):
+            self.assertEqual(bipagem._cliente_ml("meli01", "200"), {"apelido": "FULANO", "etiqueta": 999})
+            self.assertEqual(bipagem._cliente_ml("shopee", "200"), {})
+        self.cli.start()
 
     def test_outro_marketplace_pelo_numero_da_loja(self):
         self.assertEqual(bipagem.buscar("shopee123")["encontrado"], False)   # numeroLoja é exato

@@ -33,7 +33,7 @@
     </select></div>
   <input id="cod" placeholder="Bipe a etiqueta (código de barras ou QR) ou digite o envio / pack" autofocus autocomplete="off">
   <div id="res"><span class="det">Aguardando leitura…</span></div>
-  <table><thead><tr><th>Hora</th><th>Código</th><th>Bling</th><th>Pedido</th><th>Situação</th></tr></thead><tbody id="hist"></tbody></table>
+  <table><thead><tr><th>Hora</th><th>Código</th><th>Bling</th><th>Pedido</th><th>Etiqueta</th><th>Cliente ML</th><th>Situação</th></tr></thead><tbody id="hist"></tbody></table>
 </main>
 <script>/* sessão vencida ou servidor reiniciado (acesso de outro PC): volta ao login e depois a esta tela */
 (()=>{const f=window.fetch;window.fetch=async(...a)=>{const r=await f(...a);if(r.status===401){try{if((await r.clone().json()).detail==='faça login no MZ App'){const t=window.top.location;t.href='/?volta='+encodeURIComponent(t.pathname+t.search)}}catch(e){}}return r}})();</script>
@@ -57,13 +57,14 @@ async function buscar(c) {
   if (d.encontrado) {
     res.className = 'ok';
     res.innerHTML = `<div class="bling">BLING ${d.bling_n}</div><div class="ped">Pedido ${esc(d.numero)}</div>
-      <div class="det">${esc(d.situacao)} · nº loja ${esc(d.numero_loja)}${d.envio_ml ? ' · ' + esc(d.envio_ml.conta) + ' envio ' + esc(d.codigo) : ''}</div>`;
+      ${d.apelido ? '<div class="det" style="font-size:22px"><b>Cliente ML: ' + esc(d.apelido) + '</b></div>' : ''}
+      <div class="det">${esc(d.situacao)} · nº loja ${esc(d.numero_loja)}${d.etiqueta ? ' · etiqueta ' + esc(d.etiqueta) : ''}${d.envio_ml ? ' · ' + esc(d.envio_ml.conta) : ''}</div>`;
   } else {
     res.className = 'vm';
     res.innerHTML = `<div class="ped">Não encontrado</div><div class="det">${esc(d.motivo)}${d.conta ? ' (só ' + esc(d.conta) + ')' : ''} · código ${esc(d.codigo)}${Object.keys(d.erros_bling || {}).length ? ' · Bling com erro: ' + esc(Object.keys(d.erros_bling).join(', ')) : ''}</div>`;
   }
   bip(d.encontrado);
-  hist.insertAdjacentHTML('afterbegin', `<tr><td>${hora}</td><td>${esc(d.codigo)}</td><td>${d.encontrado ? 'Bling ' + d.bling_n : '—'}</td><td><b>${d.encontrado ? esc(d.numero) : 'não encontrado'}</b></td><td>${esc(d.situacao || '')}</td></tr>`);
+  hist.insertAdjacentHTML('afterbegin', `<tr><td>${hora}</td><td>${esc(d.codigo)}</td><td>${d.encontrado ? 'Bling ' + d.bling_n : '—'}</td><td><b>${d.encontrado ? esc(d.numero) : 'não encontrado'}</b></td><td>${esc(d.etiqueta || '')}</td><td>${esc(d.apelido || '')}</td><td>${esc(d.situacao || '')}</td></tr>`);
 }
 // O QR do Flex chega inteiro e o leitor digita ~100 caracteres (id, sender_id, hash_code...). Assim que o número do
 // envio aparece completo no campo, a busca já começa; o resto da digitação é descartado no Enter.

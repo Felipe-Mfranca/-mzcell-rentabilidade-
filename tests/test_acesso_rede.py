@@ -6,14 +6,14 @@ from marketplaces.acesso_rede import caminho_liberado
 
 class TestAcessoRede(unittest.TestCase):
     def test_liberados(self):
-        for p in ("/expedicao/tv", "/expedicao/painel", "/expedicao/dia", "/montagem/tv", "/montagem/tv/dados",
+        for p in ("/expedicao/tv", "/expedicao/painel", "/expedicao/dia", "/expedicao/bipar", "/expedicao/bipar/buscar", "/montagem/tv", "/montagem/tv/dados",
                   "/montagem/tv-full", "/tv/expedicao", "/static/x.js", "/sistema/versao"):
             self.assertTrue(caminho_liberado(p), p)
 
     def test_bloqueados(self):
         for p in ("/", "/config", "/usuarios", "/amazon/contas", "/sac/devolucoes", "/checkout/x", "/financeiro/estado",
                   "/bling/token", "/sistema/abrir-link", "/expedicaoX", "/montagem/../config", "/docs", "/openapi.json",
-                  "/produtos/custos", "/expedicao", "/expedicao/bipar", "/expedicao/bipar/buscar", "/expedicao/marca",
+                  "/produtos/custos", "/expedicao", "/expedicao/sem-checkout", "/expedicao/biparx", "/expedicao/marca",
                   "/expedicao/galpao", "/expedicao/cancelamentos", "/expedicao/full", "/montagem", "/montagem/dados",
                   "/montagem/envios", "/montagem/produtividade", "/montagem/pdf", "/montagem/tvx", "/fotos/meli01",
                   "/bling/estoque", "/bling/estoque/ABC"):
@@ -70,7 +70,7 @@ class TestAcessoRede(unittest.TestCase):
         from fastapi.testclient import TestClient
         from marketplaces import acesso_rede
         app = FastAPI()
-        rotas = ("/expedicao", "/expedicao/bipar", "/expedicao/dia", "/expedicao/painel", "/montagem", "/montagem/dados",
+        rotas = ("/expedicao", "/expedicao/sem-checkout", "/expedicao/bipar", "/expedicao/dia", "/expedicao/painel", "/montagem", "/montagem/dados",
                  "/montagem/tv/dados")
         for rota in rotas:
             app.get(rota)(lambda: {"ok": 1})
@@ -79,11 +79,12 @@ class TestAcessoRede(unittest.TestCase):
         html = {"accept": "text/html,*/*"}
 
         c = TestClient(app, client=("192.168.15.50", 5000), follow_redirects=False)
-        for rota in ("/expedicao/painel", "/expedicao/dia", "/montagem/tv/dados"):     # TV abre sem login
+        for rota in ("/expedicao/painel", "/expedicao/dia", "/expedicao/bipar", "/montagem/tv/dados"):     # TV e bipar abrem sem login
             self.assertEqual(c.get(rota, headers=html).status_code, 200, rota)
-        r = c.get("/expedicao/bipar?x=1", headers=html)                                # tela da gestão: vai ao login e volta
+        r = c.get("/expedicao?x=1", headers=html)                                      # tela da gestão: vai ao login e volta
         self.assertEqual(r.status_code, 303)
-        self.assertEqual(r.headers["location"], "/?volta=%2Fexpedicao%2Fbipar%3Fx%3D1")
+        self.assertEqual(r.headers["location"], "/?volta=%2Fexpedicao%3Fx%3D1")
+        self.assertEqual(c.get("/expedicao/sem-checkout").status_code, 401)           # lista pedido a pedido: só com login
         self.assertEqual(c.get("/montagem/dados").status_code, 401)                    # dados sem login: 401, sem redirecionar
         self.assertEqual(c.post("/montagem/envios", headers=html).status_code, 401)    # gravação nunca passa
 
