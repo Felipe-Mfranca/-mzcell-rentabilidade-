@@ -23,7 +23,8 @@ class Linhas(unittest.TestCase):
         self.chamadas = []
         self.pedidos = {}
         for alvo, nome, v in ((s, "CAMINHO", self.caminho), (s.bling, "get", self.get), (s.time, "sleep", lambda x: None),
-                              (s.bling_checkout, "_pedidos", lambda c: self.pedidos), (s.cortes, "carregar", lambda: [])):
+                              (s.bling_checkout, "_pedidos", lambda c: self.pedidos), (s.cortes, "carregar", lambda: []),
+                              (s, "INICIO", "2026-11-01")):
             p = mock.patch.object(alvo, nome, v); p.start(); self.addCleanup(p.stop)
         p = mock.patch.dict(s._lojas, {"ts": 0.0, "ids": set()}); p.start(); self.addCleanup(p.stop)
         p = mock.patch.dict(s._detalhes, clear=True); p.start(); self.addCleanup(p.stop)
@@ -65,6 +66,10 @@ class Linhas(unittest.TestCase):
         s.linhas(ontem)
         ls, _ = s.linhas(AGORA)
         self.assertEqual(ls, [])
+
+    def test_pedido_antes_do_inicio_fica_de_fora(self):
+        ls, _ = self.carregar(ped(1, 6, data="2026-10-31"), ped(2, 6, data="2026-11-01"))
+        self.assertEqual([(l["pedido"], l["fonte"]) for l in ls], [("S2", "Bling")])
 
     def test_cancelado_nao_entra(self):
         self.assertEqual(self.carregar(ped(1, 12))[0], [])

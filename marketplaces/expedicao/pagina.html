@@ -78,6 +78,7 @@
 <main>
   <div id="cancelamentos"></div>
   <div class="kpis" id="kpis-mod"></div>
+  <div id="shopee-semchk"></div>
   <div class="kpis" id="kpis" style="display:none"></div>
   <div class="abas"><button id="aba-hoje" class="ativa" type="button">Hoje</button><button id="aba-proximos" type="button">Próximos dias</button><button id="aba-prontos" type="button">Prontos para o envio</button></div>
   <div id="erros"></div>
@@ -476,9 +477,17 @@
     fetch("/expedicao/dia").then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
       if (!d || !(d.modalidades || d.modulos)) return;
       el("kpis-mod").innerHTML = (d.modalidades || d.modulos).map(function (m) {
-        return "<div class='kpi'><h3>" + esc(m.nome) + (m.plataforma ? " <small class='meta'>· " + esc(m.plataforma) + "</small>" : "") + "</h3>" + (m.sem_dados ? "<span class='meta'>sem leitura agora</span>" :
+        return "<div class='kpi'><h3>" + esc(m.nome) + (m.plataforma ? " <small class='meta'>· " + esc(m.plataforma) + "</small>" : "") + (m.fonte ? " <small class='meta'>· dados do " + esc(m.fonte) + "</small>" : "") + "</h3>" + (m.sem_dados ? "<span class='meta'>sem leitura agora</span>" :
           "<div class='n" + (m.pendentes ? " vm" : "") + "'><span>Pendentes</span><b>" + (m.pendentes || 0) + "</b></div><div class='n'><span>Com checkout</span><b>" + (m.prontos || 0) + "</b></div>") + "</div>";
       }).join("");
+      // Shopee: lida do Bling (não há leitura da Shopee); pedido a pedido o que está sem checkout
+      var shp = (d.sem_checkout || []).filter(function (x) { return x.fonte === "Bling"; });
+      el("shopee-semchk").innerHTML = !shp.length ? "" :
+        "<details class='kpi' style='margin-bottom:10px'><summary style='cursor:pointer'><b>Shopee sem checkout (" + shp.length + ")</b> <span class='meta'>· dados do Bling</span></summary>" +
+        shp.map(function (x) {
+          var skus = (x.itens || []).map(function (i) { return esc(i.qtd) + "× " + esc(i.sku || "sem SKU"); }).join(", ");
+          return "<div class='n" + (x.atrasado ? " vm" : "") + "'><span><b>" + esc(x.canal) + "</b> · " + blingDaConta(x.conta) + " pedido " + esc(x.bling_numero) + " (" + esc(x.bling_situacao || "") + ") · pedido Shopee " + esc(x.pedido) + " · " + skus + "</span><span>" + (x.atrasado ? "corte vencido" : "corte " + (x.meta ? hm(x.meta) : "-")) + "</span></div>";
+        }).join("") + "</details>";
     }).catch(function () {});
   }
   carregarModalidades();

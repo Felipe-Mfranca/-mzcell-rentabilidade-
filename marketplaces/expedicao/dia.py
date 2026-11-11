@@ -88,7 +88,7 @@ def _sem_checkout(do_dia: list, herdados: list, marcas: dict, agora: datetime) -
         saida.append({"canal": nome_canal(l), "conta": l.get("conta"), "pedido": l.get("pedido"), "pacote": l.get("pacote"),
                       "envio": l.get("envio"), "bling_numero": l.get("bling_numero"), "bling_situacao": l.get("bling_situacao"),
                       "situacao": l.get("situacao") or l.get("status"), "meta": l.get("meta"), "herdado": herdado,
-                      "atrasado": bool(meta and meta < agora), "unidades": l.get("unidades"),
+                      "atrasado": bool(meta and meta < agora), "unidades": l.get("unidades"), "fonte": l.get("fonte"),
                       "itens": [{"sku": i.get("sku"), "qtd": i.get("qtd")} for i in l.get("itens") or []]})
     saida.sort(key=lambda x: x["meta"] or "9")
     return saida
@@ -98,7 +98,8 @@ def _resumo_sem_checkout(lista: list) -> list:
     """Só totais, para a TV: a tela é aberta, a lista pedido a pedido fica na Expedição com login."""
     g = {}
     for x in lista:
-        t = g.setdefault((x["canal"], x["conta"]), {"canal": x["canal"], "conta": x["conta"], "pedidos": 0, "atrasados": 0})
+        t = g.setdefault((x["canal"], x["conta"]), dict({"canal": x["canal"], "conta": x["conta"], "pedidos": 0, "atrasados": 0},
+                                                       **({"fonte": x["fonte"]} if x.get("fonte") else {})))
         t["pedidos"] += 1
         t["atrasados"] += 1 if x["atrasado"] else 0
     return sorted(g.values(), key=lambda t: (-t["pedidos"], t["canal"], t["conta"] or ""))
@@ -186,7 +187,7 @@ def _modulo(mid, nome, linhas, marcas, agora, dia, etapas=None, sem_dados=False,
         c = por_conta.setdefault(l.get("conta"), {"conta": l.get("conta"), "pendentes": 0, "feitos": 0})
         c["feitos" if estado(l, marcas)[1] else "pendentes"] += 1
     return {"id": mid, "nome": nome, "plataforma": plataforma, "por_conta": sorted(por_conta.values(), key=lambda c: str(c["conta"])),
-            "sem_dados": sem_dados, "pedidos": None if sem_dados else n,
+            "sem_dados": sem_dados, "fonte": "Bling" if plataforma == "Shopee" else None, "pedidos": None if sem_dados else n,
             "unidades": None if sem_dados else sum(l.get("unidades") or 0 for l in linhas),
             "prontos": None if sem_dados else prontos, "pendentes": None if sem_dados else n - prontos,
             "percentual": None if sem_dados else (round(100 * prontos / n, 1) if n else 100.0),

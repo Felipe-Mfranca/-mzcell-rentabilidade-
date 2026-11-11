@@ -85,7 +85,7 @@ setInterval(tick,1000);
 function tipo(id){return id.startsWith('places')?'places':(id.startsWith('shopee')?'shopee':id)}
 function cartao(m){
  const marcos=m.marcos||[],p=m.principal!=null?marcos[m.principal]:null;
- let h='<div class="mod '+tipo(m.id)+'"><h2><span>'+esc(m.nome)+'</span><small>'+(m.sem_dados?'sem leitura da Shopee':(m.pedidos?m.unidades+' un.':''))+'</small></h2>';
+ let h='<div class="mod '+tipo(m.id)+'"><h2><span>'+esc(m.nome)+'</span><small>'+(m.sem_dados?'sem leitura da Shopee':(m.pedidos?m.unidades+' un.':''))+(m.fonte?' · dados do '+esc(m.fonte):'')+'</small></h2>';
  const concluido=!m.sem_dados&&m.pedidos>0&&m.pendentes===0;
  if(!m.sem_dados&&!m.pedidos){h+='<div class="semped">sem pedidos hoje</div>'}
  else if(p){
@@ -110,7 +110,7 @@ const contaTv=c=>String(c||'').replace(/^meli0?(\d)$/,'Meli $1').replace(/^amazo
 function semCheckout(ls){
  if(!ls.length)return '';
  const tot=ls.reduce((a,x)=>a+x.pedidos,0);
- return '<h3>SEM CHECKOUT · '+tot+' PEDIDO'+(tot===1?'':'S')+'</h3><div class="nums2">'+ls.map(x=>'<div class="tot'+(x.atrasados?' atr':'')+'"><b>'+x.pedidos+'</b>'+(x.pedidos===1?'pedido ':'pedidos ')+esc(x.canal)+' '+esc(contaTv(x.conta))+'</div>').join('')+'</div>';
+ return '<h3>SEM CHECKOUT · '+tot+' PEDIDO'+(tot===1?'':'S')+'</h3><div class="nums2">'+ls.map(x=>'<div class="tot'+(x.atrasados?' atr':'')+'"><b>'+x.pedidos+'</b>'+(x.pedidos===1?'pedido ':'pedidos ')+esc(x.canal)+' '+esc(contaTv(x.conta))+(x.fonte?' <small>(dados do '+esc(x.fonte)+')</small>':'')+'</div>').join('')+'</div>';
 }
 // Full: aberto só em andamento ou atrasado (com os nomes); os demais ficam recolhidos em número, plataforma e situação
 function fullAberto(f){return f.atrasado||(!f.concluido&&f.status!=='fila')}

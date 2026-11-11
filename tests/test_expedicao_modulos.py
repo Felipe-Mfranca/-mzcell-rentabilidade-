@@ -85,6 +85,7 @@ class TestModulos(unittest.TestCase):
         self.assertEqual((m["shopee_xpress"]["pendentes"], m["shopee_xpress"]["prontos"], m["shopee_xpress"]["plataforma"]), (1, 1, "Shopee"))
         self.assertEqual((m["shopee_direta"]["pendentes"], m["shopee_direta"]["prontos"], m["shopee_direta"]["sem_dados"]), (1, 0, False))
         self.assertEqual(m["dba"]["plataforma"], "Amazon")
+        self.assertEqual((m["shopee_xpress"]["fonte"], m["dba"]["fonte"]), ("Bling", None))     # a tela avisa que a Shopee vem do Bling
 
     def test_shopee_com_pedido_em_uma_modalidade_a_outra_mostra_zero(self):
         m = mods([linha("shopee", "Shopee Xpress", "2026-11-05T12:00:00-03:00")])

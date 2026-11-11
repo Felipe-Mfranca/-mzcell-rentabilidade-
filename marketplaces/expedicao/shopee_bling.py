@@ -19,6 +19,8 @@ from marketplaces.expedicao import bling_checkout, cortes
 BRT = timezone(timedelta(hours=-3))
 CONTA_BLING = "bling01"
 ABERTOS = (6, 15)
+# Contagem começa em 10/11/2026 (pedido do usuário): os pedidos em aberto de antes ficam de fora da Expedição
+INICIO = "2026-11-10"
 # "Logistica Shopee" = Entrega Direta: leitura pelo prazo curto, a confirmar com o painel da Shopee
 SERVICOS = {"shopee xpress": "Shopee Xpress", "logistica shopee": "Entrega Direta"}
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -78,7 +80,8 @@ def _linha(p: dict, det: dict, hoje) -> dict:
     return {"conta": "shopee", "canal": det["canal"], "logistica": det["servico"], "pedido": p.get("numeroLoja"), "pacote": None, "envio": p.get("numeroLoja"),
             "unidades": sum(i["qtd"] or 0 for i in det["itens"]), "status": "bling", "substatus": None, "situacao": bling_checkout.SITUACOES.get(sit, str(sit)),
             "meta": _meta(det["canal"], hoje), "prazo_ml": None, "itens": det["itens"], "bling_numero": p.get("numero"),
-            "bling_situacao": bling_checkout.SITUACOES.get(sit, str(sit)), "bling_checkout": sit == bling_checkout.SITUACAO_VERIFICADO}
+            "bling_situacao": bling_checkout.SITUACOES.get(sit, str(sit)), "bling_checkout": sit == bling_checkout.SITUACAO_VERIFICADO,
+            "fonte": "Bling"}
 
 
 def linhas(agora: datetime = None) -> tuple:
@@ -96,6 +99,8 @@ def linhas(agora: datetime = None) -> tuple:
     for p in pedidos:
         pid, sit = str(p["id"]), p["situacao"]["id"]
         vistos.add(pid)
+        if str(p.get("data") or "") < INICIO:
+            continue
         if sit in ABERTOS:
             abertos.add(pid)
         elif sit == bling_checkout.SITUACAO_VERIFICADO:
