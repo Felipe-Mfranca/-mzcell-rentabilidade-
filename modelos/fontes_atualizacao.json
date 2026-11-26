@@ -1,0 +1,4 @@
+{
+ "_comentario": "Onde o MZ App instalado procura atualização, na ordem. O primeiro que responder vale. Contingência: acrescentar o PC reserva aqui.",
+ "fontes": ["http://192.168.15.200:8001", "http://100.76.93.35:8001"]
+}

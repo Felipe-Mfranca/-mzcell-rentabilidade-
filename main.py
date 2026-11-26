@@ -221,6 +221,11 @@ async def _sync_background(conta: str):
 
 @app.on_event("startup")
 async def startup():
+    try:   # PC instalado: busca versão nova no servidor da empresa (vale ao reabrir); no servidor não faz nada
+        import atualizador
+        atualizador.iniciar(BASE_DIR)
+    except Exception as e:
+        print(f"[startup] Aviso atualizador: {e}")
     asyncio.create_task(loop_refresh())
     asyncio.create_task(loop_sync_diario())
     # ROAS objetivo dos anúncios que ainda não têm o campo (segundo plano; não espera o ML)
@@ -1896,6 +1901,26 @@ async def get_versao():
     except FileNotFoundError:
         v = "?"
     return {"versao": v}
+
+
+@app.get("/atualizacao/manifesto")
+def atualizacao_manifesto():
+    """Versão commitada e SHA-256 dos arquivos que os PCs instalados baixam (só no servidor, que tem .git)."""
+    import atualizador
+    if not os.path.exists(os.path.join(BASE_DIR, ".git")):
+        raise HTTPException(status_code=404, detail="este PC não distribui atualizações")
+    return atualizador.manifesto(BASE_DIR)
+
+
+@app.get("/atualizacao/arquivo/{caminho:path}")
+def atualizacao_arquivo(caminho: str):
+    import atualizador
+    if not os.path.exists(os.path.join(BASE_DIR, ".git")):
+        raise HTTPException(status_code=404, detail="este PC não distribui atualizações")
+    dados = atualizador.conteudo(BASE_DIR, caminho)
+    if dados is None:
+        raise HTTPException(status_code=404, detail="arquivo fora da lista de atualização")
+    return Response(content=dados, media_type="application/octet-stream")
 
 
 @app.get("/sistema/houve-atualizacao")

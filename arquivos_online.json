@@ -113,5 +113,7 @@
  "marketplaces/balanco/geral.py",
  "marketplaces/balanco/geral.html",
  "marketplaces/expedicao/composicao.py",
- "marketplaces/expedicao/shopee_bling.py"
+ "marketplaces/expedicao/shopee_bling.py",
+ "atualizador.py",
+ "modelos/fontes_atualizacao.json"
 ]

@@ -19,7 +19,8 @@ from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 LOCAIS = {"127.0.0.1", "::1", "localhost", "testclient"}
 # sem login, de outro PC: só as telas de TV e o que elas carregam
 PERMITIDOS = ("/expedicao/tv", "/expedicao/painel", "/expedicao/dia", "/expedicao/bipar", "/montagem/tv", "/montagem/tv-full", "/tv", "/static",
-              "/sistema/versao", "/favicon")
+              "/sistema/versao", "/favicon",
+              "/atualizacao")   # PCs instalados baixam a versão commitada (lista fechada, sem dados nem credenciais; ver atualizador.py)
 # abrir uma destas telas sem login leva ao login e, depois dele, de volta à tela
 GESTAO = ("/expedicao", "/montagem")
 # sem login, de outro PC: a tela de login e o "esqueci a senha"
